@@ -1,0 +1,7 @@
+{
+  "identifier": "migrated",
+  "description": "Permissions for the main desktop window.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": ["core:default", "autostart:default", "window-state:default"]
+}

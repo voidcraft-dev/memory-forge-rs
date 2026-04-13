@@ -1,0 +1,40 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1430"
+  },
+  "productName": "Memory Forge",
+  "version": "3.0.0",
+  "identifier": "com.voidcraft.memoryforge",
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {},
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Memory Forge",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 720,
+        "minHeight": 500,
+        "center": true,
+        "dragDropEnabled": false
+      }
+    ]
+  }
+}

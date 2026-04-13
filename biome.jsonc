@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["ultracite/biome/core", "ultracite/biome/react"],
+  "files": {
+    "includes": [
+      // Shadcn UI components are often not out-of-the-box compatible with Biome's rules.
+      // So it's easier to just exclude them from linting and formatting.
+      "!**/components/ui"
+    ]
+  }
+}
