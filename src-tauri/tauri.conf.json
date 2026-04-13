@@ -6,11 +6,16 @@
     "devUrl": "http://localhost:1430"
   },
   "productName": "Memory Forge",
-  "version": "3.0.0",
+  "version": "3.0.3",
   "identifier": "com.voidcraft.memoryforge",
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "msi", "app", "dmg", "deb", "rpm", "appimage"],
+    "windows": {
+      "nsis": {
+        "installMode": "both"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
