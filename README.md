@@ -34,22 +34,22 @@ Memory Forge lets you modify AI's "memory" in Claude Code / Codex CLI / OpenCode
 ## 📸 Screenshots
 
 <div align="center">
-  <img src="images/1.png" alt="Dashboard" width="45%" />
-  <img src="images/2.png" alt="Session List" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/1.png" alt="Dashboard" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/2.png" alt="Session List" width="45%" />
 </div>
 
 <div align="center">
-  <img src="images/3.png" alt="Session Detail" width="45%" />
-  <img src="images/4.png" alt="Edit Log" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/3.png" alt="Session Detail" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/4.png" alt="Edit Log" width="45%" />
 </div>
 
 <div align="center">
-  <img src="images/5.png" alt="Themes" width="45%" />
-  <img src="images/6.png" alt="Multi Platform" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/5.png" alt="Themes" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/6.png" alt="Multi Platform" width="45%" />
 </div>
 
 <div align="center">
-  <img src="images/7.png" alt="Prompt Library" width="90%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/7.png" alt="Prompt Library" width="90%" />
 </div>
 
 ## ✨ What's New in v3
@@ -201,22 +201,22 @@ AI 对话走偏了？别重新开始 — 直接改掉历史记录。
 ## 📸 应用截图
 
 <div align="center">
-  <img src="images/1.png" alt="仪表盘" width="45%" />
-  <img src="images/2.png" alt="会话列表" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/1.png" alt="仪表盘" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/2.png" alt="会话列表" width="45%" />
 </div>
 
 <div align="center">
-  <img src="images/3.png" alt="会话详情" width="45%" />
-  <img src="images/4.png" alt="编辑日志" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/3.png" alt="会话详情" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/4.png" alt="编辑日志" width="45%" />
 </div>
 
 <div align="center">
-  <img src="images/5.png" alt="主题" width="45%" />
-  <img src="images/6.png" alt="多平台" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/5.png" alt="主题" width="45%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/6.png" alt="多平台" width="45%" />
 </div>
 
 <div align="center">
-  <img src="images/7.png" alt="提示词库" width="90%" />
+  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/7.png" alt="提示词库" width="90%" />
 </div>
 
 ## ✨ v3 新特性
