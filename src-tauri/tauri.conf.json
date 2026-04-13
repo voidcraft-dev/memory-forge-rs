@@ -11,10 +11,8 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi", "app", "dmg", "deb", "rpm", "appimage"],
-    "windows": {
-      "nsis": {
-        "installMode": "both"
-      }
+    "nsis": {
+      "installMode": "both"
     },
     "icon": [
       "icons/32x32.png",
