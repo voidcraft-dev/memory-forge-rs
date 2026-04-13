@@ -70,6 +70,7 @@ jobs:
             | 平台 | 文件 | 说明 |
             |------|------|------|
             | Windows | `*_x64-setup.exe` | 安装包（推荐） |
+            | Windows | `*_x64-portable.zip` | 便携版（解压即用） |
             | Windows | `*_x64_en-US.msi` | MSI 安装包 |
             | macOS | `*_universal.dmg` | 通用版（Intel + Apple Silicon） |
             | Linux | `*_amd64.AppImage` | 免安装，双击运行 |
@@ -77,3 +78,19 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.tauri-args }}
+
+      - name: Package Windows portable zip
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $exe = "src-tauri\target\release\memory-forge.exe"
+          $zip = "Memory.Forge_${{ github.ref_name }}_x64-portable.zip"
+          Compress-Archive -Path $exe -DestinationPath $zip
+          echo "PORTABLE_ZIP=$zip" >> $env:GITHUB_ENV
+
+      - name: Upload Windows portable zip to Release
+        if: matrix.platform == 'windows-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: ${{ env.PORTABLE_ZIP }}
