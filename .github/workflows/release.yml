@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: '--target x86_64-pc-windows-msvc'
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin --target x86_64-apple-darwin'
+          - platform: ubuntu-22.04
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build Tauri app (macOS universal)
+        if: matrix.platform == 'macos-latest'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Memory Forge ${{ github.ref_name }}'
+          releaseBody: |
+            ## Memory Forge ${{ github.ref_name }}
+
+            ### 下载 / Download
+
+            | 平台 | 文件 | 说明 |
+            |------|------|------|
+            | Windows | `*_x64-setup.exe` | 安装包（推荐） |
+            | Windows | `*_x64_en-US.msi` | MSI 安装包 |
+            | macOS | `*_universal.dmg` | 通用版（Intel + Apple Silicon） |
+            | Linux | `*_amd64.AppImage` | 免安装，双击运行 |
+            | Linux | `*_amd64.deb` | Debian/Ubuntu 安装包 |
+
+            ### 更新内容
+            See [CHANGELOG](https://github.com/voidcraft-dev/memory-forge-rs/commits/main) for details.
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin
+
+      - name: Build Tauri app
+        if: matrix.platform != 'macos-latest'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Memory Forge ${{ github.ref_name }}'
+          releaseBody: |
+            ## Memory Forge ${{ github.ref_name }}
+
+            ### 下载 / Download
+
+            | 平台 | 文件 | 说明 |
+            |------|------|------|
+            | Windows | `*_x64-setup.exe` | 安装包（推荐） |
+            | Windows | `*_x64_en-US.msi` | MSI 安装包 |
+            | macOS | `*_universal.dmg` | 通用版（Intel + Apple Silicon） |
+            | Linux | `*_amd64.AppImage` | 免安装，双击运行 |
+            | Linux | `*_amd64.deb` | Debian/Ubuntu 安装包 |
+
+            ### 更新内容
+            See [CHANGELOG](https://github.com/voidcraft-dev/memory-forge-rs/commits/main) for details.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
