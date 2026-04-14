@@ -13,7 +13,6 @@ import {
   Code,
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
-import { getThemeSpec } from "@/features/desktop/catalog";
 import { useDesktop } from "@/features/desktop/provider";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -29,9 +28,7 @@ const navigation = [
 ];
 
 export default function ShellLayout() {
-  const { snapshot, loading, saving, notice, error, t } = useDesktop();
-  const currentTheme = snapshot ? getThemeSpec(snapshot.settings.theme) : null;
-  const locale = snapshot?.settings.locale ?? "zh-CN";
+  const { snapshot, notice, error, t } = useDesktop();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
