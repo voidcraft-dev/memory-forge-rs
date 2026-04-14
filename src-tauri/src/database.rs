@@ -293,6 +293,26 @@ pub fn get_edit_log(conn: &Mutex<Connection>, platform: &str, session_key: &str)
     Ok(logs)
 }
 
+pub fn get_edit_log_by_id(conn: &Mutex<Connection>, id: i64) -> Result<EditLog, String> {
+    let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+    conn.query_row(
+        "SELECT id, platform, session_key, edit_target, old_content, new_content, created_at FROM edit_log WHERE id = ?1",
+        params![id],
+        |row| {
+            Ok(EditLog {
+                id: row.get(0)?,
+                platform: row.get(1)?,
+                session_key: row.get(2)?,
+                edit_target: row.get(3)?,
+                old_content: row.get(4)?,
+                new_content: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        },
+    )
+    .map_err(|e| format!("Edit log not found: {e}"))
+}
+
 // ─── Prompt CRUD ───
 
 pub fn list_prompts(conn: &Mutex<Connection>, search: Option<&str>, tag: Option<&str>) -> Result<Vec<Prompt>, String> {

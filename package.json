@@ -1,6 +1,6 @@
 {
   "name": "memory-forge-v3",
-  "version": "3.0.0",
+  "version": "3.0.8",
   "description": "Stop resetting. Start editing. — Local AI session manager for Claude Code, Codex CLI & OpenCode",
   "type": "module",
   "scripts": {
@@ -21,7 +21,8 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tailwindcss/vite": "^4.1.17",
-    "@tauri-apps/api": "^2.9.1",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-dialog": "^2.7.0",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.3.3",
     "class-variance-authority": "^0.7.1",

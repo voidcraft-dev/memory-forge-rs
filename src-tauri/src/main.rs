@@ -90,7 +90,22 @@ fn session_edit_log(
     session_service::session_edit_log(&db, &platform, &session_key)
 }
 
+#[tauri::command]
+fn session_restore_message(
+    db: tauri::State<'_, DbState>,
+    platform: String,
+    edit_log_id: i64,
+    session_key: String,
+) -> Result<(), String> {
+    session_service::session_restore_message(&db, &platform, edit_log_id, &session_key)
+}
+
 // ─── Prompt Commands ───
+
+#[tauri::command]
+fn write_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, &content).map_err(|e| e.to_string())
+}
 
 #[tauri::command]
 fn prompt_list(
@@ -150,6 +165,8 @@ fn main() {
             shell::show_main_window(app);
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None::<Vec<&'static str>>,
@@ -181,12 +198,14 @@ fn main() {
             app_bootstrap,
             app_settings_set,
             app_show_main_window,
+            write_text_file,
             dashboard_summary,
             session_list,
             session_detail,
             session_set_alias,
             session_edit_message,
             session_edit_log,
+            session_restore_message,
             // Prompts
             prompt_list,
             prompt_create,

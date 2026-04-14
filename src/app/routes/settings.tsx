@@ -33,16 +33,19 @@ export default function SettingsPage() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto pr-2">
-      <section className="flex flex-col gap-4 border-b border-border/80 pb-5 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-fine uppercase tracking-[0.28em] text-quiet">{t("settings")}</p>
-          <h2 className="mt-2 text-3xl font-semibold">Memory Forge</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-quiet">
-            {t("desktopBehaviorDesc")}
-          </p>
-        </div>
-        <div className="rounded-full border border-border/80 bg-white/5 px-4 py-2 text-sm text-quiet">
-          {saving ? "Saving..." : `${t("currentTheme")}: ${snapshot.settings.theme}`}
+      <section className="relative overflow-hidden rounded-[28px] border border-border/80 px-6 py-6 md:px-8 md:py-8">
+        <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),transparent_64%)] lg:block" />
+        <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-fine uppercase tracking-[0.28em] text-quiet">{t("settings")}</p>
+            <h2 className="mt-2 text-3xl font-semibold">Memory Forge</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-quiet">
+              {t("desktopBehaviorDesc")}
+            </p>
+          </div>
+          <div className="rounded-full border border-border/80 bg-white/5 px-4 py-2 text-sm text-quiet">
+            {saving ? "Saving..." : `${t("currentTheme")}: ${snapshot.settings.theme}`}
+          </div>
         </div>
       </section>
 
@@ -110,7 +113,7 @@ export default function SettingsPage() {
           </section>
 
           <section className="setting-card rounded-[24px] p-5">
-            <p className="text-fine uppercase tracking-[0.24em] text-quiet">Runtime snapshot</p>
+            <p className="text-fine uppercase tracking-[0.24em] text-quiet">{t("runtime")}</p>
             <div className="mt-4 space-y-3 text-sm">
               <MetaRow label={t("runtime")} value={snapshot.runtime === "tauri" ? t("runtimeTauri") : t("runtimeWebPreview")} />
               <MetaRow label={t("trayReady")} value={snapshot.trayAvailable ? t("toggleOn") : t("toggleOff")} />

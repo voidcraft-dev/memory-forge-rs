@@ -302,4 +302,11 @@ export const api = {
     const encodedKey = encodeURIComponent(sessionKey);
     return fetchJSON<EditLogEntry[]>(`${API_BASE}/platforms/${platform}/sessions/${encodedKey}/edit-log`);
   },
+
+  async restoreMessage(platform: string, editLogId: number, sessionKey: string) {
+    if (isTauriRuntime()) {
+      return invoke("session_restore_message", { platform, editLogId, sessionKey });
+    }
+    throw new Error("Restore not supported in web preview");
+  },
 };

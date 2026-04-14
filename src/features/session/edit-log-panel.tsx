@@ -3,10 +3,11 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useDesktop } from '@/features/desktop/provider'
 import { cn } from '@/lib/utils'
-import { FileText, ArrowRight, Clock, Eye, EyeOff } from 'lucide-react'
+import { FileText, ArrowRight, Clock, Eye, EyeOff, RefreshCw, CheckCircle, Undo2 } from 'lucide-react'
 import { useState } from 'react'
 import type { MessageKey } from '@/features/desktop/i18n'
 import type { EditLogEntry } from '@/features/desktop/types'
+import { api } from '@/features/desktop/api'
 
 function DiffView({ oldText, newText, t }: { oldText: string; newText: string; t: (key: MessageKey) => string }) {
   const [expanded, setExpanded] = useState(false)
@@ -46,6 +47,42 @@ export function EditLogPanel() {
   const selectedSessionKey = state.selectedSessionKey
   const showEditLog = state.showEditLog
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshDone, setRefreshDone] = useState(false)
+
+  const handleRefreshLog = async () => {
+    if (!selectedSessionKey) return
+    setRefreshing(true)
+    setRefreshDone(false)
+    try {
+      const logs = await api.getEditLog(currentPlatform, selectedSessionKey)
+      dispatch({ type: 'setEditLog', payload: logs })
+      setRefreshDone(true)
+      setTimeout(() => setRefreshDone(false), 1500)
+    } catch (err) {
+      console.error('Failed to refresh edit log:', err)
+    }
+    setRefreshing(false)
+  }
+
+  const handleRestore = async (entry: EditLogEntry) => {
+    if (!window.confirm(t('session.restoreConfirm'))) return
+    if (!selectedSessionKey) return
+    try {
+      await api.restoreMessage(currentPlatform, entry.id, selectedSessionKey)
+      // Refresh both edit log and session detail
+      const [logs, detail] = await Promise.all([
+        api.getEditLog(currentPlatform, selectedSessionKey),
+        api.getSessionDetail(currentPlatform, selectedSessionKey),
+      ])
+      dispatch({ type: 'setEditLog', payload: logs })
+      dispatch({ type: 'setSessionDetail', payload: detail })
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.messageSaved') } })
+    } catch (err) {
+      console.error('Failed to restore message:', err)
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
+    }
+  }
 
   if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings' || !selectedSessionKey) return null
   if (!showEditLog) return null
@@ -58,9 +95,14 @@ export function EditLogPanel() {
             <FileText className="w-5 h-5 text-amber-500" />
             {t('editLog.title')}
           </h2>
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => dispatch({ type: 'setShowEditLog', payload: false })}>
-            {t('editLog.collapse')}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" className={cn("h-7 gap-1 text-xs", refreshDone ? "text-green-400" : "")} onClick={handleRefreshLog} disabled={refreshing}>
+              {refreshDone ? <CheckCircle className="w-3.5 h-3.5" /> : <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />}
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => dispatch({ type: 'setShowEditLog', payload: false })}>
+              {t('editLog.collapse')}
+            </Button>
+          </div>
         </div>
         <p className="mt-1 text-xs text-muted-foreground/60">{t('editLog.readonlyTrace')}</p>
       </div>
@@ -91,17 +133,27 @@ export function EditLogPanel() {
                   {expandedId === entry.id ? (
                     <>
                       <DiffView oldText={entry.oldContent} newText={entry.newContent} t={t} />
-                      <Button variant="ghost" size="sm" className="mt-2 w-full text-xs" onClick={() => setExpandedId(null)}>
-                        <EyeOff className="w-3 h-3 mr-1" />{t('editLog.collapse')}
-                      </Button>
+                      <div className="flex gap-2 mt-2">
+                        <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setExpandedId(null)}>
+                          <EyeOff className="w-3 h-3 mr-1" />{t('editLog.collapse')}
+                        </Button>
+                        <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs border-blue-500/20 hover:bg-blue-500/10 hover:border-blue-500/30 text-blue-400" onClick={() => handleRestore(entry)}>
+                          <Undo2 className="w-3 h-3" />{t('session.restore')}
+                        </Button>
+                      </div>
                     </>
                   ) : (
                     <>
                       <p className="text-xs text-red-300/60 line-clamp-1 font-mono mb-1">- {entry.oldContent.slice(0, 80)}</p>
                       <p className="text-xs text-green-300/60 line-clamp-1 font-mono mb-2">+ {entry.newContent.slice(0, 80)}</p>
-                      <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs border-amber-500/20 hover:bg-amber-500/10 hover:border-amber-500/30" onClick={() => setExpandedId(entry.id)}>
-                        <Eye className="w-3 h-3" />{t('editLog.viewDetail')}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs border-amber-500/20 hover:bg-amber-500/10 hover:border-amber-500/30" onClick={() => setExpandedId(entry.id)}>
+                          <Eye className="w-3 h-3" />{t('editLog.viewDetail')}
+                        </Button>
+                        <Button variant="outline" size="sm" className="gap-1.5 text-xs border-blue-500/20 hover:bg-blue-500/10 hover:border-blue-500/30 text-blue-400" onClick={() => handleRestore(entry)}>
+                          <Undo2 className="w-3 h-3" />{t('session.restore')}
+                        </Button>
+                      </div>
                     </>
                   )}
                 </div>

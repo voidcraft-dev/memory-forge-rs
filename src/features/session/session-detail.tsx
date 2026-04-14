@@ -7,7 +7,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
-import { Clock, Pencil, Check, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle } from 'lucide-react'
+import { Clock, Pencil, Check, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2 } from 'lucide-react'
+import { save } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 
 export function SessionDetail() {
   const { t, state, dispatch } = useDesktop()
@@ -23,6 +25,7 @@ export function SessionDetail() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshDone, setRefreshDone] = useState(false)
+  const [exportDone, setExportDone] = useState(false)
 
   useEffect(() => {
     setAliasTitle(sessionDetail?.aliasTitle || '')
@@ -89,6 +92,21 @@ export function SessionDetail() {
     })
   }
 
+  const handleEraseBlock = async (block: typeof sessionDetail.blocks[0]) => {
+    if (!window.confirm(t('session.eraseConfirm'))) return
+    try {
+      await api.editMessage(currentPlatform, block.editTarget || block.id, '', sessionDetail.sessionKey)
+      const updatedBlocks = sessionDetail.blocks.map(b =>
+        (b.editTarget || b.id) === (block.editTarget || block.id) ? { ...b, content: '' } : b
+      )
+      dispatch({ type: 'setSessionDetail', payload: { ...sessionDetail, blocks: updatedBlocks } })
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.messageSaved') } })
+    } catch (err) {
+      console.error('Failed to erase message:', err)
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
+    }
+  }
+
   const handleRefresh = async () => {
     if (!selectedSessionKey) return
 
@@ -128,6 +146,60 @@ export function SessionDetail() {
     }
   }
 
+  const handleExportMarkdown = async () => {
+    if (!sessionDetail) return
+
+    const lines: string[] = []
+    lines.push(`# ${sessionDetail.title || sessionDetail.sessionId}`)
+    lines.push('')
+    lines.push(`- Platform: ${sessionDetail.platform}`)
+    lines.push(`- Session ID: ${sessionDetail.sessionId}`)
+    if (sessionDetail.cwd) {
+      lines.push(`- Working Dir: ${sessionDetail.cwd}`)
+    }
+    lines.push('')
+    lines.push('---')
+    lines.push('')
+
+    for (const block of sessionDetail.blocks) {
+      const roleLabel = block.role === 'user' ? 'User' : block.role === 'assistant' ? 'Assistant' : 'Thinking'
+      lines.push(`## ${roleLabel}`)
+      lines.push('')
+      lines.push(block.content)
+      lines.push('')
+      lines.push('---')
+      lines.push('')
+    }
+
+    const content = lines.join('\n')
+    const fileName = `${sessionDetail.title || sessionDetail.sessionId}.md`
+
+    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+
+    if (isTauri) {
+      const filePath = await save({
+        defaultPath: fileName,
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
+      })
+      if (!filePath) return
+      await invoke('write_text_file', { path: filePath, content })
+    } else {
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }
+
+    setExportDone(true)
+    dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.exported') } })
+    setTimeout(() => setExportDone(false), 2000)
+  }
+
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-gradient-to-br from-background via-background to-muted/10">
       <header className="border-b bg-card/50 px-5 py-4 backdrop-blur-xl md:px-6">
@@ -153,6 +225,12 @@ export function SessionDetail() {
                 {copiedKey === label ? <><Check className="w-3.5 h-3.5" /> {t('session.copied')}</> : label}
               </Button>
             ))}
+            <Button variant="ghost" size="sm"
+              className={cn("gap-2", exportDone ? "bg-green-500/10 text-green-400" : "hover:bg-blue-500/10")}
+              onClick={handleExportMarkdown}>
+              {exportDone ? <CheckCircle className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+              <span className="hidden sm:inline">{exportDone ? t('session.exported') : t('session.export')}</span>
+            </Button>
             <Button variant={showEditLog ? "secondary" : "ghost"} size="sm"
               className={cn("gap-2", showEditLog && "border border-amber-500/30 bg-amber-500/20 text-amber-400")}
               onClick={() => {
@@ -225,9 +303,9 @@ export function SessionDetail() {
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 md:p-6">
+        <div className="flex w-full flex-col gap-4 p-4 md:p-6">
           {filteredBlocks.map((block, index) => (
-            <MessageBlock key={block.id} block={block} index={index} onEdit={() => handleEditBlock(block)} t={t} />
+            <MessageBlock key={block.id} block={block} index={index} onEdit={() => handleEditBlock(block)} onErase={() => handleEraseBlock(block)} t={t} />
           ))}
         </div>
       </ScrollArea>
@@ -235,10 +313,11 @@ export function SessionDetail() {
   )
 }
 
-function MessageBlock({ block, index, onEdit, t }: {
+function MessageBlock({ block, index, onEdit, onErase, t }: {
   block: { role: string; content: string; id: string; editable?: boolean }
   index: number
   onEdit: () => void
+  onErase: () => void
   t: (key: MessageKey, params?: Record<string, string | number>) => string
 }) {
   const roleConfig = {
@@ -252,18 +331,18 @@ function MessageBlock({ block, index, onEdit, t }: {
   return (
     <div className={cn("group animate-in fade-in slide-in-from-bottom-2 duration-300", `rounded-r-2xl border-l-4 ${config.borderColor}`)}
       style={{ animationDelay: `${index * 50}ms` }}>
-      <div className={cn("ml-0 rounded-2xl rounded-l-none border border-border/50 bg-gradient-to-r p-5", `bg-gradient-to-b ${config.bgGradient}`)}>
-        <div className="flex items-start gap-4">
-          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg", config.iconBg)}>
-            <Icon className="w-5 h-5" />
+      <div className={cn("ml-0 rounded-2xl rounded-l-none border border-border/50 bg-gradient-to-r p-4", `bg-gradient-to-b ${config.bgGradient}`)}>
+        <div className="flex items-start gap-3">
+          <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg", config.iconBg)}>
+            <Icon className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-3">
               <Badge variant="outline" className={cn("text-xs", config.badgeClass)}>{config.label}</Badge>
               <span className="text-[10px] text-muted-foreground/50">#{index + 1}</span>
             </div>
-            <div className="rounded-xl p-4 bg-background/50 border border-border/30">
-              <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">{block.content}</pre>
+            <div className="overflow-hidden rounded-xl p-3 bg-background/50 border border-border/30">
+              <pre className="text-sm text-foreground whitespace-pre-wrap break-words font-mono leading-relaxed">{block.content}</pre>
             </div>
             <Button
               variant="outline"
@@ -272,6 +351,14 @@ function MessageBlock({ block, index, onEdit, t }: {
               onClick={(e) => { e.stopPropagation(); onEdit() }}
             >
               <Pencil className="w-3 h-3" />{t('session.editThisMessage')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 gap-1.5 border-red-500/30 bg-red-500/5 text-red-400 text-xs hover:bg-red-500/15 hover:text-red-300"
+              onClick={(e) => { e.stopPropagation(); onErase() }}
+            >
+              <Trash2 className="w-3 h-3" />{t('session.erase')}
             </Button>
           </div>
         </div>

@@ -1,10 +1,26 @@
-import { ArrowRight, Brain, Flame } from "lucide-react";
+import { useEffect } from "react";
+import { ArrowRight, Bot, Brain, Code, Flame, Terminal } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useDesktop } from "@/features/desktop/provider";
+import { api } from "@/features/desktop/api";
+
+const platformMeta = [
+  { key: "claude", label: "Claude Code", icon: Bot, to: "/claude", gradient: "from-violet-500/15 to-violet-600/5", border: "border-violet-500/30", iconBg: "bg-violet-500/20 text-violet-400" },
+  { key: "codex", label: "Codex CLI", icon: Terminal, to: "/codex", gradient: "from-emerald-500/15 to-emerald-600/5", border: "border-emerald-500/30", iconBg: "bg-emerald-500/20 text-emerald-400" },
+  { key: "opencode", label: "OpenCode", icon: Code, to: "/opencode", gradient: "from-sky-500/15 to-sky-600/5", border: "border-sky-500/30", iconBg: "bg-sky-500/20 text-sky-400" },
+] as const;
 
 export default function DashboardPage() {
-  const { snapshot, loading, t } = useDesktop();
+  const { snapshot, loading, t, state, dispatch } = useDesktop();
+
+  useEffect(() => {
+    api.getDashboard()
+      .then((data) => dispatch({ type: "setDashboard", payload: data }))
+      .catch(console.error);
+  }, [dispatch]);
+
+  const platforms = state.dashboard?.platforms ?? [];
 
   return (
     <div className="flex h-full flex-col overflow-y-auto pr-2">
@@ -13,15 +29,11 @@ export default function DashboardPage() {
         <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),transparent_64%)] lg:block" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-fine uppercase tracking-[0.28em] text-quiet">
-              Memory Forge
-            </p>
+            <p className="text-fine uppercase tracking-[0.28em] text-quiet">Memory Forge</p>
             <h2 className="mt-3 max-w-2xl text-3xl font-semibold leading-tight md:text-4xl">
               {t("welcomeTitle")}
             </h2>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-quiet">
-              {t("welcomeDesc")}
-            </p>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-quiet">{t("welcomeDesc")}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button asChild size="lg">
@@ -39,23 +51,39 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      {/* Platform Session Cards */}
+      <section className="mt-5 grid gap-4 md:grid-cols-3">
+        {platformMeta.map((pm) => {
+          const Icon = pm.icon;
+          const summary = platforms.find((p) => p.platform === pm.key);
+          const count = summary?.count ?? 0;
+          const latest = summary?.latest || "—";
+          return (
+            <Link
+              key={pm.key}
+              to={pm.to}
+              className={`setting-card rounded-[24px] border ${pm.border} bg-gradient-to-b ${pm.gradient} p-5 transition hover:scale-[1.02] hover:shadow-lg`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`inline-flex size-11 items-center justify-center rounded-2xl ${pm.iconBg}`}>
+                  <Icon className="size-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-quiet">{pm.label}</p>
+                  <p className="text-2xl font-bold">{count}</p>
+                </div>
+              </div>
+              <p className="mt-3 truncate text-xs text-quiet">最近活跃: {latest}</p>
+            </Link>
+          );
+        })}
+      </section>
+
       {/* Feature Cards */}
       <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <FeatureCard
-          icon={<Brain className="size-5" />}
-          title={t("memoryManipulation")}
-          description={t("memoryManipulationDesc")}
-        />
-        <FeatureCard
-          icon={<Flame className="size-5" />}
-          title={t("localFirst")}
-          description="100% 本地运行，零云端依赖。你的数据不会离开你的电脑。"
-        />
-        <FeatureCard
-          icon={<ArrowRight className="size-5" />}
-          title={t("multiPlatform")}
-          description="Claude Code / Codex CLI / OpenCode 统一管理，一个界面搞定。"
-        />
+        <FeatureCard icon={<Brain className="size-5" />} title={t("memoryManipulation")} description={t("memoryManipulationDesc")} />
+        <FeatureCard icon={<Flame className="size-5" />} title={t("localFirst")} description="100% 本地运行，零云端依赖。你的数据不会离开你的电脑。" />
+        <FeatureCard icon={<ArrowRight className="size-5" />} title={t("multiPlatform")} description="Claude Code / Codex CLI / OpenCode 统一管理，一个界面搞定。" />
       </section>
 
       {/* Quick Links */}
@@ -77,15 +105,7 @@ export default function DashboardPage() {
   );
 }
 
-function FeatureCard({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
+function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
     <article className="setting-card rounded-[24px] p-5">
       <div className="space-y-3">

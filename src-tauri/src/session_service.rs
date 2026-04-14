@@ -143,6 +143,18 @@ pub fn session_edit_log(
     database::get_edit_log(&db.conn, platform, session_key)
 }
 
+pub fn session_restore_message(
+    db: &DbState,
+    platform: &str,
+    edit_log_id: i64,
+    session_key: &str,
+) -> Result<(), String> {
+    let log = database::get_edit_log_by_id(&db.conn, edit_log_id)?;
+    // Restore by setting content back to old_content
+    // session_edit_message will automatically log this as a new edit
+    session_edit_message(db, platform, &log.edit_target, &log.old_content, session_key)
+}
+
 fn format_timestamp(value: &str) -> String {
     let text = value.trim();
     if text.is_empty() {

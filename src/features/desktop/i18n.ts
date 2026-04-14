@@ -128,6 +128,12 @@ export type MessageKey =
   | "session.filter.assistant"
   | "session.filter.thinking"
   | "session.totalMessages"
+  | "session.export"
+  | "session.exported"
+  | "session.erase"
+  | "session.eraseConfirm"
+  | "session.restore"
+  | "session.restoreConfirm"
   // Edit Log
   | "editLog.title"
   | "editLog.collapse"
@@ -140,7 +146,9 @@ export type MessageKey =
   | "editLog.expand"
   | "editLog.viewDetail"
   | "editLog.traceTitle"
-  | "editLog.traceDesc";
+  | "editLog.traceDesc"
+  | "sidebar.collapse"
+  | "sidebar.expand";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -263,6 +271,12 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.filter.assistant": "助手",
     "session.filter.thinking": "思考",
     "session.totalMessages": "共 {count} 条消息",
+    "session.export": "导出",
+    "session.exported": "已导出",
+    "session.erase": "擦除此消息",
+    "session.eraseConfirm": "确定擦除这条消息的内容吗？此操作不可撤销。",
+    "session.restore": "复原",
+    "session.restoreConfirm": "确定复原这条消息到修改前的内容吗？复原也会记录在修改记录中。",
     "editLog.title": "修改记录",
     "editLog.collapse": "收起",
     "editLog.readonlyTrace": "只读审计日志",
@@ -275,6 +289,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "editLog.viewDetail": "查看详情",
     "editLog.traceTitle": "修改追溯",
     "editLog.traceDesc": "每次编辑都会记录原始内容和新内容，支持 diff 对比。",
+    "sidebar.collapse": "收起菜单",
+    "sidebar.expand": "展开菜单",
   },
   en: {
     appName: "Memory Forge",
@@ -396,6 +412,12 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.filter.assistant": "Assistant",
     "session.filter.thinking": "Thinking",
     "session.totalMessages": "{count} messages",
+    "session.export": "Export",
+    "session.exported": "Exported",
+    "session.erase": "Erase Message",
+    "session.eraseConfirm": "Are you sure you want to erase this message? This cannot be undone.",
+    "session.restore": "Restore",
+    "session.restoreConfirm": "Restore this message to its previous content? The restore will also be recorded in the edit log.",
     "editLog.title": "Edit Log",
     "editLog.collapse": "Collapse",
     "editLog.readonlyTrace": "Read-only audit trail",
@@ -408,6 +430,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "editLog.viewDetail": "View detail",
     "editLog.traceTitle": "Edit Trace",
     "editLog.traceDesc": "Each edit records the original and new content with diff comparison.",
+    "sidebar.collapse": "Collapse",
+    "sidebar.expand": "Expand",
   },
 };
 

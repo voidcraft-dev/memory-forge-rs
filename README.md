@@ -1,17 +1,26 @@
 <div align="center">
 
-# 🔥 Memory Forge v3
+<img src="images/logo.jpg" alt="Memory Forge" width="128" />
 
-**Stop resetting. Start editing.**
+# Memory Forge RS
 
-本地 AI 会话管理工具 — 改写 AI 记忆，精准操控对话历史
+### Stop resetting satisfying AI chats. Edit the memory instead.
+
+别重开了，直接改记忆。
+
+<br />
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tauri](https://img.shields.io/badge/Tauri-v2-FFC131?logo=tauri&logoColor=black)](https://tauri.app)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![Rust](https://img.shields.io/badge/Rust-backend-CE422B?logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 
 **[English](#english)** · **[中文](#中文)**
+
+<br />
+
+<img src="images/1.png" alt="Memory Forge Dashboard" width="80%" />
 
 </div>
 
@@ -19,65 +28,102 @@
 
 <a id="english"></a>
 
-## What is Memory Forge v3?
+## The Problem
 
-**Stop resetting. Start editing.**
+You've spent 40 minutes guiding Claude Code through a complex refactor. It's going great — until the AI hallucinates a wrong assumption and spirals. Now every response builds on that mistake.
 
-AI went off track? Don't restart — edit the history directly.
+**Your options before Memory Forge:**
+- Restart the session and lose all context
+- Manually re-explain everything
+- Give up and work around the error
 
-Memory Forge lets you modify AI's "memory" in Claude Code / Codex CLI / OpenCode: inject context, fix errors, remove noise, then seamlessly continue the conversation.
+**With Memory Forge:**
+- Open the conversation, find the wrong message, edit it directly
+- The AI picks up from the corrected history as if it never happened
+- Continue the conversation seamlessly
 
-**v3 is a full rewrite** — the Python backend is gone. Everything now runs in Rust inside a single native desktop app. No Python, no server, no ports. Just open and use.
+## What is Memory Forge?
 
-**100% local, zero cloud dependency.** Your data never leaves your machine.
+A **local desktop app** that lets you browse, edit, and manage AI coding assistant sessions.
 
-## 📸 Screenshots
+Works with **Claude Code**, **Codex CLI**, and **OpenCode** — all in one unified interface.
+
+Built with **Tauri v2 + Rust**. No Python, no server, no cloud. 100% local.
+
+## Use Cases
+
+| Scenario | What you do |
+|----------|------------|
+| AI made a wrong assumption 3 messages ago | Edit that message, fix the assumption |
+| AI forgot important context mid-conversation | Inject context into an earlier message |
+| The conversation has too much noise | Erase irrelevant messages |
+| Need to review what you discussed with AI | Browse & search sessions visually |
+| Want to share a conversation | Export to Markdown with one click |
+| Reuse the same prompt pattern | Save it to the Prompt Library |
+
+## Quick Start
+
+**1. Download** → Grab the [latest release](../../releases) for your platform
+
+**2. Open** → Launch the app (no config needed, reads from local AI data)
+
+**3. Edit** → Browse sessions, click any message, edit and save
+
+That's it. Your AI picks up the corrected memory on the next `--resume`.
+
+## Screenshots
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/1.png" alt="Dashboard" width="45%" />
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/2.png" alt="Session List" width="45%" />
+<table>
+<tr>
+<td align="center"><b>Session Browsing</b></td>
+<td align="center"><b>Message Editing</b></td>
+</tr>
+<tr>
+<td><img src="images/2.png" alt="Browse sessions with conversation detail" width="100%" /></td>
+<td><img src="images/3.png" alt="Edit any message in conversation history" width="100%" /></td>
+</tr>
+<tr>
+<td align="center"><b>Edit Audit Log</b></td>
+<td align="center"><b>Multi-Platform (Codex)</b></td>
+</tr>
+<tr>
+<td><img src="images/4.png" alt="Before/after diff comparison for every edit" width="100%" /></td>
+<td><img src="images/5.png" alt="Codex CLI sessions in unified view" width="100%" /></td>
+</tr>
+<tr>
+<td align="center"><b>Settings & Themes</b></td>
+<td align="center"><b>Prompt Library</b></td>
+</tr>
+<tr>
+<td><img src="images/6.png" alt="4 themes, language toggle, desktop behavior" width="100%" /></td>
+<td><img src="images/7.png" alt="Tag-based prompt management with one-click copy" width="100%" /></td>
+</tr>
+</table>
 </div>
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/3.png" alt="Session Detail" width="45%" />
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/4.png" alt="Edit Log" width="45%" />
-</div>
+## Features
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/5.png" alt="Themes" width="45%" />
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/6.png" alt="Multi Platform" width="45%" />
-</div>
+**Core**
+- **Memory Manipulation** — Edit any message in AI conversation history, then seamlessly continue
+- **Erase & Inject** — Remove noise or inject missing context into past messages
+- **Edit Audit Log** — Every edit is tracked with before/after diff, fully traceable
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/7.png" alt="Prompt Library" width="90%" />
-</div>
+**Session Management**
+- **Multi-platform** — Claude Code / Codex CLI / OpenCode in one unified view
+- **Dashboard** — Session stats + 7-day trend chart across all platforms
+- **Session Aliases** — Give sessions memorable names for quick lookup
+- **Quick Commands** — One-click copy for `--resume` and `--fork` commands
+- **Markdown Export** — Export full conversations as `.md` files
 
-## ✨ What's New in v3
+**App Experience**
+- **4 Themes** — Graphite (dark) · Linen (light) · Ocean (dark) · Ember (dark)
+- **Bilingual** — 简体中文 / English
+- **Prompt Library** — Save, tag, search & copy frequently used prompts
+- **System Tray** — Close to tray, launch on startup
+- **100% Local** — Zero network calls, your data stays on your machine
 
-| | v2 | v3 |
-|---|---|---|
-| **Backend** | Python + FastAPI | Rust (built into Tauri) |
-| **Startup** | Launch Python server first | Open app, done |
-| **Dependencies** | Node.js + Python + Rust | Node.js + Rust only |
-| **Themes** | Dark / Light | 4 themes: Graphite · Linen · Ocean · Ember |
-| **i18n** | — | 中文 / English |
-| **Tray** | — | ✅ Close to tray, launch on startup |
-
-## ✨ Features
-
-- 🧠 **Memory Manipulation** — Edit any message in AI conversation history. Inject context, remove noise, fix AI's wrong assumptions — then seamlessly continue the session.
-- 📊 **Dashboard** — Session statistics + 7-day trend chart across all platforms
-- 💬 **Multi-platform** — Claude Code / Codex CLI / OpenCode in one unified view
-- 📝 **Edit audit log** — Read-only change tracking for every edit you make
-- 🏷️ **Session aliases** — Give sessions memorable names
-- 📋 **Quick command copy** — Resume / Fork commands one-click copy
-- 🎨 **4 Themes** — Graphite (dark) · Linen (light) · Ocean (dark) · Ember (dark)
-- 🌐 **Bilingual** — 简体中文 / English
-- 📚 **Prompt Library** — Save, tag, search & one-click copy frequently used prompts
-- 🖥️ **System tray** — Close to tray, launch on startup
-- 🔒 **100% local** — No data leaves your computer, no Python, no server
-
-## 🖥️ Supported Platforms
+## Supported Platforms
 
 | Platform | Resume Command | Fork Command | Data Path |
 |----------|---------------|--------------|-----------|
@@ -85,64 +131,37 @@ Memory Forge lets you modify AI's "memory" in Claude Code / Codex CLI / OpenCode
 | **Codex CLI** | `codex resume <id>` | — | `~/.codex` |
 | **OpenCode** | `opencode -s <id>` | `opencode -s <id> --fork` | `~/.local/share/opencode/opencode.db` |
 
-## 📦 Installation
+## Installation
 
 ### Desktop App (Recommended)
 
-Download the latest release for your platform:
+| Platform | Format |
+|----------|--------|
+| **Windows** | `.exe` installer / `.zip` portable |
+| **macOS** | `.dmg` |
+| **Linux** | `.AppImage` / `.deb` |
 
-| Platform | Format | Notes |
-|----------|--------|-------|
-| **Windows** | `.exe` installer / `.zip` portable | NSIS installer or unzip & run |
-| **macOS** | `.dmg` | Drag to Applications |
-| **Linux** | `.AppImage` / `.deb` | AppImage is portable, no install needed |
-
-> Check the [Releases](../../releases) page for downloads.
+> **[Download Latest Release →](../../releases)**
 
 ### Build from Source
 
-#### Prerequisites
-
-- [Node.js](https://nodejs.org) 18+
-- [Rust](https://rustup.rs) + Tauri CLI prerequisites ([guide](https://tauri.app/start/prerequisites/))
-
 ```bash
+# Prerequisites: Node.js 18+, Rust, Tauri CLI
+# See https://tauri.app/start/prerequisites/
+
 git clone https://github.com/voidcraft-dev/memory-forge-rs
 cd memory-forge-rs
 npm install
 npm run tauri build
 ```
 
-#### Development
+Development:
 
 ```bash
 npm run tauri dev
 ```
 
-## 🏗️ Project Structure
-
-```
-memory-forge-rs/
-├── src/                    # React frontend
-│   ├── app/
-│   │   ├── routes/         # Page components
-│   │   ├── router.tsx      # Route definitions
-│   │   └── provider.tsx    # Global providers
-│   ├── features/
-│   │   ├── desktop/        # Tauri API bridge, state, i18n
-│   │   ├── session/        # Session list & detail views
-│   │   └── prompts/        # Prompt library UI
-│   └── components/         # Shared UI components (shadcn/ui)
-├── src-tauri/              # Rust backend
-│   └── src/
-│       ├── main.rs         # Tauri commands & app setup
-│       ├── database.rs     # SQLite (prompt library)
-│       ├── settings.rs     # App settings persistence
-│       └── shell.rs        # Tray, window management
-└── package.json
-```
-
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technologies |
 |-------|-------------|
@@ -151,100 +170,171 @@ memory-forge-rs/
 | **Desktop** | Tauri v2 |
 | **Tooling** | Biome · Husky · lint-staged |
 
-## 🤝 Contributing
+## Project Structure
 
-Contributions are welcome! Feel free to:
+```
+memory-forge-rs/
+├── src/                    # React frontend
+│   ├── app/routes/         # Page components
+│   ├── features/
+│   │   ├── desktop/        # Tauri API bridge, state, i18n
+│   │   ├── session/        # Session list & detail views
+│   │   └── prompts/        # Prompt library UI
+│   └── components/         # Shared UI (shadcn/ui)
+├── src-tauri/              # Rust backend
+│   └── src/
+│       ├── main.rs         # Tauri commands & app setup
+│       ├── database.rs     # SQLite (prompt library)
+│       ├── settings.rs     # Settings persistence
+│       └── shell.rs        # Tray, window management
+└── package.json
+```
+
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Commit your changes
+4. Push and open a Pull Request
 
-## 📄 License
+## License
 
-This project is licensed under the [MIT License](LICENSE).
+[MIT](LICENSE)
 
-## 🌍 Community
+## Community
 
-Thank you to the LINUX DO community for your support!
-感谢 LINUX DO 社区的支持！
+<div align="center">
 
 <a href="https://linux.do">
   <img src="https://img.shields.io/badge/LINUX%20DO-Community-6366f1?logo=discourse&logoColor=white" alt="LINUX DO" />
 </a>
 
-Tech discussions, AI frontiers, AI experience sharing — all at [LINUX DO](https://linux.do)!
+Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 
-## 👤 Author
+**QQ Group**
+
+<img src="images/qq群.png" alt="QQ Group" width="180" />
+
+</div>
+
+## Author
 
 **VoidCraft** — [GitHub](https://github.com/voidcraft-dev)
-
-> *Full-stack developer | AI tools & automation | Building things from the void ✦*
 
 ---
 
 <a id="中文"></a>
 
-## 什么是记忆锻造 v3？
-
-**停止重开，直接编辑。**
-
-AI 对话走偏了？别重新开始 — 直接改掉历史记录。
-
-记忆锻造让你在 Claude Code / Codex CLI / OpenCode 中直接编辑 AI 的"记忆"：注入上下文、纠正错误、删除废话，然后无缝继续对话。
-
-**v3 是完全重写版** — Python 后端已经消失。所有逻辑现在都跑在 Tauri 内嵌的 Rust 里，打包成单一原生桌面应用。没有 Python，没有服务器，没有端口。打开即用。
-
-**100% 本地运行，零云端依赖。** 你的数据不会离开你的电脑。
-
-## 📸 应用截图
-
 <div align="center">
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/1.png" alt="仪表盘" width="45%" />
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/2.png" alt="会话列表" width="45%" />
+
+<img src="images/logo.jpg" alt="Memory Forge" width="128" />
+
+# 记忆锻造 RS
+
+### 别重开了，直接改记忆。
+
+<br />
+
+<img src="images/1.png" alt="记忆锻造仪表盘" width="80%" />
+
 </div>
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/3.png" alt="会话详情" width="45%" />
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/4.png" alt="编辑日志" width="45%" />
-</div>
+## 痛点
+
+你花了 40 分钟让 Claude Code 做一个复杂的重构，进展顺利 — 直到 AI 在某条消息里产生了一个错误假设，之后每条回复都在错误的基础上越跑越偏。
+
+**没有记忆锻造：**
+- 重开会话，丢失所有上下文
+- 手动把之前讲过的东西重新解释一遍
+- 将就着用，绕过错误
+
+**有了记忆锻造：**
+- 打开会话，找到那条错误消息，直接改掉
+- AI 从修正后的历史继续，就像那个错误从未发生
+- 无缝继续对话
+
+## 什么是记忆锻造？
+
+一个**本地桌面应用**，让你浏览、编辑、管理 AI 编程助手的会话记录。
+
+支持 **Claude Code**、**Codex CLI** 和 **OpenCode** — 统一界面管理。
+
+**Tauri v2 + Rust** 构建。没有 Python，没有服务器，没有云端。100% 本地运行。
+
+## 使用场景
+
+| 场景 | 你可以做什么 |
+|------|------------|
+| AI 在 3 条消息前做了错误假设 | 直接编辑那条消息，修正假设 |
+| AI 对话到一半忘了重要上下文 | 往早期消息中注入上下文 |
+| 对话里有太多废话噪音 | 擦除无关消息 |
+| 想回顾跟 AI 讨论了什么 | 可视化浏览和搜索会话 |
+| 想分享一段对话 | 一键导出为 Markdown |
+| 经常用同样的 prompt 模式 | 保存到提示词库 |
+
+## 快速开始
+
+**1. 下载** → 从 [Releases](../../releases) 下载对应平台安装包
+
+**2. 打开** → 启动应用（无需配置，自动读取本地 AI 数据）
+
+**3. 编辑** → 浏览会话，点击任意消息，编辑保存
+
+就这样。AI 在下次 `--resume` 时会基于修正后的记忆继续。
+
+## 应用截图
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/5.png" alt="主题" width="45%" />
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/6.png" alt="多平台" width="45%" />
+<table>
+<tr>
+<td align="center"><b>会话浏览</b></td>
+<td align="center"><b>消息编辑</b></td>
+</tr>
+<tr>
+<td><img src="images/2.png" alt="Claude 会话列表与对话详情" width="100%" /></td>
+<td><img src="images/3.png" alt="编辑对话历史中的任意消息" width="100%" /></td>
+</tr>
+<tr>
+<td align="center"><b>修改追溯</b></td>
+<td align="center"><b>多平台（Codex）</b></td>
+</tr>
+<tr>
+<td><img src="images/4.png" alt="每次编辑的前后对比 diff" width="100%" /></td>
+<td><img src="images/5.png" alt="Codex CLI 会话统一视图" width="100%" /></td>
+</tr>
+<tr>
+<td align="center"><b>设置与主题</b></td>
+<td align="center"><b>提示词库</b></td>
+</tr>
+<tr>
+<td><img src="images/6.png" alt="4套主题、语言切换、桌面行为" width="100%" /></td>
+<td><img src="images/7.png" alt="标签化提示词管理，一键复制" width="100%" /></td>
+</tr>
+</table>
 </div>
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/voidcraft-dev/memory-forge-rs/main/images/7.png" alt="提示词库" width="90%" />
-</div>
+## 功能特性
 
-## ✨ v3 新特性
+**核心能力**
+- **记忆操控** — 编辑 AI 对话历史中的任意消息，然后无缝继续
+- **擦除 & 注入** — 删除噪音或往历史消息中注入缺失的上下文
+- **修改追溯** — 每次编辑都有前后 diff 对比，完整可追溯
 
-| | v2 | v3 |
-|---|---|---|
-| **后端** | Python + FastAPI | Rust（内嵌 Tauri） |
-| **启动方式** | 先启动 Python 服务 | 打开应用即可 |
-| **依赖** | Node.js + Python + Rust | 仅 Node.js + Rust |
-| **主题** | 暗色 / 亮色 | 4 套主题：石墨 · 亚麻 · 海湾 · 余烬 |
-| **多语言** | — | 简体中文 / English |
-| **系统托盘** | — | ✅ 关闭到托盘、开机自启 |
+**会话管理**
+- **多平台统一** — Claude Code / Codex CLI / OpenCode 一个界面搞定
+- **仪表盘** — 跨平台会话统计 + 7 天趋势图
+- **会话别名** — 给会话起容易记的名字
+- **快捷命令** — `--resume` 和 `--fork` 一键复制
+- **Markdown 导出** — 完整对话导出为 `.md` 文件
 
-## ✨ 功能特性
+**使用体验**
+- **4 套主题** — 石墨（深色）· 亚麻（浅色）· 海湾（深色）· 余烬（深色）
+- **双语界面** — 简体中文 / English
+- **提示词库** — 保存、标签、搜索常用提示词，一键复制
+- **系统托盘** — 关闭到托盘、开机自启
+- **纯本地** — 零网络请求，数据不离开你的电脑
 
-- 🧠 **记忆操控** — 编辑 AI 对话历史中的任意消息。注入上下文、删除噪音、纠正 AI 的错误假设 — 然后无缝继续会话。
-- 📊 **仪表盘统计** — 跨平台会话数量 + 7 天趋势图
-- 💬 **多平台会话浏览** — Claude Code / Codex CLI / OpenCode 统一视图
-- 📝 **修改记录追溯** — 每次编辑都有只读审计日志
-- 🏷️ **会话别名** — 给会话起一个容易记的名字
-- 📋 **快捷命令复制** — Resume / Fork 命令一键复制
-- 🎨 **4 套主题** — 石墨夜色（深色）· 亚麻纸感（浅色）· 海湾青蓝（深色）· 余烬铜红（深色）
-- 🌐 **双语界面** — 简体中文 / English
-- 📚 **提示词库** — 保存、标签、搜索常用提示词，支持一键复制
-- 🖥️ **系统托盘** — 关闭到托盘、开机自启
-- 🔒 **纯本地运行** — 数据不离开你的电脑，无 Python，无服务器
-
-## 🖥️ 支持平台
+## 支持平台
 
 | 平台 | 恢复命令 | 分支命令 | 数据路径 |
 |------|---------|---------|---------|
@@ -252,64 +342,37 @@ AI 对话走偏了？别重新开始 — 直接改掉历史记录。
 | **Codex CLI** | `codex resume <id>` | — | `~/.codex` |
 | **OpenCode** | `opencode -s <id>` | `opencode -s <id> --fork` | `~/.local/share/opencode/opencode.db` |
 
-## 📦 安装方式
+## 安装方式
 
 ### 桌面应用（推荐）
 
-下载对应平台的最新版本：
+| 平台 | 格式 |
+|------|------|
+| **Windows** | `.exe` 安装包 / `.zip` 便携版 |
+| **macOS** | `.dmg` |
+| **Linux** | `.AppImage` / `.deb` |
 
-| 平台 | 格式 | 说明 |
-|------|------|------|
-| **Windows** | `.exe` 安装包 / `.zip` 便携版 | NSIS 安装包或解压即用 |
-| **macOS** | `.dmg` | 拖入 Applications 即可 |
-| **Linux** | `.AppImage` / `.deb` | AppImage 免安装，双击运行 |
-
-> 前往 [Releases](../../releases) 页面下载。
+> **[下载最新版 →](../../releases)**
 
 ### 从源码构建
 
-#### 前置要求
-
-- [Node.js](https://nodejs.org) 18+
-- [Rust](https://rustup.rs) + Tauri CLI 前置依赖（[安装指南](https://tauri.app/start/prerequisites/)）
-
 ```bash
+# 前置要求：Node.js 18+, Rust, Tauri CLI
+# 参考 https://tauri.app/start/prerequisites/
+
 git clone https://github.com/voidcraft-dev/memory-forge-rs
 cd memory-forge-rs
 npm install
 npm run tauri build
 ```
 
-#### 开发模式
+开发模式：
 
 ```bash
 npm run tauri dev
 ```
 
-## 🏗️ 项目结构
-
-```
-memory-forge-rs/
-├── src/                    # React 前端
-│   ├── app/
-│   │   ├── routes/         # 页面组件
-│   │   ├── router.tsx      # 路由定义
-│   │   └── provider.tsx    # 全局 Provider
-│   ├── features/
-│   │   ├── desktop/        # Tauri API 桥接、状态管理、i18n
-│   │   ├── session/        # 会话列表 & 详情视图
-│   │   └── prompts/        # 提示词库 UI
-│   └── components/         # 共享 UI 组件（shadcn/ui）
-├── src-tauri/              # Rust 后端
-│   └── src/
-│       ├── main.rs         # Tauri 命令注册 & 应用初始化
-│       ├── database.rs     # SQLite（提示词库）
-│       ├── settings.rs     # 应用设置持久化
-│       └── shell.rs        # 托盘、窗口管理
-└── package.json
-```
-
-## 🛠️ 技术栈
+## 技术栈
 
 | 层级 | 技术 |
 |------|------|
@@ -318,33 +381,53 @@ memory-forge-rs/
 | **桌面** | Tauri v2 |
 | **工具链** | Biome · Husky · lint-staged |
 
-## 🤝 参与贡献
+## 项目结构
 
-欢迎贡献！你可以：
+```
+memory-forge-rs/
+├── src/                    # React 前端
+│   ├── app/routes/         # 页面组件
+│   ├── features/
+│   │   ├── desktop/        # Tauri API 桥接、状态管理、i18n
+│   │   ├── session/        # 会话列表 & 详情视图
+│   │   └── prompts/        # 提示词库 UI
+│   └── components/         # 共享 UI（shadcn/ui）
+├── src-tauri/              # Rust 后端
+│   └── src/
+│       ├── main.rs         # Tauri 命令注册 & 应用初始化
+│       ├── database.rs     # SQLite（提示词库）
+│       ├── settings.rs     # 设置持久化
+│       └── shell.rs        # 托盘、窗口管理
+└── package.json
+```
+
+## 参与贡献
 
 1. Fork 本仓库
 2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 发起 Pull Request
+3. 提交更改
+4. 推送并发起 Pull Request
 
-## 📄 开源协议
+## 开源协议
 
-本项目基于 [MIT 协议](LICENSE) 开源。
+[MIT](LICENSE)
 
-## 🌍 社区
+## 社区
 
-感谢 LINUX DO 社区的支持！
-Thank you to the LINUX DO community for your support!
+<div align="center">
 
 <a href="https://linux.do">
   <img src="https://img.shields.io/badge/LINUX%20DO-Community-6366f1?logo=discourse&logoColor=white" alt="LINUX DO" />
 </a>
 
-技术讨论、人工智能前沿、AI 工具体验分享——尽在 [LINUX DO](https://linux.do)！
+技术讨论、AI 工具体验分享——尽在 [LINUX DO](https://linux.do)
 
-## 👤 作者
+**QQ 交流群**
+
+<img src="images/qq群.png" alt="QQ 交流群" width="180" />
+
+</div>
+
+## 作者
 
 **VoidCraft** — [GitHub](https://github.com/voidcraft-dev)
-
-> *Full-stack developer | AI tools & automation | Building things from the void ✦*

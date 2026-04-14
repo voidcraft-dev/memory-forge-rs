@@ -30,8 +30,8 @@ pub fn show_main_window(app: &AppHandle) {
 pub fn setup_tray(app: &AppHandle) -> Result<(), tauri::Error> {
     TRAY_AVAILABLE.store(false, Ordering::Relaxed);
 
-    let show_main = MenuItem::with_id(app, TRAY_SHOW_MAIN, "Show window", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, TRAY_QUIT, "Quit", true, None::<&str>)?;
+    let show_main = MenuItem::with_id(app, TRAY_SHOW_MAIN, "显示主窗口", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, TRAY_QUIT, "退出", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_main, &quit])?;
 
     let mut tray = TrayIconBuilder::with_id("vk-starter-tray")

@@ -3,5 +3,5 @@
   "description": "Permissions for the main desktop window.",
   "local": true,
   "windows": ["main"],
-  "permissions": ["core:default", "autostart:default", "window-state:default"]
+  "permissions": ["core:default", "autostart:default", "window-state:default", "dialog:default", "shell:allow-open"]
 }

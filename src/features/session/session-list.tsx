@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
-import { RefreshCw, Search, CheckCircle } from 'lucide-react'
+import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen } from 'lucide-react'
 import type { Session } from '@/features/desktop/types'
 
 function formatTime(timestamp: string, justNowLabel: string): string {
@@ -23,6 +23,21 @@ function formatTime(timestamp: string, justNowLabel: string): string {
     if (hours < 24) return `${Math.floor(hours)}h`
     if (hours < 48) return '1d'
     return `${Math.floor(hours / 24)}d`
+  } catch {
+    return ''
+  }
+}
+
+function formatDateTime(timestamp: string): string {
+  try {
+    const num = parseInt(timestamp)
+    let date: Date
+    if (num > 10 ** 17) date = new Date(num / 1_000_000)
+    else if (num > 10 ** 15) date = new Date(num / 1_000)
+    else if (num > 10 ** 12) date = new Date(num)
+    else date = new Date(num * 1000)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   } catch {
     return ''
   }
@@ -118,7 +133,7 @@ export function SessionList() {
   }
 
   return (
-    <aside className="flex h-full w-[320px] flex-shrink-0 flex-col border-r border-border/50 bg-gradient-to-b from-card to-card/55 backdrop-blur-xl xl:w-[360px]">
+    <aside className="flex h-full w-[280px] flex-shrink-0 flex-col border-r border-border/50 bg-gradient-to-b from-card to-card/55 backdrop-blur-xl xl:w-[320px]">
       <div className="border-b border-border/50 p-4 md:p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="font-semibold text-foreground text-lg">
@@ -179,6 +194,17 @@ function SessionCard({ session, isSelected, onClick, justNowLabel, untitledLabel
 }) {
   const platform = session.platform || 'claude'
   const borderColor = platformBorderColors[platform as keyof typeof platformBorderColors] || platformBorderColors.claude
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyCwd = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!session.cwd) return
+    try {
+      await navigator.clipboard.writeText(session.cwd)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* ignore */ }
+  }
 
   return (
     <div
@@ -191,7 +217,7 @@ function SessionCard({ session, isSelected, onClick, justNowLabel, untitledLabel
           : cn("border-border/50 hover:border-border hover:from-muted/50", borderColor)
       )}
     >
-      <div className="flex items-start justify-between gap-3 mb-2">
+      <div className="flex items-start justify-between gap-2 mb-2 min-w-0">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span className={cn(
             "w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-lg",
@@ -199,7 +225,7 @@ function SessionCard({ session, isSelected, onClick, justNowLabel, untitledLabel
           )}>
             {platform[0].toUpperCase()}
           </span>
-          <h3 className={cn("font-semibold text-sm truncate", isSelected ? "text-blue-400" : "text-foreground")}>
+          <h3 className={cn("font-semibold text-sm truncate min-w-0", isSelected ? "text-blue-400" : "text-foreground")}>
             {session.displayTitle || session.sessionId || untitledLabel}
           </h3>
         </div>
@@ -207,11 +233,30 @@ function SessionCard({ session, isSelected, onClick, justNowLabel, untitledLabel
           {formatTime(session.updatedAt, justNowLabel)}
         </span>
       </div>
-      <p className="text-xs text-muted-foreground/70 line-clamp-2 leading-relaxed">
+      <p className="text-xs text-muted-foreground/70 line-clamp-2 leading-relaxed break-all">
         {session.preview || noPreviewLabel}
       </p>
+      {session.updatedAt && (
+        <div className="flex items-center gap-1.5 mt-2 text-[10px] text-muted-foreground/50">
+          <Clock className="w-3 h-3 flex-shrink-0" />
+          <span>{formatDateTime(session.updatedAt)}</span>
+        </div>
+      )}
       {session.cwd && (
-        <p className="text-[10px] text-muted-foreground/50 mt-2 truncate font-mono">{session.cwd}</p>
+        <button
+          type="button"
+          onClick={handleCopyCwd}
+          className={cn(
+            "flex items-center gap-1.5 mt-1.5 max-w-full text-[10px] font-mono rounded-md px-2 py-1 transition-colors",
+            copied
+              ? "bg-green-500/15 text-green-400"
+              : "bg-muted/30 text-muted-foreground/50 hover:bg-muted/50 hover:text-muted-foreground/80"
+          )}
+        >
+          {copied ? <Check className="w-3 h-3 flex-shrink-0" /> : <FolderOpen className="w-3 h-3 flex-shrink-0" />}
+          <span className="truncate">{session.cwd}</span>
+          {!copied && <Copy className="w-3 h-3 flex-shrink-0 ml-auto opacity-0 group-hover:opacity-60 transition-opacity" />}
+        </button>
       )}
     </div>
   )
