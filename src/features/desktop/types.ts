@@ -96,6 +96,17 @@ export type DashboardSummary = {
   recentSessions: Session[];
 };
 
+// ─── Update ───
+
+export type UpdateInfo = {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseUrl: string;
+  releaseNotes: string;
+  publishedAt: string;
+};
+
 // ─── Prompt ───
 
 export type PromptItem = {

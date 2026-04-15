@@ -12,10 +12,11 @@ import {
   Terminal,
   Code,
 } from "lucide-react";
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useNavigate } from "react-router";
 import { useDesktop } from "@/features/desktop/provider";
+import { api } from "@/features/desktop/api";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const navigation = [
   { to: "/", labelKey: "dashboard" as const, icon: LayoutGrid },
@@ -29,8 +30,16 @@ const navigation = [
 
 export default function ShellLayout() {
   const { snapshot, notice, error, t } = useDesktop();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [hasUpdate, setHasUpdate] = useState(false);
+
+  useEffect(() => {
+    api.checkUpdate().then(info => {
+      if (info.hasUpdate) setHasUpdate(true);
+    }).catch(() => {});
+  }, []);
 
   return (
     <div className="bg-shell h-screen overflow-hidden text-foreground">
@@ -154,9 +163,26 @@ export default function ShellLayout() {
             </button>
 
             {/* Version */}
-            {!sidebarCollapsed && (
-              <p className="mt-3 text-center text-fine text-quiet">v{snapshot?.version ?? "3.0.0"}</p>
-            )}
+            {!sidebarCollapsed ? (
+              <button
+                onClick={() => { if (hasUpdate) { navigate("/about"); setMobileMenuOpen(false); } }}
+                className={cn(
+                  "mt-3 flex items-center justify-center gap-1.5 text-fine",
+                  hasUpdate ? "cursor-pointer text-amber-400 hover:text-amber-300 transition-colors" : "text-quiet cursor-default"
+                )}
+              >
+                <span>v{snapshot?.version ?? "3.0.0"}</span>
+                {hasUpdate && <span className="size-2 rounded-full bg-amber-400 animate-pulse" />}
+              </button>
+            ) : hasUpdate ? (
+              <button
+                onClick={() => { navigate("/about"); setMobileMenuOpen(false); }}
+                className="mt-3 flex justify-center"
+                title={t("updateAvailable")}
+              >
+                <span className="size-2.5 rounded-full bg-amber-400 animate-pulse" />
+              </button>
+            ) : null}
           </div>
         </aside>
 

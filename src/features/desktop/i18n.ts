@@ -93,6 +93,15 @@ export type MessageKey =
   | "auditLog"
   | "sessionAlias"
   | "darkLightTheme"
+  // Update
+  | "checkUpdate"
+  | "checking"
+  | "upToDate"
+  | "updateAvailable"
+  | "latestVersion"
+  | "downloadUpdate"
+  | "releaseNotes"
+  | "checkFailed"
   // Session
   | "session.sessions"
   | "session.search"
@@ -246,6 +255,14 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     auditLog: "修改追溯",
     sessionAlias: "会话别名",
     darkLightTheme: "暗色/亮色主题",
+    checkUpdate: "检查更新",
+    checking: "检查中...",
+    upToDate: "已是最新版本",
+    updateAvailable: "有新版本可用",
+    latestVersion: "最新版本",
+    downloadUpdate: "下载更新",
+    releaseNotes: "更新说明",
+    checkFailed: "检查失败",
     "session.sessions": "会话",
     "session.search": "搜索会话...",
     "session.noSessions": "暂无会话",
@@ -396,6 +413,14 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     auditLog: "Audit Trail",
     sessionAlias: "Session Aliases",
     darkLightTheme: "Dark/Light Theme",
+    checkUpdate: "Check for Updates",
+    checking: "Checking...",
+    upToDate: "Already up to date",
+    updateAvailable: "New version available",
+    latestVersion: "Latest version",
+    downloadUpdate: "Download Update",
+    releaseNotes: "Release Notes",
+    checkFailed: "Check failed",
     "session.sessions": "Sessions",
     "session.search": "Search sessions...",
     "session.noSessions": "No sessions",

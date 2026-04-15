@@ -1,6 +1,10 @@
-import { Brain, Eye, Flame, Globe, Monitor, Shield, ExternalLink, MessageCircle, Server } from "lucide-react";
+import { useState } from "react";
+import { Brain, Eye, Flame, Globe, Monitor, Shield, ExternalLink, MessageCircle, Server, RefreshCw, CheckCircle, Download, ArrowUpCircle, AlertCircle } from "lucide-react";
 import { useDesktop } from "@/features/desktop/provider";
+import { api } from "@/features/desktop/api";
+import type { UpdateInfo } from "@/features/desktop/types";
 import { open } from "@tauri-apps/plugin-shell";
+import { cn } from "@/lib/utils";
 
 function openUrl(url: string) {
   open(url).catch(() => {
@@ -10,14 +14,29 @@ function openUrl(url: string) {
 
 export default function AboutPage() {
   const { t, snapshot } = useDesktop();
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
+
+  const handleCheckUpdate = async () => {
+    setChecking(true);
+    setCheckError(null);
+    try {
+      const info = await api.checkUpdate();
+      setUpdateInfo(info);
+    } catch (err) {
+      setCheckError(String(err));
+    }
+    setChecking(false);
+  };
 
   const features = [
     { icon: <Brain className="size-5" />, title: t("editMemory"), desc: t("memoryManipulationDesc") },
-    { icon: <Shield className="size-5" />, title: t("localFirst"), desc: "100% 本地运行，零云端依赖。你的数据不会离开你的电脑。" },
-    { icon: <Globe className="size-5" />, title: t("multiPlatform"), desc: "Claude Code / Codex CLI / OpenCode 统一管理。" },
-    { icon: <Eye className="size-5" />, title: t("auditLog"), desc: "只读审计日志，支持 diff 对比，每一步修改可追溯。" },
-    { icon: <Monitor className="size-5" />, title: t("sessionAlias"), desc: "给会话起一个容易记的名字，快速定位。" },
-    { icon: <Flame className="size-5" />, title: t("darkLightTheme"), desc: "石墨夜色、亚麻纸感、海湾青蓝、余烬铜红 — 四套主题。" },
+    { icon: <Shield className="size-5" />, title: t("localFirst"), desc: "100% \u672c\u5730\u8fd0\u884c\uff0c\u96f6\u4e91\u7aef\u4f9d\u8d56\u3002\u4f60\u7684\u6570\u636e\u4e0d\u4f1a\u79bb\u5f00\u4f60\u7684\u7535\u8111\u3002" },
+    { icon: <Globe className="size-5" />, title: t("multiPlatform"), desc: "Claude Code / Codex CLI / OpenCode \u7edf\u4e00\u7ba1\u7406\u3002" },
+    { icon: <Eye className="size-5" />, title: t("auditLog"), desc: "\u53ea\u8bfb\u5ba1\u8ba1\u65e5\u5fd7\uff0c\u652f\u6301 diff \u5bf9\u6bd4\uff0c\u6bcf\u4e00\u6b65\u4fee\u6539\u53ef\u8ffd\u6eaf\u3002" },
+    { icon: <Monitor className="size-5" />, title: t("sessionAlias"), desc: "\u7ed9\u4f1a\u8bdd\u8d77\u4e00\u4e2a\u5bb9\u6613\u8bb0\u7684\u540d\u5b57\uff0c\u5feb\u901f\u5b9a\u4f4d\u3002" },
+    { icon: <Flame className="size-5" />, title: t("darkLightTheme"), desc: "\u77f3\u58a8\u591c\u8272\u3001\u4e9a\u9ebb\u7eb8\u611f\u3001\u6d77\u6e7e\u9752\u84dd\u3001\u4f59\u70ec\u94dc\u7ea2 \u2014 \u56db\u5957\u4e3b\u9898\u3002" },
   ];
 
   return (
@@ -45,12 +64,77 @@ export default function AboutPage() {
                 className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-white/5 px-3 py-1.5 text-sm text-foreground/86 transition hover:bg-white/10"
               >
                 <MessageCircle className="size-3.5" />
-                QQ群: 野生AI观测
+                QQ\u7fa4: \u91ce\u751fAI\u89c2\u6d4b
+              </button>
+              <button
+                onClick={handleCheckUpdate}
+                disabled={checking}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition",
+                  updateInfo?.hasUpdate
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                    : "border-border/80 bg-white/5 text-foreground/86 hover:bg-white/10"
+                )}
+              >
+                <RefreshCw className={cn("size-3.5", checking && "animate-spin")} />
+                {checking ? t("checking") : t("checkUpdate")}
               </button>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Update status */}
+      {updateInfo && !updateInfo.hasUpdate && (
+        <section className="mt-4 flex items-center gap-3 rounded-2xl border border-green-500/30 bg-green-500/8 px-5 py-3">
+          <CheckCircle className="size-5 text-green-400 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-green-400">{t("upToDate")}</p>
+            <p className="text-xs text-quiet">v{updateInfo.currentVersion}</p>
+          </div>
+        </section>
+      )}
+
+      {updateInfo?.hasUpdate && (
+        <section className="mt-4 rounded-[24px] border border-amber-500/30 bg-gradient-to-r from-amber-500/8 to-transparent p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-400">
+                <ArrowUpCircle className="size-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-amber-400">{t("updateAvailable")}</h3>
+                <p className="mt-1 text-sm text-quiet">
+                  v{updateInfo.currentVersion} → <span className="font-semibold text-foreground">v{updateInfo.latestVersion}</span>
+                </p>
+                {updateInfo.releaseNotes && (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-xs font-medium text-quiet hover:text-foreground">{t("releaseNotes")}</summary>
+                    <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border/50 bg-background/50 p-3 text-xs leading-relaxed text-quiet">{updateInfo.releaseNotes}</pre>
+                  </details>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => openUrl(updateInfo.releaseUrl)}
+              className="inline-flex shrink-0 items-center gap-2 rounded-full bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-400 transition hover:bg-amber-500/30"
+            >
+              <Download className="size-4" />
+              {t("downloadUpdate")}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {checkError && (
+        <section className="mt-4 flex items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/8 px-5 py-3">
+          <AlertCircle className="size-5 text-red-400 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-red-400">{t("checkFailed")}</p>
+            <p className="text-xs text-quiet">{checkError}</p>
+          </div>
+        </section>
+      )}
 
       {/* Features */}
       <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
