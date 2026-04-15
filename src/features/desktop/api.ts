@@ -10,6 +10,7 @@ import type {
   Session,
   SessionDetail,
   SessionListResult,
+  UpdateInfo,
 } from "@/features/desktop/types";
 
 const STORAGE_KEY = "memory-forge.snapshot";
@@ -318,5 +319,19 @@ export const api = {
       return invoke("session_restore_message", { platform, editLogId, sessionKey });
     }
     throw new Error("Restore not supported in web preview");
+  },
+
+  async checkUpdate(): Promise<UpdateInfo> {
+    if (isTauriRuntime()) {
+      return invoke<UpdateInfo>("check_update");
+    }
+    return {
+      hasUpdate: false,
+      currentVersion: "3.0.0",
+      latestVersion: "3.0.0",
+      releaseUrl: "",
+      releaseNotes: "",
+      publishedAt: "",
+    };
   },
 };

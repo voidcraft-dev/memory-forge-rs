@@ -1,6 +1,6 @@
 [package]
 name = "memory-forge"
-version = "3.0.8"
+version = "3.0.9"
 description = "Memory Forge — Local AI Session Manager"
 authors = ["VoidCraft"]
 edition = "2021"
@@ -24,6 +24,7 @@ chrono = { version = "0.4", features = ["serde"] }
 dirs = "5"
 uuid = { version = "1", features = ["v4"] }
 thiserror = "2"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!

@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06B6D4"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 记忆容器主体（立方体等距视图） -->
+  <g>
+    <!-- 顶面 -->
+    <path d="M256 80 L380 140 L256 200 L132 140 Z"
+          fill="#06B6D4" opacity="0.9"/>
+
+    <!-- 右侧面 -->
+    <path d="M256 200 L380 140 L380 260 L256 320 Z"
+          fill="url(#primaryGrad)"/>
+
+    <!-- 左侧面 -->
+    <path d="M256 200 L132 140 L132 260 L256 320 Z"
+          fill="#7C3AED" opacity="0.85"/>
+  </g>
+
+  <!-- 锻造能量线条（从容器中发出） -->
+  <g opacity="0.8">
+    <path d="M256 80 L256 40"
+          stroke="url(#glowGrad)" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="256" cy="35" r="6" fill="#06B6D4"/>
+
+    <path d="M200 110 L170 80"
+          stroke="url(#glowGrad)" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="165" cy="75" r="4" fill="#06B6D4"/>
+
+    <path d="M312 110 L342 80"
+          stroke="url(#glowGrad)" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="347" cy="75" r="4" fill="#06B6D4"/>
+  </g>
+
+  <!-- 神经网络节点（记忆连接） -->
+  <g opacity="0.6">
+    <line x1="180" y1="230" x2="220" y2="250" stroke="#F1F5F9" stroke-width="2"/>
+    <line x1="220" y1="250" x2="256" y2="240" stroke="#F1F5F9" stroke-width="2"/>
+    <line x1="256" y1="240" x2="292" y2="250" stroke="#F1F5F9" stroke-width="2"/>
+    <line x1="292" y1="250" x2="332" y2="230" stroke="#F1F5F9" stroke-width="2"/>
+
+    <circle cx="180" cy="230" r="5" fill="#F1F5F9"/>
+    <circle cx="220" cy="250" r="5" fill="#F1F5F9"/>
+    <circle cx="256" cy="240" r="5" fill="#F1F5F9"/>
+    <circle cx="292" cy="250" r="5" fill="#F1F5F9"/>
+    <circle cx="332" cy="230" r="5" fill="#F1F5F9"/>
+  </g>
+
+  <!-- 品牌名 -->
+  <text x="256" y="390"
+        font-family="'Segoe UI',system-ui,sans-serif"
+        font-size="56"
+        font-weight="700"
+        fill="#0F172A"
+        text-anchor="middle"
+        letter-spacing="4">
+    MEMORY
+  </text>
+  <text x="256" y="445"
+        font-family="'Segoe UI',system-ui,sans-serif"
+        font-size="56"
+        font-weight="700"
+        fill="#0F172A"
+        text-anchor="middle"
+        letter-spacing="4">
+    FORGE
+  </text>
+</svg>

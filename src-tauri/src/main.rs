@@ -6,6 +6,7 @@ mod platforms;
 mod session_service;
 mod settings;
 mod shell;
+mod update_checker;
 
 use database::{DbState, PromptCreate, PromptUpdate};
 use session_service::DashboardSummary;
@@ -35,6 +36,14 @@ fn app_settings_set(
 #[tauri::command]
 fn app_show_main_window(app: tauri::AppHandle) {
     shell::show_main_window(&app);
+}
+
+#[tauri::command]
+async fn check_update(app: tauri::AppHandle) -> Result<update_checker::UpdateInfo, String> {
+    let version = app.config().version.clone().unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || update_checker::check_update(&version))
+        .await
+        .map_err(|e| format!("Task error: {e}"))?
 }
 
 #[tauri::command]
@@ -212,6 +221,7 @@ fn main() {
             app_bootstrap,
             app_settings_set,
             app_show_main_window,
+            check_update,
             write_text_file,
             dashboard_summary,
             session_list,
