@@ -4,6 +4,9 @@ pub mod opencode;
 
 use serde::Serialize;
 use std::collections::HashMap;
+use std::path::PathBuf;
+
+use crate::settings::AppSettings;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,28 +46,40 @@ pub struct SessionDetail {
     pub blocks: Vec<TimelineBlock>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionListResult {
+    pub total: usize,
+    pub items: Vec<SessionListItem>,
+}
+
 pub trait PlatformAdapter: Send + Sync {
-    fn list_sessions(&self, alias_map: &HashMap<String, String>) -> Vec<SessionListItem>;
+    fn list_sessions(&self, alias_map: &HashMap<String, String>, limit: Option<usize>, offset: usize) -> SessionListResult;
     fn get_session_detail(&self, session_key: &str, alias_map: &HashMap<String, String>) -> Result<SessionDetail, String>;
     fn update_message(&self, edit_target: &str, new_content: &str) -> Result<String, String>;
     fn matches_query(&self, session_key: &str, query: &str) -> bool;
 }
 
-pub fn get_adapter(platform: &str) -> Result<Box<dyn PlatformAdapter>, String> {
+pub fn get_adapter(platform: &str, settings: &AppSettings) -> Result<Box<dyn PlatformAdapter>, String> {
+    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
     match platform {
         "claude" => {
-            let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
-            Ok(Box::new(claude::ClaudePlatform::new(home.join(".claude"))))
+            let path = settings.claude_home.as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".claude"));
+            Ok(Box::new(claude::ClaudePlatform::new(path)))
         }
         "codex" => {
-            let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
-            Ok(Box::new(codex::CodexPlatform::new(home.join(".codex"))))
+            let path = settings.codex_home.as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".codex"));
+            Ok(Box::new(codex::CodexPlatform::new(path)))
         }
         "opencode" => {
-            let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
-            Ok(Box::new(opencode::OpenCodePlatform::new(
-                home.join(".local/share/opencode/opencode.db"),
-            )))
+            let path = settings.opencode_path.as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".local/share/opencode/opencode.db"));
+            Ok(Box::new(opencode::OpenCodePlatform::new(path)))
         }
         _ => Err(format!("Unknown platform: {platform}")),
     }

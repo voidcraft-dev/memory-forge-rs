@@ -8,6 +8,8 @@ import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
 import { Clock, Pencil, Check, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2 } from 'lucide-react'
+
+const PAGE_SIZE = 50
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -115,13 +117,13 @@ export function SessionDetail() {
     dispatch({ type: 'setSessionStatus', payload: null })
 
     try {
-      const [detail, sessions, logs] = await Promise.all([
+      const [detail, result, logs] = await Promise.all([
         api.getSessionDetail(currentPlatform, selectedSessionKey),
-        api.getSessions(currentPlatform),
+        api.getSessions(currentPlatform, '', PAGE_SIZE, 0),
         showEditLog ? api.getEditLog(currentPlatform, selectedSessionKey) : Promise.resolve(null),
       ])
       dispatch({ type: 'setSessionDetail', payload: detail })
-      dispatch({ type: 'setSessions', payload: sessions })
+      dispatch({ type: 'setSessions', payload: result.items })
       if (logs) {
         dispatch({ type: 'setEditLog', payload: logs })
       }

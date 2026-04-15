@@ -1,5 +1,6 @@
-import type { ComponentType } from "react";
-import { Check, Languages, Rocket, Sparkles } from "lucide-react";
+import { type ComponentType, useState } from "react";
+import { Check, FolderOpen, Languages, Rocket, Sparkles } from "lucide-react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   localeCatalog,
   themeCatalog,
@@ -19,6 +20,7 @@ export default function SettingsPage() {
     setCloseToTrayOnClose,
     setLaunchOnStartup,
     setReduceMotion,
+    updateSettings,
   } = useDesktop();
 
   if (loading || !snapshot) {
@@ -113,15 +115,32 @@ export default function SettingsPage() {
           </section>
 
           <section className="setting-card rounded-[24px] p-5">
-            <p className="text-fine uppercase tracking-[0.24em] text-quiet">{t("runtime")}</p>
-            <div className="mt-4 space-y-3 text-sm">
-              <MetaRow label={t("runtime")} value={snapshot.runtime === "tauri" ? t("runtimeTauri") : t("runtimeWebPreview")} />
-              <MetaRow label={t("trayReady")} value={snapshot.trayAvailable ? t("toggleOn") : t("toggleOff")} />
-              <MetaRow label={t("configDir")} value={snapshot.configDir} />
-              <MetaRow label={t("dataDir")} value={snapshot.dataDir} />
-              <MetaRow label={t("dbPath")} value={snapshot.dbPath} />
+            <SectionHeader icon={FolderOpen} title={t("platformPaths")} description={t("platformPathsDesc")} />
+            <div className="mt-5 space-y-3">
+              <PathRow
+                label={t("claudeHomePath")}
+                defaultHint="~/.claude"
+                pickMode="directory"
+                value={snapshot.settings.claudeHome ?? ""}
+                onSave={(v) => updateSettings({ claudeHome: v || null })}
+              />
+              <PathRow
+                label={t("codexHomePath")}
+                defaultHint="~/.codex"
+                pickMode="directory"
+                value={snapshot.settings.codexHome ?? ""}
+                onSave={(v) => updateSettings({ codexHome: v || null })}
+              />
+              <PathRow
+                label={t("opencodePath")}
+                defaultHint="~/.local/share/opencode/opencode.db"
+                pickMode="file"
+                value={snapshot.settings.opencodePath ?? ""}
+                onSave={(v) => updateSettings({ opencodePath: v || null })}
+              />
             </div>
           </section>
+
         </div>
       </div>
     </div>
@@ -189,11 +208,56 @@ function ToggleRow({ checked, label, description, disabled, onToggle }: { checke
   );
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
+function PathRow({ label, defaultHint, pickMode, value, onSave }: { label: string; defaultHint: string; pickMode: "directory" | "file"; value: string; onSave: (v: string) => Promise<void> }) {
+  const [draft, setDraft] = useState(value);
+  const [saved, setSaved] = useState(false);
+
+  const commit = async (v?: string) => {
+    const trimmed = (v ?? draft).trim();
+    if (trimmed === (value ?? "")) return;
+    await onSave(trimmed);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  const handleBrowse = async () => {
+    try {
+      const selected = await openDialog({
+        directory: pickMode === "directory",
+        multiple: false,
+        filters: pickMode === "file" ? [{ name: "Database", extensions: ["db"] }] : undefined,
+      });
+      if (selected) {
+        setDraft(selected);
+        await commit(selected);
+      }
+    } catch { /* user cancelled */ }
+  };
+
   return (
-    <div className="rounded-2xl border border-border/70 bg-white/4 px-4 py-3">
-      <div className="text-fine uppercase tracking-[0.18em] text-quiet">{label}</div>
-      <div className="mt-1 break-all text-sm text-foreground">{value}</div>
+    <div className="rounded-[22px] border border-border/70 bg-white/4 px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-sm font-medium shrink-0">{label}</label>
+        {saved && <Check className="size-3.5 text-green-400 animate-in fade-in" />}
+      </div>
+      <div className="mt-1.5 flex gap-2">
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => void commit()}
+          onKeyDown={(e) => { if (e.key === "Enter") void commit(); }}
+          placeholder={defaultHint}
+          className="min-w-0 flex-1 rounded-xl border border-border/50 bg-muted/30 px-3 py-1.5 text-xs font-mono text-foreground placeholder:text-muted-foreground/40 focus:border-primary/50 focus:outline-none transition-colors"
+        />
+        <button
+          type="button"
+          onClick={() => void handleBrowse()}
+          className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-muted/30 text-muted-foreground transition-colors hover:bg-primary/12 hover:text-primary"
+        >
+          <FolderOpen className="size-3.5" />
+        </button>
+      </div>
     </div>
   );
 }

@@ -5,7 +5,8 @@ use chrono::{Duration, Local, TimeZone};
 use serde::Serialize;
 
 use crate::database::{self, DbState};
-use crate::platforms::{self, SessionDetail, SessionListItem};
+use crate::platforms::{self, SessionDetail, SessionListItem, SessionListResult};
+use crate::settings::AppSettings;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,33 +32,33 @@ pub struct DashboardSummary {
     pub recent_sessions: Vec<SessionListItem>,
 }
 
-pub fn dashboard_summary(db: &DbState) -> Result<DashboardSummary, String> {
+pub fn dashboard_summary(db: &DbState, settings: &AppSettings) -> Result<DashboardSummary, String> {
     let mut platforms_summary = Vec::new();
     let mut recent_sessions = Vec::new();
     let mut trend_map: HashMap<String, usize> = HashMap::new();
 
     for platform_name in ["claude", "codex", "opencode"] {
-        let adapter = platforms::get_adapter(platform_name)?;
+        let adapter = platforms::get_adapter(platform_name, settings)?;
         let aliases = database::get_alias_map(&db.conn, platform_name)?;
-        let items = adapter.list_sessions(&aliases);
+        let result = adapter.list_sessions(&aliases, Some(20), 0);
 
-        for item in items.iter().take(20) {
+        for item in result.items.iter().take(20) {
             let day = format_timestamp(&item.updated_at);
             if !day.is_empty() {
                 *trend_map.entry(day).or_insert(0) += 1;
             }
         }
 
-        recent_sessions.extend(items.iter().take(10).cloned());
+        recent_sessions.extend(result.items.iter().take(10).cloned());
 
         platforms_summary.push(PlatformSummary {
             platform: platform_name.to_string(),
-            count: items.len(),
-            latest: items
+            count: result.total,
+            latest: result.items
                 .first()
                 .map(|item| format_timestamp(&item.updated_at))
                 .unwrap_or_default(),
-            items: items.into_iter().take(5).collect(),
+            items: result.items.into_iter().take(5).collect(),
         });
     }
 
@@ -82,34 +83,50 @@ pub fn dashboard_summary(db: &DbState) -> Result<DashboardSummary, String> {
     })
 }
 
-pub fn session_list(db: &DbState, platform: &str, query: Option<&str>) -> Result<Vec<SessionListItem>, String> {
-    let adapter = platforms::get_adapter(platform)?;
+pub fn session_list(
+    db: &DbState,
+    settings: &AppSettings,
+    platform: &str,
+    query: Option<&str>,
+    limit: Option<usize>,
+    offset: usize,
+) -> Result<SessionListResult, String> {
+    let adapter = platforms::get_adapter(platform, settings)?;
     let aliases = database::get_alias_map(&db.conn, platform)?;
-    let mut items = adapter.list_sessions(&aliases);
 
-    if let Some(query) = query {
-        let needle = query.trim().to_lowercase();
-        if !needle.is_empty() {
-            items.retain(|item| {
-                [
-                    item.display_title.as_str(),
-                    item.preview.as_str(),
-                    item.cwd.as_str(),
-                    item.session_id.as_str(),
-                ]
-                .join(" ")
-                .to_lowercase()
-                .contains(&needle)
-                    || adapter.matches_query(&item.session_key, query)
-            });
-        }
+    let has_query = query.map(|q| !q.trim().is_empty()).unwrap_or(false);
+
+    if has_query {
+        // Search: load all, filter, then paginate
+        let result = adapter.list_sessions(&aliases, None, 0);
+        let needle = query.unwrap().trim().to_lowercase();
+        let mut filtered: Vec<SessionListItem> = result.items.into_iter().filter(|item| {
+            [
+                item.display_title.as_str(),
+                item.preview.as_str(),
+                item.cwd.as_str(),
+                item.session_id.as_str(),
+            ]
+            .join(" ")
+            .to_lowercase()
+            .contains(&needle)
+                || adapter.matches_query(&item.session_key, &needle)
+        }).collect();
+
+        let total = filtered.len();
+        let start = offset.min(total);
+        let end = limit.map(|l| (start + l).min(total)).unwrap_or(total);
+        let items = filtered.drain(start..end).collect();
+
+        Ok(SessionListResult { total, items })
+    } else {
+        // No search: use backend pagination directly
+        Ok(adapter.list_sessions(&aliases, limit, offset))
     }
-
-    Ok(items)
 }
 
-pub fn session_detail(db: &DbState, platform: &str, session_key: &str) -> Result<SessionDetail, String> {
-    let adapter = platforms::get_adapter(platform)?;
+pub fn session_detail(db: &DbState, settings: &AppSettings, platform: &str, session_key: &str) -> Result<SessionDetail, String> {
+    let adapter = platforms::get_adapter(platform, settings)?;
     let aliases = database::get_alias_map(&db.conn, platform)?;
     adapter.get_session_detail(session_key, &aliases)
 }
@@ -125,12 +142,13 @@ pub fn session_set_alias(
 
 pub fn session_edit_message(
     db: &DbState,
+    settings: &AppSettings,
     platform: &str,
     edit_target: &str,
     content: &str,
     session_key: &str,
 ) -> Result<(), String> {
-    let adapter = platforms::get_adapter(platform)?;
+    let adapter = platforms::get_adapter(platform, settings)?;
     let old_content = adapter.update_message(edit_target, content)?;
     database::insert_edit_log(&db.conn, platform, session_key, edit_target, &old_content, content)
 }
@@ -145,14 +163,13 @@ pub fn session_edit_log(
 
 pub fn session_restore_message(
     db: &DbState,
+    settings: &AppSettings,
     platform: &str,
     edit_log_id: i64,
     session_key: &str,
 ) -> Result<(), String> {
     let log = database::get_edit_log_by_id(&db.conn, edit_log_id)?;
-    // Restore by setting content back to old_content
-    // session_edit_message will automatically log this as a new edit
-    session_edit_message(db, platform, &log.edit_target, &log.old_content, session_key)
+    session_edit_message(db, settings, platform, &log.edit_target, &log.old_content, session_key)
 }
 
 fn format_timestamp(value: &str) -> String {

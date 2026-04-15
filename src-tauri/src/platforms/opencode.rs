@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use rusqlite::params;
 use serde_json::{json, Value};
 
-use super::{SessionDetail, SessionListItem, TimelineBlock, build_commands};
+use super::{SessionDetail, SessionListItem, SessionListResult, TimelineBlock, build_commands};
 
 pub struct OpenCodePlatform {
     db_path: PathBuf,
@@ -23,26 +23,42 @@ impl OpenCodePlatform {
 }
 
 impl super::PlatformAdapter for OpenCodePlatform {
-    fn list_sessions(&self, alias_map: &HashMap<String, String>) -> Vec<SessionListItem> {
+    fn list_sessions(&self, alias_map: &HashMap<String, String>, limit: Option<usize>, offset: usize) -> SessionListResult {
         if !self.db_path.exists() {
-            return Vec::new();
+            return SessionListResult { total: 0, items: Vec::new() };
         }
 
         let conn = match self.connect() {
             Ok(c) => c,
-            Err(_) => return Vec::new(),
+            Err(_) => return SessionListResult { total: 0, items: Vec::new() },
         };
 
-        let mut stmt = match conn.prepare(
-            "SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC"
-        ) {
+        // Get total count
+        let total: usize = conn.query_row(
+            "SELECT COUNT(*) FROM session",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        let sql = match limit {
+            Some(l) => format!(
+                "SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC LIMIT {} OFFSET {}",
+                l, offset
+            ),
+            None => format!(
+                "SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC OFFSET {}",
+                offset
+            ),
+        };
+
+        let mut stmt = match conn.prepare(&sql) {
             Ok(s) => s,
-            Err(_) => return Vec::new(),
+            Err(_) => return SessionListResult { total, items: Vec::new() },
         };
 
         let mut rows = match stmt.query([]) {
             Ok(r) => r,
-            Err(_) => return Vec::new(),
+            Err(_) => return SessionListResult { total, items: Vec::new() },
         };
 
         let mut items = Vec::new();
@@ -71,7 +87,7 @@ impl super::PlatformAdapter for OpenCodePlatform {
                 editable: true,
             });
         }
-        items
+        SessionListResult { total, items }
     }
 
     fn get_session_detail(&self, session_key: &str, alias_map: &HashMap<String, String>) -> Result<SessionDetail, String> {

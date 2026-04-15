@@ -38,26 +38,36 @@ fn app_show_main_window(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
-fn dashboard_summary(db: tauri::State<'_, DbState>) -> Result<DashboardSummary, String> {
-    session_service::dashboard_summary(&db)
+fn dashboard_summary(
+    db: tauri::State<'_, DbState>,
+    settings_state: tauri::State<'_, SharedSettingsState>,
+) -> Result<DashboardSummary, String> {
+    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
+    session_service::dashboard_summary(&db, &settings)
 }
 
 #[tauri::command]
 fn session_list(
     db: tauri::State<'_, DbState>,
+    settings_state: tauri::State<'_, SharedSettingsState>,
     platform: String,
     query: Option<String>,
-) -> Result<Vec<platforms::SessionListItem>, String> {
-    session_service::session_list(&db, &platform, query.as_deref())
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<platforms::SessionListResult, String> {
+    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
+    session_service::session_list(&db, &settings, &platform, query.as_deref(), limit, offset.unwrap_or(0))
 }
 
 #[tauri::command]
 fn session_detail(
     db: tauri::State<'_, DbState>,
+    settings_state: tauri::State<'_, SharedSettingsState>,
     platform: String,
     session_key: String,
 ) -> Result<platforms::SessionDetail, String> {
-    session_service::session_detail(&db, &platform, &session_key)
+    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
+    session_service::session_detail(&db, &settings, &platform, &session_key)
 }
 
 #[tauri::command]
@@ -73,12 +83,14 @@ fn session_set_alias(
 #[tauri::command]
 fn session_edit_message(
     db: tauri::State<'_, DbState>,
+    settings_state: tauri::State<'_, SharedSettingsState>,
     platform: String,
     message_id: String,
     content: String,
     session_key: String,
 ) -> Result<(), String> {
-    session_service::session_edit_message(&db, &platform, &message_id, &content, &session_key)
+    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
+    session_service::session_edit_message(&db, &settings, &platform, &message_id, &content, &session_key)
 }
 
 #[tauri::command]
@@ -93,11 +105,13 @@ fn session_edit_log(
 #[tauri::command]
 fn session_restore_message(
     db: tauri::State<'_, DbState>,
+    settings_state: tauri::State<'_, SharedSettingsState>,
     platform: String,
     edit_log_id: i64,
     session_key: String,
 ) -> Result<(), String> {
-    session_service::session_restore_message(&db, &platform, edit_log_id, &session_key)
+    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
+    session_service::session_restore_message(&db, &settings, &platform, edit_log_id, &session_key)
 }
 
 // ─── Prompt Commands ───

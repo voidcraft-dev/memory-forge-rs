@@ -18,6 +18,12 @@ pub struct AppSettings {
     pub close_to_tray_on_close: bool,
     pub launch_on_startup: bool,
     pub reduce_motion: bool,
+    #[serde(default)]
+    pub claude_home: Option<String>,
+    #[serde(default)]
+    pub codex_home: Option<String>,
+    #[serde(default)]
+    pub opencode_path: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -28,6 +34,9 @@ impl Default for AppSettings {
             close_to_tray_on_close: true,
             launch_on_startup: false,
             reduce_motion: false,
+            claude_home: None,
+            codex_home: None,
+            opencode_path: None,
         }
     }
 }
@@ -40,6 +49,9 @@ pub struct AppSettingsPatch {
     pub close_to_tray_on_close: Option<bool>,
     pub launch_on_startup: Option<bool>,
     pub reduce_motion: Option<bool>,
+    pub claude_home: Option<Option<String>>,
+    pub codex_home: Option<Option<String>>,
+    pub opencode_path: Option<Option<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -126,6 +138,18 @@ pub fn update_settings(
 
     if let Some(reduce_motion) = patch.reduce_motion {
         settings.reduce_motion = reduce_motion;
+    }
+
+    if let Some(claude_home) = patch.claude_home {
+        settings.claude_home = claude_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(codex_home) = patch.codex_home {
+        settings.codex_home = codex_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(opencode_path) = patch.opencode_path {
+        settings.opencode_path = opencode_path.filter(|s| !s.trim().is_empty());
     }
 
     let autostart_supported = if let Some(launch_on_startup) = patch.launch_on_startup {

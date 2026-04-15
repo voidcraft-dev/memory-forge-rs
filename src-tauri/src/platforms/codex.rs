@@ -1,11 +1,12 @@
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-use super::{build_commands, PlatformAdapter, SessionDetail, SessionListItem, TimelineBlock};
+use super::{build_commands, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock};
 
 pub struct CodexPlatform {
     sessions_root: PathBuf,
@@ -42,10 +43,18 @@ impl CodexPlatform {
         let mut cwd = String::new();
         let mut preview = String::new();
 
-        for line in self.read_jsonl(path) {
-            let Some(payload) = line.get("payload") else {
-                continue;
-            };
+        let Ok(file) = File::open(path) else {
+            return SummaryData { session_id, cwd, preview };
+        };
+        let reader = BufReader::new(file);
+
+        for line in reader.lines() {
+            let Ok(line) = line else { continue };
+            let trimmed = line.trim();
+            if trimmed.is_empty() { continue; }
+            let Ok(parsed) = serde_json::from_str::<Value>(trimmed) else { continue };
+
+            let Some(payload) = parsed.get("payload") else { continue };
 
             if let Some(id) = payload.get("id").and_then(Value::as_str) {
                 session_id = id.to_string();
@@ -156,19 +165,27 @@ impl CodexPlatform {
 }
 
 impl PlatformAdapter for CodexPlatform {
-    fn list_sessions(&self, alias_map: &HashMap<String, String>) -> Vec<SessionListItem> {
-        let mut items = Vec::new();
+    fn list_sessions(&self, alias_map: &HashMap<String, String>, limit: Option<usize>, offset: usize) -> SessionListResult {
         if !self.sessions_root.exists() {
-            return items;
+            return SessionListResult { total: 0, items: Vec::new() };
         }
 
         let mut entries = Vec::new();
         collect_jsonl_recursive(&self.sessions_root, &mut entries);
         entries.sort_by(|a, b| modified_nanos(b).cmp(&modified_nanos(a)));
 
-        for path in entries {
-            let session_key = encode_path_key(&path);
-            let summary = self.scan_summary(&path);
+        let total = entries.len();
+        let page = if offset < total {
+            let end = limit.map(|l| (offset + l).min(total)).unwrap_or(total);
+            &entries[offset..end]
+        } else {
+            &[]
+        };
+
+        let mut items = Vec::new();
+        for path in page {
+            let session_key = encode_path_key(path);
+            let summary = self.scan_summary(path);
             let alias = alias_map.get(&session_key).cloned().unwrap_or_default();
 
             items.push(SessionListItem {
@@ -182,13 +199,13 @@ impl PlatformAdapter for CodexPlatform {
                 },
                 alias_title: alias,
                 preview: summary.preview,
-                updated_at: modified_nanos(&path).to_string(),
+                updated_at: modified_nanos(path).to_string(),
                 cwd: summary.cwd,
                 editable: true,
             });
         }
 
-        items
+        SessionListResult { total, items }
     }
 
     fn get_session_detail(

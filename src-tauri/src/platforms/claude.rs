@@ -5,7 +5,7 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-use super::{build_commands, PlatformAdapter, SessionDetail, SessionListItem, TimelineBlock};
+use super::{build_commands, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock};
 
 pub struct ClaudePlatform {
     projects_root: PathBuf,
@@ -217,24 +217,32 @@ impl ClaudePlatform {
 }
 
 impl PlatformAdapter for ClaudePlatform {
-    fn list_sessions(&self, alias_map: &HashMap<String, String>) -> Vec<SessionListItem> {
-        let mut items = Vec::new();
+    fn list_sessions(&self, alias_map: &HashMap<String, String>, limit: Option<usize>, offset: usize) -> SessionListResult {
         if !self.projects_root.exists() {
-            return items;
+            return SessionListResult { total: 0, items: Vec::new() };
         }
 
         let mut entries = Vec::new();
         collect_jsonl_recursive(&self.projects_root, &mut entries);
         entries.sort_by(|a, b| modified_nanos(b).cmp(&modified_nanos(a)));
 
-        for path in entries {
-            let lines = self.read_jsonl(&path);
+        let total = entries.len();
+        let page = if offset < total {
+            let end = limit.map(|l| (offset + l).min(total)).unwrap_or(total);
+            &entries[offset..end]
+        } else {
+            &[]
+        };
+
+        let mut items = Vec::new();
+        for path in page {
+            let lines = self.read_jsonl(path);
             if lines.is_empty() {
                 continue;
             }
 
-            let session_id = self.session_id(&lines, &path);
-            let session_key = encode_path_key(&path);
+            let session_id = self.session_id(&lines, path);
+            let session_key = encode_path_key(path);
             let alias = alias_map.get(&session_key).cloned().unwrap_or_default();
 
             items.push(SessionListItem {
@@ -248,13 +256,13 @@ impl PlatformAdapter for ClaudePlatform {
                 },
                 alias_title: alias,
                 preview: self.preview(&lines),
-                updated_at: modified_nanos(&path).to_string(),
+                updated_at: modified_nanos(path).to_string(),
                 cwd: self.cwd(&lines),
                 editable: true,
             });
         }
 
-        items
+        SessionListResult { total, items }
     }
 
     fn get_session_detail(

@@ -148,7 +148,16 @@ export type MessageKey =
   | "editLog.traceTitle"
   | "editLog.traceDesc"
   | "sidebar.collapse"
-  | "sidebar.expand";
+  | "sidebar.expand"
+  | "platformPaths"
+  | "platformPathsDesc"
+  | "claudeHomePath"
+  | "codexHomePath"
+  | "opencodePath"
+  | "pathPlaceholder"
+  | "pathSaved"
+  | "defaultPath"
+  | "session.loadMore";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -291,6 +300,15 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "editLog.traceDesc": "每次编辑都会记录原始内容和新内容，支持 diff 对比。",
     "sidebar.collapse": "收起菜单",
     "sidebar.expand": "展开菜单",
+    "platformPaths": "平台路径",
+    "platformPathsDesc": "自定义各平台的数据目录。留空则使用默认路径。",
+    "claudeHomePath": "Claude 数据目录",
+    "codexHomePath": "Codex 数据目录",
+    "opencodePath": "OpenCode 数据库路径",
+    "pathPlaceholder": "留空使用默认路径",
+    "pathSaved": "路径已保存",
+    "defaultPath": "默认: {path}",
+    "session.loadMore": "加载更多 (剩余 {count} 条)",
   },
   en: {
     appName: "Memory Forge",
@@ -432,6 +450,15 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "editLog.traceDesc": "Each edit records the original and new content with diff comparison.",
     "sidebar.collapse": "Collapse",
     "sidebar.expand": "Expand",
+    "platformPaths": "Platform Paths",
+    "platformPathsDesc": "Customize data directories for each platform. Leave empty to use defaults.",
+    "claudeHomePath": "Claude Home Directory",
+    "codexHomePath": "Codex Home Directory",
+    "opencodePath": "OpenCode Database Path",
+    "pathPlaceholder": "Leave empty for default",
+    "pathSaved": "Path saved",
+    "defaultPath": "Default: {path}",
+    "session.loadMore": "Load more ({count} remaining)",
   },
 };
 

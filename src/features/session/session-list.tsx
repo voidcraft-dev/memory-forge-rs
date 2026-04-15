@@ -55,6 +55,8 @@ const platformBorderColors = {
   opencode: 'border-l-green-500',
 }
 
+const PAGE_SIZE = 50
+
 export function SessionList() {
   const { t, state, dispatch } = useDesktop()
   const currentPlatform = state.currentPlatform
@@ -63,6 +65,8 @@ export function SessionList() {
   const searchQuery = state.searchQuery
   const [refreshing, setRefreshing] = useState(false)
   const [refreshDone, setRefreshDone] = useState(false)
+  const [totalCount, setTotalCount] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const debouncedSetSearch = useCallback((value: string) => {
@@ -76,16 +80,19 @@ export function SessionList() {
     if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings') return
     const loadSessions = async () => {
       try {
-        const data = await api.getSessions(currentPlatform, searchQuery)
-        dispatch({ type: 'setSessions', payload: data })
-        if (data.length > 0 && !selectedSessionKey) {
-          dispatch({ type: 'setSelectedSessionKey', payload: data[0].sessionKey })
+        const isSearch = searchQuery.trim().length > 0
+        const result = await api.getSessions(currentPlatform, searchQuery, isSearch ? undefined : PAGE_SIZE, 0)
+        dispatch({ type: 'setSessions', payload: result.items })
+        setTotalCount(result.total)
+        if (result.items.length > 0 && !selectedSessionKey) {
+          dispatch({ type: 'setSelectedSessionKey', payload: result.items[0].sessionKey })
         }
         dispatch({ type: 'setEditingBlock', payload: null })
         dispatch({ type: 'setSessionStatus', payload: null })
       } catch (err) {
         console.error('Failed to load sessions:', err)
         dispatch({ type: 'setSessions', payload: [] })
+        setTotalCount(0)
         dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.refreshFailed') } })
       }
     }
@@ -116,8 +123,10 @@ export function SessionList() {
     setRefreshing(true)
     setRefreshDone(false)
     try {
-      const data = await api.getSessions(currentPlatform, searchQuery)
-      dispatch({ type: 'setSessions', payload: data })
+      const isSearch = searchQuery.trim().length > 0
+      const result = await api.getSessions(currentPlatform, searchQuery, isSearch ? undefined : PAGE_SIZE, 0)
+      dispatch({ type: 'setSessions', payload: result.items })
+      setTotalCount(result.total)
       dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.refreshed') } })
       setRefreshDone(true)
       setTimeout(() => setRefreshDone(false), 1500)
@@ -127,6 +136,20 @@ export function SessionList() {
     }
     setRefreshing(false)
   }
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true)
+    try {
+      const result = await api.getSessions(currentPlatform, searchQuery, PAGE_SIZE, sessions.length)
+      dispatch({ type: 'setSessions', payload: [...sessions, ...result.items] })
+      setTotalCount(result.total)
+    } catch (err) {
+      console.error('Failed to load more:', err)
+    }
+    setLoadingMore(false)
+  }
+
+  const remaining = totalCount - sessions.length
 
   if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings') {
     return null
@@ -163,20 +186,32 @@ export function SessionList() {
               <p className="text-sm text-muted-foreground">{t('session.noSessions')}</p>
             </div>
           ) : (
-            sessions.map((session) => (
-              <SessionCard
-                key={session.sessionKey}
-                session={session}
-                isSelected={selectedSessionKey === session.sessionKey}
-                onClick={() => {
-                  dispatch({ type: 'setSelectedSessionKey', payload: session.sessionKey })
-                  dispatch({ type: 'setEditingBlock', payload: null })
-                }}
-                justNowLabel={t('session.justNow')}
-                untitledLabel={t('session.untitled')}
-                noPreviewLabel={t('session.noPreview')}
-              />
-            ))
+            <>
+              {sessions.map((session) => (
+                <SessionCard
+                  key={session.sessionKey}
+                  session={session}
+                  isSelected={selectedSessionKey === session.sessionKey}
+                  onClick={() => {
+                    dispatch({ type: 'setSelectedSessionKey', payload: session.sessionKey })
+                    dispatch({ type: 'setEditingBlock', payload: null })
+                  }}
+                  justNowLabel={t('session.justNow')}
+                  untitledLabel={t('session.untitled')}
+                  noPreviewLabel={t('session.noPreview')}
+                />
+              ))}
+              {remaining > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void handleLoadMore()}
+                  disabled={loadingMore}
+                  className="w-full rounded-2xl border border-dashed border-border/60 py-3 text-sm text-muted-foreground hover:bg-muted/30 hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  {loadingMore ? t('loading') : t('session.loadMore', { count: remaining })}
+                </button>
+              )}
+            </>
           )}
         </div>
       </ScrollArea>

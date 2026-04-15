@@ -9,6 +9,7 @@ import type {
   PromptUpdateInput,
   Session,
   SessionDetail,
+  SessionListResult,
 } from "@/features/desktop/types";
 
 const STORAGE_KEY = "memory-forge.snapshot";
@@ -19,6 +20,9 @@ const defaultSettings = {
   closeToTrayOnClose: true,
   launchOnStartup: false,
   reduceMotion: false,
+  claudeHome: null,
+  codexHome: null,
+  opencodePath: null,
 };
 
 function isTauriRuntime() {
@@ -255,12 +259,18 @@ export const api = {
   },
 
   // Sessions
-  async getSessions(platform: string, q: string = ""): Promise<Session[]> {
+  async getSessions(platform: string, q: string = "", limit?: number, offset?: number): Promise<SessionListResult> {
     if (isTauriRuntime()) {
-      return invoke<Session[]>("session_list", { platform, query: q || null });
+      return invoke<SessionListResult>("session_list", {
+        platform,
+        query: q || null,
+        limit: limit ?? null,
+        offset: offset ?? null,
+      });
     }
     const params = q ? `?q=${encodeURIComponent(q)}` : "";
-    return fetchJSON<Session[]>(`${API_BASE}/platforms/${platform}/sessions${params}`);
+    const items = await fetchJSON<Session[]>(`${API_BASE}/platforms/${platform}/sessions${params}`);
+    return { total: items.length, items };
   },
 
   async getSessionDetail(platform: string, sessionKey: string): Promise<SessionDetail> {

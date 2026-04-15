@@ -9,6 +9,9 @@ export type DesktopSettings = {
   closeToTrayOnClose: boolean;
   launchOnStartup: boolean;
   reduceMotion: boolean;
+  claudeHome: string | null;
+  codexHome: string | null;
+  opencodePath: string | null;
 };
 
 export type DesktopSettingsPatch = Partial<DesktopSettings>;
@@ -60,6 +63,11 @@ export type SessionDetail = {
   cwd: string;
   commands: Record<string, string>;
   blocks: TimelineBlock[];
+};
+
+export type SessionListResult = {
+  total: number;
+  items: Session[];
 };
 
 export type PlatformSummary = {
