@@ -46,7 +46,7 @@ impl super::PlatformAdapter for OpenCodePlatform {
                 l, offset
             ),
             None => format!(
-                "SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC OFFSET {}",
+                "SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC LIMIT -1 OFFSET {}",
                 offset
             ),
         };
