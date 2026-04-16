@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="fg8" cx="42%" cy="38%">
+      <stop offset="0%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#DC2626"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Dark rounded background -->
+  <rect width="512" height="512" rx="96" fill="#1C1917"/>
+
+  <!-- Molten rounded-square with M negative space:
+       The outer shape is a squircle (super-ellipse) filled with a radial gradient
+       that creates a "hot center" molten metal effect.
+       The M is cut out using fill-rule="evenodd", revealing the dark background.
+       No text — pure symbol, optimized for app icon / favicon use.
+  -->
+  <path fill-rule="evenodd" d="
+    M 72,184 C 72,120 120,72 184,72 L 328,72 C 392,72 440,120 440,184 L 440,328 C 440,392 392,440 328,440 L 184,440 C 120,440 72,392 72,328 Z
+    M 156,380 L 156,164 L 256,316 L 356,164 L 356,380 L 308,380 L 308,224 L 256,344 L 204,224 L 204,380 Z
+  " fill="url(#fg8)"/>
+</svg>
