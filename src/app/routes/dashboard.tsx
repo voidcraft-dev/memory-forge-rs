@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ArrowRight, Bot, Brain, Code, Flame, Terminal } from "lucide-react";
+import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useDesktop } from "@/features/desktop/provider";
@@ -9,6 +9,7 @@ const platformMeta = [
   { key: "claude", label: "Claude Code", icon: Bot, to: "/claude", gradient: "from-violet-500/15 to-violet-600/5", border: "border-violet-500/30", iconBg: "bg-violet-500/20 text-violet-400" },
   { key: "codex", label: "Codex CLI", icon: Terminal, to: "/codex", gradient: "from-emerald-500/15 to-emerald-600/5", border: "border-emerald-500/30", iconBg: "bg-emerald-500/20 text-emerald-400" },
   { key: "opencode", label: "OpenCode", icon: Code, to: "/opencode", gradient: "from-sky-500/15 to-sky-600/5", border: "border-sky-500/30", iconBg: "bg-sky-500/20 text-sky-400" },
+  { key: "kiro", label: "Kiro CLI", icon: Sparkles, to: "/kiro", gradient: "from-purple-500/15 to-purple-600/5", border: "border-purple-500/30", iconBg: "bg-purple-500/20 text-purple-400" },
 ] as const;
 
 export default function DashboardPage() {

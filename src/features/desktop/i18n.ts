@@ -14,6 +14,7 @@ export type MessageKey =
   | "platformClaude"
   | "platformCodex"
   | "platformOpencode"
+  | "platformKiro"
   // Dashboard
   | "welcomeTitle"
   | "welcomeDesc"
@@ -163,10 +164,20 @@ export type MessageKey =
   | "claudeHomePath"
   | "codexHomePath"
   | "opencodePath"
+  | "kiroHome"
   | "pathPlaceholder"
   | "pathSaved"
   | "defaultPath"
-  | "session.loadMore";
+  | "session.loadMore"
+  | "session.favorite"
+  | "session.unfavorite"
+  | "session.archive"
+  | "session.unarchive"
+  | "session.archived"
+  | "session.archiveView"
+  | "session.sessionsView"
+  | "session.noArchivedSessions"
+  | "session.archiveConfirm";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -180,6 +191,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformClaude: "Claude",
     platformCodex: "Codex",
     platformOpencode: "OpenCode",
+    platformKiro: "Kiro",
     welcomeTitle: "停止重开，直接编辑。",
     welcomeDesc: "AI 对话走偏了？别重新开始 — 直接改掉历史记录。注入上下文、纠正错误、删除废话，然后无缝继续对话。",
     totalSessions: "总会话数",
@@ -322,10 +334,20 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "claudeHomePath": "Claude 数据目录",
     "codexHomePath": "Codex 数据目录",
     "opencodePath": "OpenCode 数据库路径",
+    "kiroHome": "Kiro 主目录路径",
     "pathPlaceholder": "留空使用默认路径",
     "pathSaved": "路径已保存",
     "defaultPath": "默认: {path}",
     "session.loadMore": "加载更多 (剩余 {count} 条)",
+    "session.favorite": "收藏",
+    "session.unfavorite": "取消收藏",
+    "session.archive": "归档",
+    "session.unarchive": "取消归档",
+    "session.archived": "已归档",
+    "session.archiveView": "归档",
+    "session.sessionsView": "会话",
+    "session.noArchivedSessions": "暂无归档会话",
+    "session.archiveConfirm": "确定归档这个会话吗？归档后不会在列表中显示，可以在归档视图中恢复。",
   },
   en: {
     appName: "Memory Forge",
@@ -338,6 +360,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformClaude: "Claude",
     platformCodex: "Codex",
     platformOpencode: "OpenCode",
+    platformKiro: "Kiro",
     welcomeTitle: "Stop resetting. Start editing.",
     welcomeDesc: "AI went off track? Don't restart — edit the history directly. Inject context, fix errors, remove noise, then seamlessly continue.",
     totalSessions: "Total Sessions",
@@ -480,10 +503,20 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "claudeHomePath": "Claude Home Directory",
     "codexHomePath": "Codex Home Directory",
     "opencodePath": "OpenCode Database Path",
+    "kiroHome": "Kiro Home Path",
     "pathPlaceholder": "Leave empty for default",
     "pathSaved": "Path saved",
     "defaultPath": "Default: {path}",
     "session.loadMore": "Load more ({count} remaining)",
+    "session.favorite": "Favorite",
+    "session.unfavorite": "Unfavorite",
+    "session.archive": "Archive",
+    "session.unarchive": "Unarchive",
+    "session.archived": "Archived",
+    "session.archiveView": "Archive",
+    "session.sessionsView": "Sessions",
+    "session.noArchivedSessions": "No archived sessions",
+    "session.archiveConfirm": "Archive this session? It will be hidden from the list but can be restored from the archive view.",
   },
 };
 

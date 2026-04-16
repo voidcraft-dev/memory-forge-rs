@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, forwardRef } from 'react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -7,16 +7,17 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
-import { Clock, Pencil, Check, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2 } from 'lucide-react'
+import { Clock, Pencil, Check, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive } from 'lucide-react'
 
 const PAGE_SIZE = 50
-import { save } from '@tauri-apps/plugin-dialog'
+import { save, ask } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 
 export function SessionDetail() {
   const { t, state, dispatch } = useDesktop()
   const currentPlatform = state.currentPlatform
   const sessionDetail = state.sessionDetail
+  const sessions = state.sessions
   const roleFilter = state.roleFilter
   const selectedSessionKey = state.selectedSessionKey
   const showEditLog = state.showEditLog
@@ -28,6 +29,9 @@ export function SessionDetail() {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshDone, setRefreshDone] = useState(false)
   const [exportDone, setExportDone] = useState(false)
+  const [inlineSearch, setInlineSearch] = useState('')
+  const [currentMatchIdx, setCurrentMatchIdx] = useState(0)
+  const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   useEffect(() => {
     setAliasTitle(sessionDetail?.aliasTitle || '')
@@ -45,6 +49,42 @@ export function SessionDetail() {
     return () => window.clearTimeout(timer)
   }, [dispatch, sessionStatus])
 
+  const blocks = sessionDetail?.blocks ?? []
+  const filteredBlocks = roleFilter === 'all'
+    ? blocks
+    : blocks.filter(b => b.role === roleFilter)
+
+  const searchNeedle = inlineSearch.trim().toLowerCase()
+  const matchingBlockIds = useMemo(() => {
+    if (!searchNeedle) return [] as string[]
+    return filteredBlocks
+      .filter(b => b.content.toLowerCase().includes(searchNeedle))
+      .map(b => b.id)
+  }, [filteredBlocks, searchNeedle])
+
+  const scrollToMatch = useCallback((idx: number) => {
+    const id = matchingBlockIds[idx]
+    if (!id) return
+    const el = blockRefs.current.get(id)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [matchingBlockIds])
+
+  const handleSearchNav = useCallback((dir: 'next' | 'prev') => {
+    if (matchingBlockIds.length === 0) return
+    const next = dir === 'next'
+      ? (currentMatchIdx + 1) % matchingBlockIds.length
+      : (currentMatchIdx - 1 + matchingBlockIds.length) % matchingBlockIds.length
+    setCurrentMatchIdx(next)
+    scrollToMatch(next)
+  }, [matchingBlockIds, currentMatchIdx, scrollToMatch])
+
+  useEffect(() => {
+    if (matchingBlockIds.length > 0) {
+      setCurrentMatchIdx(0)
+      scrollToMatch(0)
+    }
+  }, [matchingBlockIds])
+
   if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings' || !sessionDetail) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground bg-gradient-to-br from-background to-muted/20">
@@ -58,10 +98,6 @@ export function SessionDetail() {
       </div>
     )
   }
-
-  const filteredBlocks = roleFilter === 'all'
-    ? sessionDetail.blocks
-    : sessionDetail.blocks.filter(b => b.role === roleFilter)
 
   const handleSaveAlias = async () => {
     setSavingAlias(true)
@@ -202,14 +238,37 @@ export function SessionDetail() {
     setTimeout(() => setExportDone(false), 2000)
   }
 
+  const detailLoading = selectedSessionKey !== sessionDetail.sessionKey
+
   return (
-    <section className="flex min-w-0 flex-1 flex-col bg-gradient-to-br from-background via-background to-muted/10">
+    <section className="relative flex min-w-0 flex-1 flex-col bg-gradient-to-br from-background via-background to-muted/10">
+      {detailLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+          <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
       <header className="border-b bg-card/50 px-5 py-4 backdrop-blur-xl md:px-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 flex items-center gap-4">
+          <div className="min-w-0 flex items-center gap-3">
             <h2 className="truncate text-xl font-bold text-foreground">
               {sessionDetail.title || sessionDetail.sessionId}
             </h2>
+            <button
+              type="button"
+              onClick={async () => {
+                const isNow = await api.toggleFlag(currentPlatform, sessionDetail.sessionKey, 'favorite')
+                dispatch({ type: 'updateSession', payload: { sessionKey: sessionDetail.sessionKey, updates: { favorite: isNow } } })
+              }}
+              className={cn(
+                "p-1.5 rounded-lg transition-colors flex-shrink-0",
+                sessions.find(s => s.sessionKey === sessionDetail.sessionKey)?.favorite
+                  ? "text-amber-400 hover:text-amber-300"
+                  : "text-muted-foreground/40 hover:text-amber-400"
+              )}
+              title={t('session.favorite')}
+            >
+              <Star className={cn("w-5 h-5", sessions.find(s => s.sessionKey === sessionDetail.sessionKey)?.favorite && "fill-current")} />
+            </button>
             {sessionDetail.aliasTitle && (
               <Badge variant="outline" className="text-xs">{sessionDetail.aliasTitle}</Badge>
             )}
@@ -219,19 +278,35 @@ export function SessionDetail() {
               {refreshDone ? <CheckCircle className="w-4 h-4" /> : <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />}
               <span className="hidden sm:inline">{refreshDone ? t('session.refreshed') : t('session.refresh')}</span>
             </Button>
-            {Object.entries(sessionDetail.commands || {}).map(([label, command]) => (
-              <Button key={label} variant={copiedKey === label ? "secondary" : "ghost"} size="sm"
-                className={cn("gap-1.5 font-mono text-xs", copiedKey === label ? "border border-green-500/30 bg-green-500/20 text-green-400" : "text-muted-foreground hover:bg-blue-500/10 hover:text-foreground")}
-                onClick={() => handleCopyCommand(label, command)}>
-                <Terminal className="w-3.5 h-3.5" />
-                {copiedKey === label ? <><Check className="w-3.5 h-3.5" /> {t('session.copied')}</> : label}
-              </Button>
-            ))}
+            {['resume', 'fork'].filter(label => sessionDetail.commands?.[label]).map(label => {
+              const command = sessionDetail.commands[label]
+              return (
+                <Button key={label} variant={copiedKey === label ? "secondary" : "ghost"} size="sm"
+                  className={cn("gap-1.5 font-mono text-xs", copiedKey === label ? "border border-green-500/30 bg-green-500/20 text-green-400" : "text-muted-foreground hover:bg-blue-500/10 hover:text-foreground")}
+                  onClick={() => handleCopyCommand(label, command)}>
+                  <Terminal className="w-3.5 h-3.5" />
+                  {copiedKey === label ? <><Check className="w-3.5 h-3.5" /> {t('session.copied')}</> : label}
+                </Button>
+              )
+            })}
             <Button variant="ghost" size="sm"
               className={cn("gap-2", exportDone ? "bg-green-500/10 text-green-400" : "hover:bg-blue-500/10")}
               onClick={handleExportMarkdown}>
               {exportDone ? <CheckCircle className="w-4 h-4" /> : <Download className="w-4 h-4" />}
               <span className="hidden sm:inline">{exportDone ? t('session.exported') : t('session.export')}</span>
+            </Button>
+            <Button variant="ghost" size="sm"
+              className="gap-2 hover:bg-amber-500/10 hover:text-amber-400"
+              onClick={async () => {
+                if (!await ask(t('session.archiveConfirm'), { title: t('session.archive'), kind: 'warning' })) return
+                await api.toggleFlag(currentPlatform, sessionDetail.sessionKey, 'archived')
+                dispatch({ type: 'setSessions', payload: sessions.filter(s => s.sessionKey !== sessionDetail.sessionKey) })
+                dispatch({ type: 'setSelectedSessionKey', payload: null })
+                dispatch({ type: 'setSessionDetail', payload: null })
+                dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.archived') } })
+              }}>
+              <Archive className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('session.archive')}</span>
             </Button>
             <Button variant={showEditLog ? "secondary" : "ghost"} size="sm"
               className={cn("gap-2", showEditLog && "border border-amber-500/30 bg-amber-500/20 text-amber-400")}
@@ -304,10 +379,56 @@ export function SessionDetail() {
         </span>
       </div>
 
+      {/* Inline search */}
+      <div className="flex items-center gap-2 border-b border-border/50 bg-card/30 px-5 py-2 md:px-6">
+        <Search className="size-3.5 text-muted-foreground/50 shrink-0" />
+        <input
+          type="text"
+          value={inlineSearch}
+          onChange={e => setInlineSearch(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handleSearchNav(e.shiftKey ? 'prev' : 'next')
+            if (e.key === 'Escape') setInlineSearch('')
+          }}
+          placeholder={t('session.search')}
+          className="min-w-0 flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none"
+        />
+        {searchNeedle && (
+          <>
+            <span className="text-[10px] text-muted-foreground/60 shrink-0">
+              {matchingBlockIds.length > 0 ? `${currentMatchIdx + 1}/${matchingBlockIds.length}` : '0/0'}
+            </span>
+            <button type="button" onClick={() => handleSearchNav('prev')} className="p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors" disabled={matchingBlockIds.length === 0}>
+              <ChevronUp className="size-3.5" />
+            </button>
+            <button type="button" onClick={() => handleSearchNav('next')} className="p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors" disabled={matchingBlockIds.length === 0}>
+              <ChevronDown className="size-3.5" />
+            </button>
+            <button type="button" onClick={() => setInlineSearch('')} className="p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors">
+              <X className="size-3.5" />
+            </button>
+          </>
+        )}
+      </div>
+
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex w-full flex-col gap-4 p-4 md:p-6">
           {filteredBlocks.map((block, index) => (
-            <MessageBlock key={block.id} block={block} index={index} onEdit={() => handleEditBlock(block)} onErase={() => handleEraseBlock(block)} t={t} />
+            <MessageBlock
+              key={block.id}
+              block={block}
+              index={index}
+              onEdit={() => handleEditBlock(block)}
+              onErase={() => handleEraseBlock(block)}
+              t={t}
+              searchHighlight={searchNeedle}
+              isSearchMatch={matchingBlockIds.includes(block.id)}
+              isCurrentMatch={matchingBlockIds[currentMatchIdx] === block.id}
+              ref={(el: HTMLDivElement | null) => {
+                if (el) blockRefs.current.set(block.id, el)
+                else blockRefs.current.delete(block.id)
+              }}
+            />
           ))}
         </div>
       </ScrollArea>
@@ -315,13 +436,16 @@ export function SessionDetail() {
   )
 }
 
-function MessageBlock({ block, index, onEdit, onErase, t }: {
+const MessageBlock = forwardRef<HTMLDivElement, {
   block: { role: string; content: string; id: string; editable?: boolean }
   index: number
   onEdit: () => void
   onErase: () => void
   t: (key: MessageKey, params?: Record<string, string | number>) => string
-}) {
+  searchHighlight?: string
+  isSearchMatch?: boolean
+  isCurrentMatch?: boolean
+}>(function MessageBlock({ block, index, onEdit, onErase, t, searchHighlight, isCurrentMatch }, ref) {
   const roleConfig = {
     user: { label: t('session.filter.user'), icon: User, bgGradient: 'from-blue-500/10 to-blue-500/5', borderColor: 'border-l-blue-500', iconBg: 'bg-blue-500/20 text-blue-400', badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
     assistant: { label: t('session.filter.assistant'), icon: Bot, bgGradient: 'from-green-500/10 to-green-500/5', borderColor: 'border-l-green-500', iconBg: 'bg-green-500/20 text-green-400', badgeClass: 'bg-green-500/15 text-green-400 border-green-500/30' },
@@ -330,9 +454,28 @@ function MessageBlock({ block, index, onEdit, onErase, t }: {
   const config = roleConfig[block.role as keyof typeof roleConfig] || roleConfig.assistant
   const Icon = config.icon
 
+  const renderContent = () => {
+    if (!searchHighlight) return block.content
+    const regex = new RegExp(`(${searchHighlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+    const parts = block.content.split(regex)
+    if (parts.length === 1) return block.content
+    return parts.map((part, i) =>
+      regex.test(part)
+        ? <mark key={i} className="bg-amber-400/30 text-foreground rounded-sm px-0.5">{part}</mark>
+        : part
+    )
+  }
+
   return (
-    <div className={cn("group animate-in fade-in slide-in-from-bottom-2 duration-300", `rounded-r-2xl border-l-4 ${config.borderColor}`)}
-      style={{ animationDelay: `${index * 50}ms` }}>
+    <div
+      ref={ref}
+      className={cn(
+        "group animate-in fade-in slide-in-from-bottom-2 duration-300",
+        `rounded-r-2xl border-l-4 ${config.borderColor}`,
+        isCurrentMatch && "ring-2 ring-amber-400/50 rounded-2xl"
+      )}
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
       <div className={cn("ml-0 rounded-2xl rounded-l-none border border-border/50 bg-gradient-to-r p-4", `bg-gradient-to-b ${config.bgGradient}`)}>
         <div className="flex items-start gap-3">
           <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg", config.iconBg)}>
@@ -344,7 +487,7 @@ function MessageBlock({ block, index, onEdit, onErase, t }: {
               <span className="text-[10px] text-muted-foreground/50">#{index + 1}</span>
             </div>
             <div className="overflow-hidden rounded-xl p-3 bg-background/50 border border-border/30">
-              <pre className="text-sm text-foreground whitespace-pre-wrap break-words font-mono leading-relaxed">{block.content}</pre>
+              <pre className="text-sm text-foreground whitespace-pre-wrap break-words font-mono leading-relaxed">{renderContent()}</pre>
             </div>
             <Button
               variant="outline"
@@ -367,4 +510,4 @@ function MessageBlock({ block, index, onEdit, onErase, t }: {
       </div>
     </div>
   )
-}
+})

@@ -138,6 +138,13 @@ export default function SettingsPage() {
                 value={snapshot.settings.opencodePath ?? ""}
                 onSave={(v) => updateSettings({ opencodePath: v || null })}
               />
+              <PathRow
+                label={t("kiroHome")}
+                defaultHint="~/.kiro"
+                pickMode="directory"
+                value={snapshot.settings.kiroHome ?? ""}
+                onSave={(v) => updateSettings({ kiroHome: v || null })}
+              />
             </div>
           </section>
 

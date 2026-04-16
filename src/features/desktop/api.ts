@@ -24,6 +24,7 @@ const defaultSettings = {
   claudeHome: null,
   codexHome: null,
   opencodePath: null,
+  kiroHome: null,
 };
 
 function isTauriRuntime() {
@@ -260,13 +261,14 @@ export const api = {
   },
 
   // Sessions
-  async getSessions(platform: string, q: string = "", limit?: number, offset?: number): Promise<SessionListResult> {
+  async getSessions(platform: string, q: string = "", limit?: number, offset?: number, showArchived?: boolean): Promise<SessionListResult> {
     if (isTauriRuntime()) {
       return invoke<SessionListResult>("session_list", {
         platform,
         query: q || null,
         limit: limit ?? null,
         offset: offset ?? null,
+        showArchived: showArchived ?? false,
       });
     }
     const params = q ? `?q=${encodeURIComponent(q)}` : "";
@@ -319,6 +321,13 @@ export const api = {
       return invoke("session_restore_message", { platform, editLogId, sessionKey });
     }
     throw new Error("Restore not supported in web preview");
+  },
+
+  async toggleFlag(platform: string, sessionKey: string, flag: string): Promise<boolean> {
+    if (isTauriRuntime()) {
+      return invoke<boolean>("session_toggle_flag", { platform, sessionKey, flag });
+    }
+    return false;
   },
 
   async checkUpdate(): Promise<UpdateInfo> {

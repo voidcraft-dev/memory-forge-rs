@@ -61,6 +61,16 @@ export const themeCatalog: ThemeSpec[] = [
     preview: ["#1c1113", "#f1895d", "#fff1ea"],
     mode: "dark",
   },
+  {
+    id: "twilight",
+    label: { "zh-CN": "暮光星紫", en: "Twilight" },
+    description: {
+      "zh-CN": "赛博朋克风格的深紫色主题，适合夜间编码。",
+      en: "A cyberpunk-inspired deep purple theme for late-night coding.",
+    },
+    preview: ["#110d1a", "#b48eff", "#ede6f7"],
+    mode: "dark",
+  },
 ];
 
 export const localeCatalog: Array<{

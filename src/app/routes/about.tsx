@@ -64,7 +64,7 @@ export default function AboutPage() {
                 className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-white/5 px-3 py-1.5 text-sm text-foreground/86 transition hover:bg-white/10"
               >
                 <MessageCircle className="size-3.5" />
-                QQ\u7fa4: \u91ce\u751fAI\u89c2\u6d4b
+                QQ群: 野生AI观测
               </button>
               <button
                 onClick={handleCheckUpdate}
