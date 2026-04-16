@@ -63,9 +63,10 @@ fn session_list(
     query: Option<String>,
     limit: Option<usize>,
     offset: Option<usize>,
+    show_archived: Option<bool>,
 ) -> Result<platforms::SessionListResult, String> {
     let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
-    session_service::session_list(&db, &settings, &platform, query.as_deref(), limit, offset.unwrap_or(0))
+    session_service::session_list(&db, &settings, &platform, query.as_deref(), limit, offset.unwrap_or(0), show_archived.unwrap_or(false))
 }
 
 #[tauri::command]
@@ -87,6 +88,16 @@ fn session_set_alias(
     title: String,
 ) -> Result<database::SessionAlias, String> {
     session_service::session_set_alias(&db, &platform, &session_key, &title)
+}
+
+#[tauri::command]
+fn session_toggle_flag(
+    db: tauri::State<'_, DbState>,
+    platform: String,
+    session_key: String,
+    flag: String,
+) -> Result<bool, String> {
+    session_service::session_toggle_flag(&db, &platform, &session_key, &flag)
 }
 
 #[tauri::command]
@@ -227,6 +238,7 @@ fn main() {
             session_list,
             session_detail,
             session_set_alias,
+            session_toggle_flag,
             session_edit_message,
             session_edit_log,
             session_restore_message,

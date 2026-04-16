@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
-import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen } from 'lucide-react'
+import { ask } from '@tauri-apps/plugin-dialog'
+import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore } from 'lucide-react'
 import type { Session } from '@/features/desktop/types'
 
 function formatTime(timestamp: string, justNowLabel: string): string {
@@ -47,12 +48,14 @@ const platformColors = {
   claude: 'bg-gradient-to-br from-blue-500 to-indigo-600',
   codex: 'bg-gradient-to-br from-orange-500 to-red-500',
   opencode: 'bg-gradient-to-br from-green-500 to-emerald-600',
+  kiro: 'bg-gradient-to-br from-purple-500 to-violet-600',
 }
 
 const platformBorderColors = {
   claude: 'border-l-blue-500',
   codex: 'border-l-orange-500',
   opencode: 'border-l-green-500',
+  kiro: 'border-l-purple-500',
 }
 
 const PAGE_SIZE = 50
@@ -67,6 +70,10 @@ export function SessionList() {
   const [refreshDone, setRefreshDone] = useState(false)
   const [totalCount, setTotalCount] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+
+  const showArchived = state.showArchived
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const debouncedSetSearch = useCallback((value: string) => {
@@ -79,9 +86,12 @@ export function SessionList() {
   useEffect(() => {
     if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings') return
     const loadSessions = async () => {
+      setLoading(true)
       try {
         const isSearch = searchQuery.trim().length > 0
-        const result = await api.getSessions(currentPlatform, searchQuery, isSearch ? undefined : PAGE_SIZE, 0)
+        console.time(`[perf] getSessions(${currentPlatform}, search=${isSearch})`)
+        const result = await api.getSessions(currentPlatform, searchQuery, isSearch ? undefined : PAGE_SIZE, 0, showArchived)
+        console.timeEnd(`[perf] getSessions(${currentPlatform}, search=${isSearch})`)
         dispatch({ type: 'setSessions', payload: result.items })
         setTotalCount(result.total)
         if (result.items.length > 0 && !selectedSessionKey) {
@@ -94,16 +104,20 @@ export function SessionList() {
         dispatch({ type: 'setSessions', payload: [] })
         setTotalCount(0)
         dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.refreshFailed') } })
+      } finally {
+        setLoading(false)
       }
     }
     loadSessions()
-  }, [currentPlatform, searchQuery])
+  }, [currentPlatform, searchQuery, showArchived])
 
   useEffect(() => {
     if (!selectedSessionKey || currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings') return
     const loadDetail = async () => {
       try {
+        console.time(`[perf] getSessionDetail(${currentPlatform})`)
         const detail = await api.getSessionDetail(currentPlatform, selectedSessionKey)
+        console.timeEnd(`[perf] getSessionDetail(${currentPlatform})`)
         dispatch({ type: 'setSessionDetail', payload: detail })
         if (state.showEditLog) {
           api.getEditLog(currentPlatform, selectedSessionKey).then(logs => dispatch({ type: 'setEditLog', payload: logs })).catch(console.error)
@@ -124,7 +138,7 @@ export function SessionList() {
     setRefreshDone(false)
     try {
       const isSearch = searchQuery.trim().length > 0
-      const result = await api.getSessions(currentPlatform, searchQuery, isSearch ? undefined : PAGE_SIZE, 0)
+      const result = await api.getSessions(currentPlatform, searchQuery, isSearch ? undefined : PAGE_SIZE, 0, showArchived)
       dispatch({ type: 'setSessions', payload: result.items })
       setTotalCount(result.total)
       dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.refreshed') } })
@@ -140,7 +154,7 @@ export function SessionList() {
   const handleLoadMore = async () => {
     setLoadingMore(true)
     try {
-      const result = await api.getSessions(currentPlatform, searchQuery, PAGE_SIZE, sessions.length)
+      const result = await api.getSessions(currentPlatform, searchQuery, PAGE_SIZE, sessions.length, showArchived)
       dispatch({ type: 'setSessions', payload: [...sessions, ...result.items] })
       setTotalCount(result.total)
     } catch (err) {
@@ -150,6 +164,7 @@ export function SessionList() {
   }
 
   const remaining = totalCount - sessions.length
+  const displaySessions = favoritesOnly ? sessions.filter(s => s.favorite) : sessions
 
   if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings') {
     return null
@@ -158,13 +173,43 @@ export function SessionList() {
   return (
     <aside className="flex h-full w-[280px] flex-shrink-0 flex-col border-r border-border/50 bg-gradient-to-b from-card to-card/55 backdrop-blur-xl xl:w-[320px]">
       <div className="border-b border-border/50 p-4 md:p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="font-semibold text-foreground text-lg">
-            {currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)} {t('session.sessions')}
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-foreground text-lg truncate">
+            {currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)} {showArchived ? t('session.archiveView') : t('session.sessions')}
           </h2>
-          <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={refreshing} className={cn("h-8 w-8 transition-all duration-300", refreshDone && "text-green-400")}>
-            {refreshDone ? <CheckCircle className="w-4 h-4" /> : <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant={favoritesOnly ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => { setFavoritesOnly(!favoritesOnly) }}
+              className={cn(
+                "h-8 w-8 transition-all",
+                favoritesOnly
+                  ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              title={t('session.favorite')}
+            >
+              <Star className={cn("w-3.5 h-3.5", favoritesOnly && "fill-current")} />
+            </Button>
+            <Button
+              variant={showArchived ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => { setFavoritesOnly(false); dispatch({ type: 'setShowArchived', payload: !showArchived }) }}
+              className={cn(
+                "h-8 gap-1.5 text-xs transition-all",
+                showArchived
+                  ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Archive className="w-3.5 h-3.5" />
+              {showArchived ? t('session.sessionsView') : t('session.archiveView')}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={refreshing} className={cn("h-8 w-8 transition-all duration-300", refreshDone && "text-green-400")}>
+              {refreshDone ? <CheckCircle className="w-4 h-4" /> : <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />}
+            </Button>
+          </div>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -178,30 +223,60 @@ export function SessionList() {
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-3 p-3 md:p-4">
-          {sessions.length === 0 ? (
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="animate-pulse rounded-2xl border-l-4 border-border/30 p-4 bg-gradient-to-r from-muted/30 to-transparent">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-7 h-7 rounded-lg bg-muted/50" />
+                  <div className="h-4 bg-muted/50 rounded flex-1 max-w-[60%]" />
+                  <div className="h-4 w-8 bg-muted/30 rounded" />
+                </div>
+                <div className="h-3 bg-muted/30 rounded w-full mt-2" />
+                <div className="h-3 bg-muted/20 rounded w-2/3 mt-1.5" />
+              </div>
+            ))
+          ) : displaySessions.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/50 flex items-center justify-center">
-                <Search className="w-6 h-6 text-muted-foreground/50" />
+                {showArchived ? <Archive className="w-6 h-6 text-muted-foreground/50" /> : <Search className="w-6 h-6 text-muted-foreground/50" />}
               </div>
-              <p className="text-sm text-muted-foreground">{t('session.noSessions')}</p>
+              <p className="text-sm text-muted-foreground">{showArchived ? t('session.noArchivedSessions') : t('session.noSessions')}</p>
             </div>
           ) : (
             <>
-              {sessions.map((session) => (
+              {displaySessions.map((session) => (
                 <SessionCard
                   key={session.sessionKey}
                   session={session}
                   isSelected={selectedSessionKey === session.sessionKey}
+                  showArchived={showArchived}
                   onClick={() => {
                     dispatch({ type: 'setSelectedSessionKey', payload: session.sessionKey })
                     dispatch({ type: 'setEditingBlock', payload: null })
                   }}
+                  onToggleFavorite={async (e) => {
+                    e.stopPropagation()
+                    const isNow = await api.toggleFlag(currentPlatform, session.sessionKey, 'favorite')
+                    dispatch({ type: 'updateSession', payload: { sessionKey: session.sessionKey, updates: { favorite: isNow } } })
+                  }}
+                  onToggleArchive={async (e) => {
+                    e.stopPropagation()
+                    if (!showArchived && !await ask(t('session.archiveConfirm'), { title: t('session.archive'), kind: 'warning' })) return
+                    await api.toggleFlag(currentPlatform, session.sessionKey, 'archived')
+                    dispatch({ type: 'setSessions', payload: sessions.filter(s => s.sessionKey !== session.sessionKey) })
+                    if (selectedSessionKey === session.sessionKey) {
+                      dispatch({ type: 'setSelectedSessionKey', payload: null })
+                      dispatch({ type: 'setSessionDetail', payload: null })
+                    }
+                    dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: showArchived ? t('session.unarchive') : t('session.archived') } })
+                  }}
                   justNowLabel={t('session.justNow')}
                   untitledLabel={t('session.untitled')}
                   noPreviewLabel={t('session.noPreview')}
+                  archiveLabel={showArchived ? t('session.unarchive') : t('session.archive')}
                 />
               ))}
-              {remaining > 0 && (
+              {remaining > 0 && !favoritesOnly && (
                 <button
                   type="button"
                   onClick={() => void handleLoadMore()}
@@ -219,13 +294,17 @@ export function SessionList() {
   )
 }
 
-function SessionCard({ session, isSelected, onClick, justNowLabel, untitledLabel, noPreviewLabel }: {
+function SessionCard({ session, isSelected, showArchived, onClick, onToggleFavorite, onToggleArchive, justNowLabel, untitledLabel, noPreviewLabel, archiveLabel }: {
   session: Session
   isSelected: boolean
+  showArchived: boolean
   onClick: () => void
+  onToggleFavorite: (e: React.MouseEvent) => void
+  onToggleArchive: (e: React.MouseEvent) => void
   justNowLabel: string
   untitledLabel: string
   noPreviewLabel: string
+  archiveLabel: string
 }) {
   const platform = session.platform || 'claude'
   const borderColor = platformBorderColors[platform as keyof typeof platformBorderColors] || platformBorderColors.claude
@@ -264,13 +343,57 @@ function SessionCard({ session, isSelected, onClick, justNowLabel, untitledLabel
             {session.displayTitle || session.sessionId || untitledLabel}
           </h3>
         </div>
-        <span className="text-[10px] text-muted-foreground/60 flex-shrink-0 bg-muted/30 px-2 py-1 rounded-md">
-          {formatTime(session.updatedAt, justNowLabel)}
-        </span>
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onToggleFavorite}
+            className={cn(
+              "p-1 rounded-md transition-colors",
+              session.favorite
+                ? "text-amber-400 hover:text-amber-300"
+                : "text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-amber-400"
+            )}
+          >
+            <Star className={cn("w-3.5 h-3.5", session.favorite && "fill-current")} />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleArchive}
+            className="p-1 rounded-md text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-foreground transition-colors"
+            title={archiveLabel}
+          >
+            {showArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+          </button>
+          <span className="text-[10px] text-muted-foreground/60 bg-muted/30 px-2 py-1 rounded-md ml-1">
+            {formatTime(session.updatedAt, justNowLabel)}
+          </span>
+        </div>
       </div>
       <p className="text-xs text-muted-foreground/70 line-clamp-2 leading-relaxed break-all">
         {session.preview || noPreviewLabel}
       </p>
+      {session.contentMatches && session.contentMatches.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          {session.contentMatches.slice(0, 2).map((match, i) => (
+            <div key={i} className="flex items-start gap-1.5 rounded-lg bg-amber-500/8 border border-amber-500/15 px-2.5 py-1.5">
+              {match.role === 'user' ? (
+                <User className="size-3 shrink-0 mt-0.5 text-amber-400/70" />
+              ) : (
+                <Bot className="size-3 shrink-0 mt-0.5 text-amber-400/70" />
+              )}
+              <p className="text-[11px] leading-relaxed text-muted-foreground/80 line-clamp-2 break-all">
+                {match.snippet}
+              </p>
+            </div>
+          ))}
+          {session.contentMatches.length > 2 && (
+            <div className="flex items-center gap-1 pl-1 text-[10px] text-amber-400/60">
+              <MessageSquareText className="size-3" />
+              +{(session.totalContentMatches || session.contentMatches.length) - 2}
+            </div>
+          )}
+        </div>
+      )}
       {session.updatedAt && (
         <div className="flex items-center gap-1.5 mt-2 text-[10px] text-muted-foreground/50">
           <Clock className="w-3 h-3 flex-shrink-0" />

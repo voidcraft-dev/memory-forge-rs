@@ -33,6 +33,7 @@ const initialAppState: AppState = {
   showEditLog: false,
   sessionStatus: null,
   mobileSidebarOpen: false,
+  showArchived: false,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -76,6 +77,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, sessionStatus: action.payload };
     case "setMobileSidebarOpen":
       return { ...state, mobileSidebarOpen: action.payload };
+    case "setShowArchived":
+      return { ...state, showArchived: action.payload, selectedSessionKey: null, sessionDetail: null };
     default:
       return state;
   }

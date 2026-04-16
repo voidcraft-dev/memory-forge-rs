@@ -1,14 +1,22 @@
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-use super::{build_commands, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock};
+use super::{build_commands, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock};
 
 pub struct ClaudePlatform {
     projects_root: PathBuf,
+}
+
+#[derive(Clone)]
+struct ScanSummary {
+    session_id: String,
+    cwd: String,
+    preview: String,
 }
 
 impl ClaudePlatform {
@@ -24,6 +32,83 @@ impl ClaudePlatform {
             .filter(|line| !line.trim().is_empty())
             .filter_map(|line| serde_json::from_str::<Value>(line).ok())
             .collect()
+    }
+
+    /// Fast single-pass scan: reads line-by-line, breaks early once we have session_id + cwd + preview.
+    fn scan_summary(&self, path: &Path) -> ScanSummary {
+        let default_id = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        let mut session_id = String::new();
+        let mut cwd = String::new();
+        let mut preview = String::new();
+
+        let Ok(file) = File::open(path) else {
+            return ScanSummary { session_id: default_id, cwd, preview };
+        };
+        let reader = BufReader::new(file);
+
+        for line in reader.lines() {
+            let Ok(line) = line else { continue };
+            let trimmed = line.trim();
+            if trimmed.is_empty() { continue; }
+            let Ok(parsed) = serde_json::from_str::<Value>(trimmed) else { continue };
+
+            if session_id.is_empty() {
+                if let Some(id) = parsed.get("sessionId").and_then(Value::as_str) {
+                    session_id = id.to_string();
+                }
+            }
+
+            if cwd.is_empty() {
+                if let Some(c) = parsed.get("cwd").and_then(Value::as_str) {
+                    cwd = c.to_string();
+                }
+            }
+
+            if preview.is_empty() {
+                if let Some(message) = parsed.get("message") {
+                    let role = message.get("role").and_then(Value::as_str).unwrap_or("");
+                    if role == "user" || role == "assistant" {
+                        // string content
+                        if let Some(text) = message.get("content").and_then(Value::as_str) {
+                            let cleaned = clean_preview_text(text);
+                            if !cleaned.is_empty() {
+                                preview = truncate(&cleaned, 120);
+                            }
+                        }
+                        // array content
+                        if preview.is_empty() {
+                            if let Some(items) = message.get("content").and_then(Value::as_array) {
+                                for item in items {
+                                    if item.get("type").and_then(Value::as_str) == Some("text") {
+                                        let text = item.get("text").and_then(Value::as_str).unwrap_or("");
+                                        let cleaned = clean_preview_text(text);
+                                        if !cleaned.is_empty() {
+                                            preview = truncate(&cleaned, 120);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !session_id.is_empty() && !cwd.is_empty() && !preview.is_empty() {
+                break;
+            }
+        }
+
+        if session_id.is_empty() {
+            session_id = default_id;
+        }
+
+        ScanSummary { session_id, cwd, preview }
     }
 
     fn session_id(&self, lines: &[Value], path: &Path) -> String {
@@ -44,75 +129,6 @@ impl ClaudePlatform {
                 return cwd.to_string();
             }
         }
-        String::new()
-    }
-
-    fn last_prompt(&self, lines: &[Value]) -> String {
-        for line in lines.iter().rev() {
-            if line.get("type").and_then(Value::as_str) == Some("last-prompt") {
-                if let Some(prompt) = line.get("lastPrompt").and_then(Value::as_str) {
-                    let prompt = prompt.trim();
-                    if !prompt.is_empty() {
-                        return prompt.to_string();
-                    }
-                }
-            }
-        }
-        String::new()
-    }
-
-    fn latest_user_text(&self, lines: &[Value]) -> String {
-        for line in lines.iter().rev() {
-            let Some(message) = line.get("message") else {
-                continue;
-            };
-            if message.get("role").and_then(Value::as_str) != Some("user") {
-                continue;
-            }
-
-            if let Some(text) = message.get("content").and_then(Value::as_str) {
-                let cleaned = clean_preview_text(text);
-                if !cleaned.is_empty() {
-                    return cleaned;
-                }
-            }
-
-            if let Some(items) = message.get("content").and_then(Value::as_array) {
-                for item in items.iter().rev() {
-                    if item.get("type").and_then(Value::as_str) == Some("text") {
-                        let text = item.get("text").and_then(Value::as_str).unwrap_or_default();
-                        let cleaned = clean_preview_text(text);
-                        if !cleaned.is_empty() {
-                            return cleaned;
-                        }
-                    }
-                }
-            }
-        }
-
-        String::new()
-    }
-
-    fn preview(&self, lines: &[Value]) -> String {
-        let last_prompt = self.last_prompt(lines);
-        if !last_prompt.is_empty() {
-            return truncate(&last_prompt, 120);
-        }
-
-        let latest_user = self.latest_user_text(lines);
-        if !latest_user.is_empty() {
-            return truncate(&latest_user, 120);
-        }
-
-        for block in self.blocks(lines, "") {
-            if !block.content.is_empty() {
-                let cleaned = clean_preview_text(&block.content);
-                if !cleaned.is_empty() {
-                    return truncate(&cleaned, 120);
-                }
-            }
-        }
-
         String::new()
     }
 
@@ -236,29 +252,27 @@ impl PlatformAdapter for ClaudePlatform {
 
         let mut items = Vec::new();
         for path in page {
-            let lines = self.read_jsonl(path);
-            if lines.is_empty() {
-                continue;
-            }
-
-            let session_id = self.session_id(&lines, path);
             let session_key = encode_path_key(path);
+            let summary = self.scan_summary(path);
             let alias = alias_map.get(&session_key).cloned().unwrap_or_default();
 
             items.push(SessionListItem {
                 platform: "claude".to_string(),
                 session_key,
-                session_id: session_id.clone(),
+                session_id: summary.session_id.clone(),
                 display_title: if alias.is_empty() {
-                    session_id
+                    summary.session_id
                 } else {
                     alias.clone()
                 },
                 alias_title: alias,
-                preview: self.preview(&lines),
+                preview: summary.preview,
                 updated_at: modified_nanos(path).to_string(),
-                cwd: self.cwd(&lines),
+                cwd: summary.cwd,
                 editable: true,
+                content_matches: vec![],
+                total_content_matches: 0,
+                favorite: false,
             });
         }
 
@@ -352,57 +366,60 @@ impl PlatformAdapter for ClaudePlatform {
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {
+        !self.content_search(session_key, query).is_empty()
+    }
+
+    fn content_search(&self, session_key: &str, query: &str) -> Vec<ContentMatch> {
         let needle = query.trim().to_lowercase();
         if needle.is_empty() {
-            return true;
+            return vec![];
         }
 
         let lines = self.read_jsonl(Path::new(session_key));
-        let mut haystacks = vec![
-            self.last_prompt(&lines),
-            self.latest_user_text(&lines),
-            self.preview(&lines),
-        ];
+        let mut matches = Vec::new();
+        let mut msg_index = 0usize;
 
         for line in &lines {
-            let Some(message) = line.get("message") else {
+            let Some(message) = line.get("message") else { continue };
+            let role = message.get("role").and_then(Value::as_str).unwrap_or("");
+            if role != "user" && role != "assistant" {
                 continue;
-            };
-
-            if let Some(text) = message.get("content").and_then(Value::as_str) {
-                haystacks.push(clean_preview_text(text));
             }
 
+            // Collect all text from this message
+            let mut texts = Vec::new();
+            if let Some(text) = message.get("content").and_then(Value::as_str) {
+                texts.push(text.to_string());
+            }
             if let Some(items) = message.get("content").and_then(Value::as_array) {
                 for item in items {
-                    if item.get("type").and_then(Value::as_str) == Some("text") {
-                        haystacks.push(
-                            item.get("text")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default()
-                                .to_string(),
-                        );
-                    }
-
-                    if matches!(
-                        item.get("type").and_then(Value::as_str),
-                        Some("thinking") | Some("reasoning")
-                    ) {
-                        haystacks.push(
-                            item.get("thinking")
-                                .or_else(|| item.get("text"))
-                                .and_then(Value::as_str)
-                                .unwrap_or_default()
-                                .to_string(),
-                        );
+                    let item_type = item.get("type").and_then(Value::as_str).unwrap_or("");
+                    if item_type == "text" {
+                        if let Some(t) = item.get("text").and_then(Value::as_str) {
+                            texts.push(t.to_string());
+                        }
+                    } else if item_type == "thinking" || item_type == "reasoning" {
+                        let t = item.get("thinking").or_else(|| item.get("text")).and_then(Value::as_str).unwrap_or("");
+                        texts.push(t.to_string());
                     }
                 }
             }
+
+            for text in &texts {
+                if text.to_lowercase().contains(&needle) {
+                    matches.push(ContentMatch {
+                        snippet: super::extract_snippet(text, &needle),
+                        match_index: msg_index,
+                        role: role.to_string(),
+                    });
+                    break; // one match per message
+                }
+            }
+
+            msg_index += 1;
         }
 
-        haystacks
-            .iter()
-            .any(|value| value.to_lowercase().contains(&needle))
+        matches
     }
 }
 

@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-use super::{build_commands, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock};
+use super::{build_commands, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock};
 
 pub struct CodexPlatform {
     sessions_root: PathBuf,
@@ -202,6 +202,9 @@ impl PlatformAdapter for CodexPlatform {
                 updated_at: modified_nanos(path).to_string(),
                 cwd: summary.cwd,
                 editable: true,
+                content_matches: vec![],
+                total_content_matches: 0,
+                favorite: false,
             });
         }
 
@@ -273,20 +276,37 @@ impl PlatformAdapter for CodexPlatform {
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {
+        !self.content_search(session_key, query).is_empty()
+    }
+
+    fn content_search(&self, session_key: &str, query: &str) -> Vec<ContentMatch> {
         let needle = query.trim().to_lowercase();
         if needle.is_empty() {
-            return true;
+            return vec![];
         }
 
         let lines = self.read_jsonl(Path::new(session_key));
-        lines.iter().any(|line| {
-            line.get("payload")
-                .and_then(|payload| payload.get("message"))
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_lowercase()
-                .contains(&needle)
-        })
+        let mut matches = Vec::new();
+        let mut msg_index = 0usize;
+
+        for line in &lines {
+            let Some(payload) = line.get("payload") else { continue };
+            let msg_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
+            if msg_type != "user_message" && msg_type != "agent_message" {
+                continue;
+            }
+            let text = payload.get("message").and_then(Value::as_str).unwrap_or("");
+            if text.to_lowercase().contains(&needle) {
+                matches.push(ContentMatch {
+                    snippet: super::extract_snippet(text, &needle),
+                    match_index: msg_index,
+                    role: if msg_type == "user_message" { "user".into() } else { "assistant".into() },
+                });
+            }
+            msg_index += 1;
+        }
+
+        matches
     }
 }
 

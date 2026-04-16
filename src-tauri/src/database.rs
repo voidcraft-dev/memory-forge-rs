@@ -89,7 +89,62 @@ pub struct SessionAlias {
     pub updated_at: String,
 }
 
-// ─── Edit Log ───
+// ─── Session Flags ───
+
+/// Toggle a flag on a session. Returns `true` if the flag is now set, `false` if removed.
+pub fn toggle_session_flag(
+    conn: &Mutex<Connection>,
+    platform: &str,
+    session_key: &str,
+    flag: &str,
+) -> Result<bool, String> {
+    let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+    let exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM session_flags WHERE platform = ?1 AND session_key = ?2 AND flag = ?3",
+            params![platform, session_key, flag],
+            |row| row.get::<_, i64>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if exists {
+        conn.execute(
+            "DELETE FROM session_flags WHERE platform = ?1 AND session_key = ?2 AND flag = ?3",
+            params![platform, session_key, flag],
+        )
+        .map_err(|e| format!("Delete flag error: {e}"))?;
+        Ok(false)
+    } else {
+        conn.execute(
+            "INSERT INTO session_flags (platform, session_key, flag) VALUES (?1, ?2, ?3)",
+            params![platform, session_key, flag],
+        )
+        .map_err(|e| format!("Insert flag error: {e}"))?;
+        Ok(true)
+    }
+}
+
+/// Get all session_keys that have a specific flag.
+pub fn get_flagged_keys(
+    conn: &Mutex<Connection>,
+    platform: &str,
+    flag: &str,
+) -> Result<std::collections::HashSet<String>, String> {
+    let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+    let mut stmt = conn
+        .prepare("SELECT session_key FROM session_flags WHERE platform = ?1 AND flag = ?2")
+        .map_err(|e| format!("Prepare error: {e}"))?;
+    let mut rows = stmt
+        .query(params![platform, flag])
+        .map_err(|e| format!("Query error: {e}"))?;
+    let mut set = std::collections::HashSet::new();
+    while let Some(row) = rows.next().map_err(|e| format!("Row error: {e}"))? {
+        set.insert(row.get::<_, String>(0).map_err(|e| format!("Row column error: {e}"))?);
+    }
+    Ok(set)
+}
+
+// ─── Edit Log (models) ───
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -142,6 +197,18 @@ pub fn init_tables(conn: &Connection) -> SqlResult<()> {
 
         CREATE INDEX IF NOT EXISTS idx_edit_log_platform_session
             ON edit_log(platform, session_key);
+
+        CREATE TABLE IF NOT EXISTS session_flags (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform    TEXT    NOT NULL,
+            session_key TEXT    NOT NULL,
+            flag        TEXT    NOT NULL,
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(platform, session_key, flag)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_session_flags_lookup
+            ON session_flags(platform, flag);
         "
     )?;
     ensure_builtin_prompts(conn)?;

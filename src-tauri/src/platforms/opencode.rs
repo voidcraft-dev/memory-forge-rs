@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use rusqlite::params;
 use serde_json::{json, Value};
 
-use super::{SessionDetail, SessionListItem, SessionListResult, TimelineBlock, build_commands};
+use super::{ContentMatch, SessionDetail, SessionListItem, SessionListResult, TimelineBlock, build_commands};
 
 pub struct OpenCodePlatform {
     db_path: PathBuf,
@@ -85,6 +85,9 @@ impl super::PlatformAdapter for OpenCodePlatform {
                 updated_at: time_updated.to_string(),
                 cwd: directory,
                 editable: true,
+                content_matches: vec![],
+                total_content_matches: 0,
+                favorite: false,
             });
         }
         SessionListResult { total, items }
@@ -217,6 +220,44 @@ impl super::PlatformAdapter for OpenCodePlatform {
         }
 
         false
+    }
+
+    fn content_search(&self, session_key: &str, query: &str) -> Vec<ContentMatch> {
+        let needle = query.to_lowercase();
+        if needle.is_empty() {
+            return vec![];
+        }
+
+        let conn = match self.connect() {
+            Ok(c) => c,
+            Err(_) => return vec![],
+        };
+
+        let mut matches = Vec::new();
+
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT p.data, m.role FROM part p JOIN message m ON p.message_id = m.id WHERE p.session_id = ?1 ORDER BY p.id"
+        ) {
+            if let Ok(mut rows) = stmt.query(params![session_key]) {
+                let mut msg_index = 0usize;
+                while let Ok(Some(row)) = rows.next() {
+                    let data_str: String = row.get(0).unwrap_or_default();
+                    let role: String = row.get(1).unwrap_or_default();
+                    let data: Value = serde_json::from_str(&data_str).unwrap_or_default();
+                    let text = data.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                    if text.to_lowercase().contains(&needle) {
+                        matches.push(ContentMatch {
+                            snippet: super::extract_snippet(text, &needle),
+                            match_index: msg_index,
+                            role: role.clone(),
+                        });
+                    }
+                    msg_index += 1;
+                }
+            }
+        }
+
+        matches
     }
 }
 

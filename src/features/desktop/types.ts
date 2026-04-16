@@ -1,6 +1,6 @@
 // ─── Desktop ───
 
-export type ThemeId = "graphite" | "linen" | "porcelain" | "ocean" | "ember";
+export type ThemeId = "graphite" | "linen" | "porcelain" | "ocean" | "ember" | "twilight";
 export type LocaleId = "zh-CN" | "en";
 
 export type DesktopSettings = {
@@ -12,6 +12,7 @@ export type DesktopSettings = {
   claudeHome: string | null;
   codexHome: string | null;
   opencodePath: string | null;
+  kiroHome: string | null;
 };
 
 export type DesktopSettingsPatch = Partial<DesktopSettings>;
@@ -31,7 +32,13 @@ export type DesktopSnapshot = {
 
 // ─── Session ───
 
-export type Platform = "claude" | "codex" | "opencode";
+export type Platform = "claude" | "codex" | "opencode" | "kiro";
+
+export type ContentMatch = {
+  snippet: string;
+  matchIndex: number;
+  role: string;
+};
 
 export type Session = {
   platform: string;
@@ -43,6 +50,9 @@ export type Session = {
   updatedAt: string;
   cwd: string;
   editable: boolean;
+  contentMatches?: ContentMatch[];
+  totalContentMatches?: number;
+  favorite?: boolean;
 };
 
 export type TimelineBlock = {
@@ -146,6 +156,7 @@ export type AppState = {
   showEditLog: boolean;
   sessionStatus: SessionStatus | null;
   mobileSidebarOpen: boolean;
+  showArchived: boolean;
 };
 
 export type AppAction =
@@ -161,4 +172,5 @@ export type AppAction =
   | { type: "setEditLog"; payload: EditLogEntry[] }
   | { type: "setShowEditLog"; payload: boolean }
   | { type: "setSessionStatus"; payload: SessionStatus | null }
-  | { type: "setMobileSidebarOpen"; payload: boolean };
+  | { type: "setMobileSidebarOpen"; payload: boolean }
+  | { type: "setShowArchived"; payload: boolean };

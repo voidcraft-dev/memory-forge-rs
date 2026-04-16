@@ -11,6 +11,7 @@ import {
   Bot,
   Terminal,
   Code,
+  Sparkles,
 } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router";
 import { useDesktop } from "@/features/desktop/provider";
@@ -23,6 +24,7 @@ const navigation = [
   { to: "/claude", labelKey: "platformClaude" as const, icon: Bot },
   { to: "/codex", labelKey: "platformCodex" as const, icon: Terminal },
   { to: "/opencode", labelKey: "platformOpencode" as const, icon: Code },
+  { to: "/kiro", labelKey: "platformKiro" as const, icon: Sparkles },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },
