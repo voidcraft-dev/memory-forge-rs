@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="images/logo.jpg" alt="Memory Forge" width="128" />
+<img src="memory-forge-logo-v8.svg" alt="Memory Forge" width="128" />
 
 # Memory Forge RS
 
@@ -46,7 +46,7 @@ You've spent 40 minutes guiding Claude Code through a complex refactor. It's goi
 
 A **local desktop app** that lets you browse, edit, and manage AI coding assistant sessions.
 
-Works with **Claude Code**, **Codex CLI**, and **OpenCode** — all in one unified interface.
+Works with **Claude Code**, **Codex CLI**, **OpenCode**, and **Kiro CLI** — all in one unified interface.
 
 Built with **Tauri v2 + Rust**. No Python, no server, no cloud. 100% local.
 
@@ -110,14 +110,15 @@ That's it. Your AI picks up the corrected memory on the next `--resume`.
 - **Edit Audit Log** — Every edit is tracked with before/after diff, fully traceable
 
 **Session Management**
-- **Multi-platform** — Claude Code / Codex CLI / OpenCode in one unified view
-- **Dashboard** — Session stats + 7-day trend chart across all platforms
+- **Multi-platform** — Claude Code / Codex CLI / OpenCode / Kiro CLI in one unified view
+- **Dashboard** — Session stats across all platforms
+- **Favorites & Archive** — Star important sessions, soft-archive the rest
 - **Session Aliases** — Give sessions memorable names for quick lookup
 - **Quick Commands** — One-click copy for `--resume` and `--fork` commands
 - **Markdown Export** — Export full conversations as `.md` files
 
 **App Experience**
-- **4 Themes** — Graphite (dark) · Linen (light) · Ocean (dark) · Ember (dark)
+- **5 Themes** — Graphite (dark) · Linen (light) · Ocean (dark) · Ember (dark) · Twilight (dark)
 - **Bilingual** — 简体中文 / English
 - **Prompt Library** — Save, tag, search & copy frequently used prompts
 - **System Tray** — Close to tray, launch on startup
@@ -130,6 +131,7 @@ That's it. Your AI picks up the corrected memory on the next `--resume`.
 | **Claude Code** | `claude --resume <id>` | `claude --resume <id> --fork-session` | `~/.claude` |
 | **Codex CLI** | `codex resume <id>` | — | `~/.codex` |
 | **OpenCode** | `opencode -s <id>` | `opencode -s <id> --fork` | `~/.local/share/opencode/opencode.db` |
+| **Kiro CLI** | `kiro-cli chat --resume-id <id>` | — | `~/.kiro` |
 
 ## Installation
 
@@ -227,7 +229,7 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 
 <div align="center">
 
-<img src="images/logo.jpg" alt="Memory Forge" width="128" />
+<img src="memory-forge-logo-v8.svg" alt="Memory Forge" width="128" />
 
 # 记忆锻造 RS
 
@@ -257,7 +259,7 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 
 一个**本地桌面应用**，让你浏览、编辑、管理 AI 编程助手的会话记录。
 
-支持 **Claude Code**、**Codex CLI** 和 **OpenCode** — 统一界面管理。
+支持 **Claude Code**、**Codex CLI**、**OpenCode** 和 **Kiro CLI** — 统一界面管理。
 
 **Tauri v2 + Rust** 构建。没有 Python，没有服务器，没有云端。100% 本地运行。
 
@@ -321,14 +323,15 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 - **修改追溯** — 每次编辑都有前后 diff 对比，完整可追溯
 
 **会话管理**
-- **多平台统一** — Claude Code / Codex CLI / OpenCode 一个界面搞定
-- **仪表盘** — 跨平台会话统计 + 7 天趋势图
+- **多平台统一** — Claude Code / Codex CLI / OpenCode / Kiro CLI 一个界面搞定
+- **仪表盘** — 跨平台会话统计
+- **收藏 & 归档** — 星标重要会话，归档不常用的
 - **会话别名** — 给会话起容易记的名字
 - **快捷命令** — `--resume` 和 `--fork` 一键复制
 - **Markdown 导出** — 完整对话导出为 `.md` 文件
 
 **使用体验**
-- **4 套主题** — 石墨（深色）· 亚麻（浅色）· 海湾（深色）· 余烬（深色）
+- **5 套主题** — 石墨（深色）· 亚麻（浅色）· 海湾（深色）· 余烬（深色）· 暮光（深色）
 - **双语界面** — 简体中文 / English
 - **提示词库** — 保存、标签、搜索常用提示词，一键复制
 - **系统托盘** — 关闭到托盘、开机自启
@@ -341,6 +344,7 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 | **Claude Code** | `claude --resume <id>` | `claude --resume <id> --fork-session` | `~/.claude` |
 | **Codex CLI** | `codex resume <id>` | — | `~/.codex` |
 | **OpenCode** | `opencode -s <id>` | `opencode -s <id> --fork` | `~/.local/share/opencode/opencode.db` |
+| **Kiro CLI** | `kiro-cli chat --resume-id <id>` | — | `~/.kiro` |
 
 ## 安装方式
 
