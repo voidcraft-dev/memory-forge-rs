@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore } from 'lucide-react'
+import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore, ChevronDown, ChevronUp } from 'lucide-react'
 import type { Session } from '@/features/desktop/types'
 
 function formatTime(timestamp: string, justNowLabel: string): string {
@@ -309,6 +309,7 @@ function SessionCard({ session, isSelected, showArchived, onClick, onToggleFavor
   const platform = session.platform || 'claude'
   const borderColor = platformBorderColors[platform as keyof typeof platformBorderColors] || platformBorderColors.claude
   const [copied, setCopied] = useState(false)
+  const [matchesExpanded, setMatchesExpanded] = useState(false)
 
   const handleCopyCwd = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -374,7 +375,7 @@ function SessionCard({ session, isSelected, showArchived, onClick, onToggleFavor
       </p>
       {session.contentMatches && session.contentMatches.length > 0 && (
         <div className="mt-2 space-y-1.5">
-          {session.contentMatches.slice(0, 2).map((match, i) => (
+          {(matchesExpanded ? session.contentMatches : session.contentMatches.slice(0, 2)).map((match, i) => (
             <div key={i} className="flex items-start gap-1.5 rounded-lg bg-amber-500/8 border border-amber-500/15 px-2.5 py-1.5">
               {match.role === 'user' ? (
                 <User className="size-3 shrink-0 mt-0.5 text-amber-400/70" />
@@ -387,10 +388,23 @@ function SessionCard({ session, isSelected, showArchived, onClick, onToggleFavor
             </div>
           ))}
           {session.contentMatches.length > 2 && (
-            <div className="flex items-center gap-1 pl-1 text-[10px] text-amber-400/60">
-              <MessageSquareText className="size-3" />
-              +{(session.totalContentMatches || session.contentMatches.length) - 2}
-            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setMatchesExpanded(!matchesExpanded) }}
+              className="flex items-center gap-1 pl-1 text-[10px] text-amber-400/60 hover:text-amber-400 transition-colors"
+            >
+              {matchesExpanded ? (
+                <>
+                  <ChevronUp className="size-3" />
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="size-3" />
+                  <MessageSquareText className="size-3" />
+                  +{(session.totalContentMatches || session.contentMatches.length) - 2}
+                </>
+              )}
+            </button>
           )}
         </div>
       )}

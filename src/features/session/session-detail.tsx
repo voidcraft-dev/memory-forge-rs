@@ -22,6 +22,7 @@ export function SessionDetail() {
   const selectedSessionKey = state.selectedSessionKey
   const showEditLog = state.showEditLog
   const sessionStatus = state.sessionStatus
+  const globalSearchQuery = state.searchQuery
 
   const [aliasTitle, setAliasTitle] = useState('')
   const [savingAlias, setSavingAlias] = useState(false)
@@ -36,6 +37,14 @@ export function SessionDetail() {
   useEffect(() => {
     setAliasTitle(sessionDetail?.aliasTitle || '')
   }, [sessionDetail?.sessionKey, sessionDetail?.aliasTitle])
+
+  useEffect(() => {
+    if (globalSearchQuery.trim()) {
+      setInlineSearch(globalSearchQuery.trim())
+    } else {
+      setInlineSearch('')
+    }
+  }, [sessionDetail?.sessionKey, globalSearchQuery])
 
   useEffect(() => {
     if (!sessionStatus) {

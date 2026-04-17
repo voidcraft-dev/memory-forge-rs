@@ -386,7 +386,7 @@ impl PlatformAdapter for ClaudePlatform {
                 continue;
             }
 
-            // Collect all text from this message
+            // Collect all searchable text from this message
             let mut texts = Vec::new();
             if let Some(text) = message.get("content").and_then(Value::as_str) {
                 texts.push(text.to_string());
@@ -394,13 +394,37 @@ impl PlatformAdapter for ClaudePlatform {
             if let Some(items) = message.get("content").and_then(Value::as_array) {
                 for item in items {
                     let item_type = item.get("type").and_then(Value::as_str).unwrap_or("");
-                    if item_type == "text" {
-                        if let Some(t) = item.get("text").and_then(Value::as_str) {
+                    match item_type {
+                        "text" => {
+                            if let Some(t) = item.get("text").and_then(Value::as_str) {
+                                texts.push(t.to_string());
+                            }
+                        }
+                        "thinking" | "reasoning" => {
+                            let t = item.get("thinking").or_else(|| item.get("text")).and_then(Value::as_str).unwrap_or("");
                             texts.push(t.to_string());
                         }
-                    } else if item_type == "thinking" || item_type == "reasoning" {
-                        let t = item.get("thinking").or_else(|| item.get("text")).and_then(Value::as_str).unwrap_or("");
-                        texts.push(t.to_string());
+                        "tool_use" => {
+                            if let Some(name) = item.get("name").and_then(Value::as_str) {
+                                texts.push(name.to_string());
+                            }
+                            if let Some(input) = item.get("input") {
+                                texts.push(input.to_string());
+                            }
+                        }
+                        "tool_result" => {
+                            if let Some(content) = item.get("content").and_then(Value::as_str) {
+                                texts.push(content.to_string());
+                            }
+                            if let Some(arr) = item.get("content").and_then(Value::as_array) {
+                                for sub in arr {
+                                    if let Some(t) = sub.get("text").and_then(Value::as_str) {
+                                        texts.push(t.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }

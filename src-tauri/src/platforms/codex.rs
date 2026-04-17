@@ -292,15 +292,32 @@ impl PlatformAdapter for CodexPlatform {
         for line in &lines {
             let Some(payload) = line.get("payload") else { continue };
             let msg_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
-            if msg_type != "user_message" && msg_type != "agent_message" {
-                continue;
+            let role = match msg_type {
+                "user_message" => "user",
+                "agent_message" => "assistant",
+                "function_call" | "function_call_output" => "assistant",
+                _ => continue,
+            };
+            let mut texts = Vec::new();
+            if let Some(text) = payload.get("message").and_then(Value::as_str) {
+                texts.push(text.to_string());
             }
-            let text = payload.get("message").and_then(Value::as_str).unwrap_or("");
-            if text.to_lowercase().contains(&needle) {
+            if let Some(name) = payload.get("name").and_then(Value::as_str) {
+                texts.push(name.to_string());
+            }
+            if let Some(output) = payload.get("output").and_then(Value::as_str) {
+                texts.push(output.to_string());
+            }
+            if let Some(args) = payload.get("arguments") {
+                texts.push(args.to_string());
+            }
+            let combined = texts.join(" ").to_lowercase();
+            if combined.contains(&needle) {
+                let best_text = texts.iter().find(|t| t.to_lowercase().contains(&needle)).cloned().unwrap_or_default();
                 matches.push(ContentMatch {
-                    snippet: super::extract_snippet(text, &needle),
+                    snippet: super::extract_snippet(&best_text, &needle),
                     match_index: msg_index,
-                    role: if msg_type == "user_message" { "user".into() } else { "assistant".into() },
+                    role: role.into(),
                 });
             }
             msg_index += 1;

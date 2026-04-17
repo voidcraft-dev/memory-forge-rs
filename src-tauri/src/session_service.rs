@@ -156,7 +156,7 @@ pub fn session_list(
                 if !content_matches.is_empty() {
                     let mut item = item;
                     item.total_content_matches = content_matches.len();
-                    item.content_matches = content_matches.into_iter().take(3).collect();
+                    item.content_matches = content_matches;
                     Some(item)
                 } else {
                     None

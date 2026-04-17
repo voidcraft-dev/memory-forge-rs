@@ -210,9 +210,7 @@ impl super::PlatformAdapter for OpenCodePlatform {
             if let Ok(mut rows) = stmt.query(params![session_key]) {
                 while let Ok(Some(row)) = rows.next() {
                     let data_str: String = row.get(0).unwrap_or_default();
-                    let data: Value = serde_json::from_str(&data_str).unwrap_or_default();
-                    let text = data.get("text").and_then(|v| v.as_str()).unwrap_or("");
-                    if text.to_lowercase().contains(&needle) {
+                    if data_str.to_lowercase().contains(&needle) {
                         return true;
                     }
                 }
@@ -244,10 +242,29 @@ impl super::PlatformAdapter for OpenCodePlatform {
                     let data_str: String = row.get(0).unwrap_or_default();
                     let role: String = row.get(1).unwrap_or_default();
                     let data: Value = serde_json::from_str(&data_str).unwrap_or_default();
-                    let text = data.get("text").and_then(|v| v.as_str()).unwrap_or("");
-                    if text.to_lowercase().contains(&needle) {
+                    let kind = data.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                    let mut searchable = Vec::new();
+                    if let Some(t) = data.get("text").and_then(|v| v.as_str()) {
+                        searchable.push(t.to_string());
+                    }
+                    if kind == "tool" {
+                        if let Some(name) = data.get("name").and_then(|v| v.as_str()) {
+                            searchable.push(name.to_string());
+                        }
+                        if let Some(state) = data.get("state") {
+                            if let Some(output) = state.get("output").and_then(|v| v.as_str()) {
+                                searchable.push(output.to_string());
+                            }
+                            if let Some(input) = state.get("input") {
+                                searchable.push(input.to_string());
+                            }
+                        }
+                    }
+                    let combined = searchable.join(" ").to_lowercase();
+                    if combined.contains(&needle) {
+                        let best = searchable.iter().find(|t| t.to_lowercase().contains(&needle)).cloned().unwrap_or_default();
                         matches.push(ContentMatch {
-                            snippet: super::extract_snippet(text, &needle),
+                            snippet: super::extract_snippet(&best, &needle),
                             match_index: msg_index,
                             role: role.clone(),
                         });
