@@ -13,6 +13,33 @@ function openUrl(url: string) {
   });
 }
 
+function formatReleaseNotes(raw: string): React.ReactNode[] {
+  const lines = raw
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("|") && (trimmed.includes("---") || trimmed.includes("平台") || trimmed.includes("Platform"))) return false;
+      if (trimmed.match(/^\|.*\|$/)) return false;
+      if (trimmed === "") return false;
+      return true;
+    });
+
+  return lines.map((line, i) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("## ")) {
+      return <h4 key={i} className="text-sm font-semibold text-foreground pt-1">{trimmed.replace(/^##\s+/, "")}</h4>;
+    }
+    if (trimmed.startsWith("### ")) {
+      return <h5 key={i} className="text-xs font-semibold text-foreground/80">{trimmed.replace(/^###\s+/, "")}</h5>;
+    }
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      return <p key={i} className="pl-3 before:content-['•'] before:mr-1.5 before:text-amber-400/60">{trimmed.replace(/^[-*]\s+/, "")}</p>;
+    }
+    return <p key={i}>{trimmed}</p>;
+  });
+}
+
 export default function AboutPage() {
   const { t, snapshot } = useDesktop();
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -111,7 +138,9 @@ export default function AboutPage() {
                 {updateInfo.releaseNotes && (
                   <details className="mt-3">
                     <summary className="cursor-pointer text-xs font-medium text-quiet hover:text-foreground">{t("releaseNotes")}</summary>
-                    <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border/50 bg-background/50 p-3 text-xs leading-relaxed text-quiet">{updateInfo.releaseNotes}</pre>
+                    <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-border/50 bg-background/50 p-4 text-xs leading-relaxed text-quiet space-y-2">
+                      {formatReleaseNotes(updateInfo.releaseNotes)}
+                    </div>
                   </details>
                 )}
               </div>
