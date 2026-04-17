@@ -7,10 +7,11 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
-import { Clock, Pencil, Check, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive } from 'lucide-react'
+import { Clock, Pencil, Check, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List } from 'lucide-react'
+import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 
 const PAGE_SIZE = 50
-import { save, ask } from '@tauri-apps/plugin-dialog'
+import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 
 export function SessionDetail() {
@@ -32,7 +33,9 @@ export function SessionDetail() {
   const [exportDone, setExportDone] = useState(false)
   const [inlineSearch, setInlineSearch] = useState('')
   const [currentMatchIdx, setCurrentMatchIdx] = useState(0)
+  const [tocOpen, setTocOpen] = useState(false)
   const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog()
 
   useEffect(() => {
     setAliasTitle(sessionDetail?.aliasTitle || '')
@@ -140,7 +143,7 @@ export function SessionDetail() {
   }
 
   const handleEraseBlock = async (block: typeof sessionDetail.blocks[0]) => {
-    if (!window.confirm(t('session.eraseConfirm'))) return
+    if (!await confirm({ title: t('session.erase'), description: t('session.eraseConfirm'), variant: 'danger' })) return
     try {
       await api.editMessage(currentPlatform, block.editTarget || block.id, '', sessionDetail.sessionKey)
       const updatedBlocks = sessionDetail.blocks.map(b =>
@@ -307,7 +310,7 @@ export function SessionDetail() {
             <Button variant="ghost" size="sm"
               className="gap-2 hover:bg-amber-500/10 hover:text-amber-400"
               onClick={async () => {
-                if (!await ask(t('session.archiveConfirm'), { title: t('session.archive'), kind: 'warning' })) return
+                if (!await confirm({ title: t('session.archive'), description: t('session.archiveConfirm') })) return
                 await api.toggleFlag(currentPlatform, sessionDetail.sessionKey, 'archived')
                 dispatch({ type: 'setSessions', payload: sessions.filter(s => s.sessionKey !== sessionDetail.sessionKey) })
                 dispatch({ type: 'setSelectedSessionKey', payload: null })
@@ -441,6 +444,53 @@ export function SessionDetail() {
           ))}
         </div>
       </ScrollArea>
+
+      {/* Floating TOC */}
+      <div className="absolute bottom-5 right-5 z-20">
+        {tocOpen && (
+          <div className="mb-2 max-h-80 w-72 overflow-y-auto rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl">
+            <div className="sticky top-0 border-b border-border/50 bg-card/95 px-4 py-2.5">
+              <p className="text-xs font-medium text-muted-foreground">{t('session.filter.user')} · {filteredBlocks.filter(b => b.role === 'user').length}</p>
+            </div>
+            <div className="p-2 space-y-0.5">
+              {filteredBlocks.map((block, index) => {
+                if (block.role !== 'user') return null
+                return (
+                  <button
+                    key={block.id}
+                    type="button"
+                    onClick={() => {
+                      const el = blockRefs.current.get(block.id)
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      setTocOpen(false)
+                    }}
+                    className="w-full text-left rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors truncate"
+                  >
+                    <span className="text-muted-foreground/50 mr-1.5">#{index + 1}</span>
+                    {block.content.slice(0, 60).replace(/\n/g, ' ')}
+                    {block.content.length > 60 && '...'}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setTocOpen(!tocOpen)}
+          className={cn(
+            "flex size-10 items-center justify-center rounded-full shadow-lg transition-all",
+            tocOpen
+              ? "bg-primary text-primary-foreground"
+              : "bg-card/90 border border-border/80 text-muted-foreground hover:text-foreground hover:bg-card backdrop-blur-xl"
+          )}
+          title={t('session.filter.user')}
+        >
+          <List className="size-4" />
+        </button>
+      </div>
+
+      <ConfirmDialog {...confirmDialogProps} />
     </section>
   )
 }

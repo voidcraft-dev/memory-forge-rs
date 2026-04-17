@@ -3,9 +3,9 @@ import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
-import { ask } from '@tauri-apps/plugin-dialog'
 import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore, ChevronDown, ChevronUp } from 'lucide-react'
 import type { Session } from '@/features/desktop/types'
 
@@ -74,6 +74,7 @@ export function SessionList() {
   const [favoritesOnly, setFavoritesOnly] = useState(false)
 
   const showArchived = state.showArchived
+  const { confirm, dialogProps } = useConfirmDialog()
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const debouncedSetSearch = useCallback((value: string) => {
@@ -261,7 +262,7 @@ export function SessionList() {
                   }}
                   onToggleArchive={async (e) => {
                     e.stopPropagation()
-                    if (!showArchived && !await ask(t('session.archiveConfirm'), { title: t('session.archive'), kind: 'warning' })) return
+                    if (!showArchived && !await confirm({ title: t('session.archive'), description: t('session.archiveConfirm') })) return
                     await api.toggleFlag(currentPlatform, session.sessionKey, 'archived')
                     dispatch({ type: 'setSessions', payload: sessions.filter(s => s.sessionKey !== session.sessionKey) })
                     if (selectedSessionKey === session.sessionKey) {
@@ -290,6 +291,7 @@ export function SessionList() {
           )}
         </div>
       </ScrollArea>
+      <ConfirmDialog {...dialogProps} />
     </aside>
   )
 }

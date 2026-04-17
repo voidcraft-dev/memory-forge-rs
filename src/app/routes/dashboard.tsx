@@ -53,7 +53,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Platform Session Cards */}
-      <section className="mt-5 grid gap-4 md:grid-cols-3">
+      <section className="mt-5 grid gap-4 grid-cols-2 xl:grid-cols-4">
         {platformMeta.map((pm) => {
           const Icon = pm.icon;
           const summary = platforms.find((p) => p.platform === pm.key);
@@ -63,7 +63,7 @@ export default function DashboardPage() {
             <Link
               key={pm.key}
               to={pm.to}
-              className={`setting-card rounded-[24px] border ${pm.border} bg-gradient-to-b ${pm.gradient} p-5 transition hover:scale-[1.02] hover:shadow-lg`}
+              className={`setting-card rounded-[24px] border ${pm.border} bg-gradient-to-b ${pm.gradient} p-5 transition hover:scale-[1.02] hover:shadow-lg h-[120px] flex flex-col justify-between`}
             >
               <div className="flex items-center gap-3">
                 <div className={`inline-flex size-11 items-center justify-center rounded-2xl ${pm.iconBg}`}>
@@ -74,7 +74,7 @@ export default function DashboardPage() {
                   <p className="text-2xl font-bold">{count}</p>
                 </div>
               </div>
-              <p className="mt-3 truncate text-xs text-quiet">最近活跃: {latest}</p>
+              <p className="truncate text-xs text-quiet">最近活跃: {latest}</p>
             </Link>
           );
         })}
