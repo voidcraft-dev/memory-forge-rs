@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Brain, Eye, Flame, Globe, Monitor, Shield, ExternalLink, MessageCircle, Server, RefreshCw, CheckCircle, Download, ArrowUpCircle, AlertCircle } from "lucide-react";
+import { AppLogo } from "@/components/logo";
 import { useDesktop } from "@/features/desktop/provider";
 import { api } from "@/features/desktop/api";
 import type { UpdateInfo } from "@/features/desktop/types";
@@ -45,8 +46,8 @@ export default function AboutPage() {
       <section className="relative shrink-0 overflow-hidden rounded-[28px] border border-border/80 px-6 py-6 md:px-8 md:py-8">
         <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),transparent_64%)] lg:block" />
         <div className="relative flex items-center gap-5">
-          <div className="inline-flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-            <Flame className="size-7" />
+          <div className="inline-flex size-16 shrink-0 items-center justify-center rounded-2xl overflow-hidden">
+            <AppLogo className="size-16" />
           </div>
           <div className="min-w-0">
             <p className="text-fine uppercase tracking-[0.28em] text-quiet">Memory Forge</p>

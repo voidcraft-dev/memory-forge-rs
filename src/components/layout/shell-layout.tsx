@@ -2,7 +2,6 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
-  Flame,
   Info,
   LayoutGrid,
   Menu,
@@ -13,6 +12,7 @@ import {
   Code,
   Sparkles,
 } from "lucide-react";
+import { AppLogo } from "@/components/logo";
 import { NavLink, Outlet, useNavigate } from "react-router";
 import { useDesktop } from "@/features/desktop/provider";
 import { api } from "@/features/desktop/api";
@@ -56,7 +56,7 @@ export default function ShellLayout() {
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
         <div className="flex items-center gap-2">
-          <Flame className="w-5 h-5 text-primary" />
+          <AppLogo className="size-5" />
           <span className="font-semibold">{t("appName")}</span>
         </div>
       </div>
@@ -89,8 +89,8 @@ export default function ShellLayout() {
           <div className="relative flex h-full min-h-0 flex-col">
             {/* Logo */}
             <div className={cn("flex items-center", sidebarCollapsed ? "justify-center" : "gap-3")}>
-              <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/15 text-primary ring-soft">
-                <Flame className="size-5" />
+              <div className="flex size-12 items-center justify-center rounded-2xl ring-soft overflow-hidden">
+                <AppLogo className="size-12" />
               </div>
               {!sidebarCollapsed && (
                 <div>
