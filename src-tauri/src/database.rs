@@ -124,6 +124,41 @@ pub fn toggle_session_flag(
     }
 }
 
+/// Set or unset a flag on multiple sessions in a single transaction.
+/// Returns the number of rows affected (inserted when `set`=true, deleted when `set`=false).
+pub fn batch_set_session_flag(
+    conn: &Mutex<Connection>,
+    platform: &str,
+    session_keys: &[String],
+    flag: &str,
+    set: bool,
+) -> Result<usize, String> {
+    if session_keys.is_empty() {
+        return Ok(0);
+    }
+    let mut conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+    let tx = conn.transaction().map_err(|e| format!("Begin tx error: {e}"))?;
+    let mut affected = 0usize;
+    for key in session_keys {
+        let n = if set {
+            tx.execute(
+                "INSERT OR IGNORE INTO session_flags (platform, session_key, flag) VALUES (?1, ?2, ?3)",
+                params![platform, key, flag],
+            )
+            .map_err(|e| format!("Batch insert error: {e}"))?
+        } else {
+            tx.execute(
+                "DELETE FROM session_flags WHERE platform = ?1 AND session_key = ?2 AND flag = ?3",
+                params![platform, key, flag],
+            )
+            .map_err(|e| format!("Batch delete error: {e}"))?
+        };
+        affected += n;
+    }
+    tx.commit().map_err(|e| format!("Commit error: {e}"))?;
+    Ok(affected)
+}
+
 /// Get all session_keys that have a specific flag.
 pub fn get_flagged_keys(
     conn: &Mutex<Connection>,

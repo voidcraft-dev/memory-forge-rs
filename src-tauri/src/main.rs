@@ -101,6 +101,17 @@ fn session_toggle_flag(
 }
 
 #[tauri::command]
+fn session_batch_set_flag(
+    db: tauri::State<'_, DbState>,
+    platform: String,
+    session_keys: Vec<String>,
+    flag: String,
+    set: bool,
+) -> Result<usize, String> {
+    session_service::session_batch_set_flag(&db, &platform, &session_keys, &flag, set)
+}
+
+#[tauri::command]
 fn session_edit_message(
     db: tauri::State<'_, DbState>,
     settings_state: tauri::State<'_, SharedSettingsState>,
@@ -239,6 +250,7 @@ fn main() {
             session_detail,
             session_set_alias,
             session_toggle_flag,
+            session_batch_set_flag,
             session_edit_message,
             session_edit_log,
             session_restore_message,

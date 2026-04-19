@@ -330,6 +330,13 @@ export const api = {
     return false;
   },
 
+  async batchSetFlag(platform: string, sessionKeys: string[], flag: string, set: boolean): Promise<number> {
+    if (isTauriRuntime()) {
+      return invoke<number>("session_batch_set_flag", { platform, sessionKeys, flag, set });
+    }
+    return 0;
+  },
+
   async checkUpdate(): Promise<UpdateInfo> {
     if (isTauriRuntime()) {
       return invoke<UpdateInfo>("check_update");

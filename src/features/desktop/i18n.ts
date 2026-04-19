@@ -177,7 +177,22 @@ export type MessageKey =
   | "session.archiveView"
   | "session.sessionsView"
   | "session.noArchivedSessions"
-  | "session.archiveConfirm";
+  | "session.archiveConfirm"
+  | "session.selectMode"
+  | "session.exitSelect"
+  | "session.selectAll"
+  | "session.invertSelection"
+  | "session.selectedCount"
+  | "session.batchArchive"
+  | "session.batchUnarchive"
+  | "session.batchFavorite"
+  | "session.batchUnfavorite"
+  | "session.batchArchived"
+  | "session.batchUnarchived"
+  | "session.batchFavorited"
+  | "session.batchUnfavorited"
+  | "session.batchFailed"
+  | "session.noSelection";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -348,6 +363,21 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.sessionsView": "会话",
     "session.noArchivedSessions": "暂无归档会话",
     "session.archiveConfirm": "确定归档这个会话吗？归档后不会在列表中显示，可以在归档视图中恢复。",
+    "session.selectMode": "多选",
+    "session.exitSelect": "退出多选",
+    "session.selectAll": "全选",
+    "session.invertSelection": "反选",
+    "session.selectedCount": "已选 {count}",
+    "session.batchArchive": "批量归档",
+    "session.batchUnarchive": "批量取消归档",
+    "session.batchFavorite": "批量收藏",
+    "session.batchUnfavorite": "批量取消收藏",
+    "session.batchArchived": "已归档 {count} 个会话",
+    "session.batchUnarchived": "已恢复 {count} 个会话",
+    "session.batchFavorited": "已收藏 {count} 个会话",
+    "session.batchUnfavorited": "已取消收藏 {count} 个会话",
+    "session.batchFailed": "批量操作失败",
+    "session.noSelection": "未选中任何会话",
   },
   en: {
     appName: "Memory Forge",
@@ -517,6 +547,21 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.sessionsView": "Sessions",
     "session.noArchivedSessions": "No archived sessions",
     "session.archiveConfirm": "Archive this session? It will be hidden from the list but can be restored from the archive view.",
+    "session.selectMode": "Select",
+    "session.exitSelect": "Exit",
+    "session.selectAll": "Select all",
+    "session.invertSelection": "Invert",
+    "session.selectedCount": "{count} selected",
+    "session.batchArchive": "Archive",
+    "session.batchUnarchive": "Unarchive",
+    "session.batchFavorite": "Favorite",
+    "session.batchUnfavorite": "Unfavorite",
+    "session.batchArchived": "Archived {count} session(s)",
+    "session.batchUnarchived": "Restored {count} session(s)",
+    "session.batchFavorited": "Favorited {count} session(s)",
+    "session.batchUnfavorited": "Unfavorited {count} session(s)",
+    "session.batchFailed": "Batch operation failed",
+    "session.noSelection": "No sessions selected",
   },
 };
 

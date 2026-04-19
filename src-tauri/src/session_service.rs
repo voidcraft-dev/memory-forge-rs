@@ -199,6 +199,19 @@ pub fn session_toggle_flag(
     database::toggle_session_flag(&db.conn, platform, session_key, flag)
 }
 
+pub fn session_batch_set_flag(
+    db: &DbState,
+    platform: &str,
+    session_keys: &[String],
+    flag: &str,
+    set: bool,
+) -> Result<usize, String> {
+    let t0 = Instant::now();
+    let affected = database::batch_set_session_flag(&db.conn, platform, session_keys, flag, set)?;
+    eprintln!("[perf] session_batch_set_flag({platform}, {flag}, set={set}) {} keys -> {} affected: {:?}", session_keys.len(), affected, t0.elapsed());
+    Ok(affected)
+}
+
 pub fn session_detail(db: &DbState, settings: &AppSettings, platform: &str, session_key: &str) -> Result<SessionDetail, String> {
     let t0 = Instant::now();
     let adapter = platforms::get_adapter(platform, settings)?;
