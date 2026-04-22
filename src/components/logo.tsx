@@ -4,10 +4,9 @@ import { cn } from "@/lib/utils"
 export function AppLogo({ className }: { className?: string }) {
   const id = useId()
   const gradId = `logo-fg-${id}`
-  const isDark = document.documentElement.style.colorScheme !== "light"
-  const bgColor = isDark ? "#1C1917" : "#F5F0EB"
-  const gradientFrom = isDark ? "#F97316" : "#EA580C"
-  const gradientTo = isDark ? "#DC2626" : "#C2410C"
+  const bgColor = "#1C1917"
+  const gradientFrom = "#F97316"
+  const gradientTo = "#DC2626"
 
   return (
     <svg

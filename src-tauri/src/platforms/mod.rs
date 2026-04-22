@@ -1,5 +1,6 @@
 pub mod claude;
 pub mod codex;
+pub mod gemini;
 pub mod kiro;
 pub mod opencode;
 
@@ -123,6 +124,12 @@ pub fn get_adapter(platform: &str, settings: &AppSettings) -> Result<Box<dyn Pla
                 .unwrap_or_else(|| home.join(".kiro"));
             Ok(Box::new(kiro::KiroPlatform::new(path)))
         }
+        "gemini" => {
+            let path = settings.gemini_home.as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".gemini"));
+            Ok(Box::new(gemini::GeminiPlatform::new(path)))
+        }
         _ => Err(format!("Unknown platform: {platform}")),
     }
 }
@@ -149,6 +156,11 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         "kiro" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("kiro-cli chat --resume-id {session_id}"));
+            m
+        }
+        "gemini" => {
+            let mut m = HashMap::new();
+            m.insert("resume".into(), format!("gemini --resume '{session_id}'"));
             m
         }
         _ => {

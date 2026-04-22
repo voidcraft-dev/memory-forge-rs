@@ -165,6 +165,8 @@ export type MessageKey =
   | "codexHomePath"
   | "opencodePath"
   | "kiroHome"
+  | "geminiHome"
+  | "platformGemini"
   | "pathPlaceholder"
   | "pathSaved"
   | "defaultPath"
@@ -350,6 +352,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "codexHomePath": "Codex 数据目录",
     "opencodePath": "OpenCode 数据库路径",
     "kiroHome": "Kiro 主目录路径",
+    "geminiHome": "Gemini 数据目录",
+    "platformGemini": "Gemini CLI",
     "pathPlaceholder": "留空使用默认路径",
     "pathSaved": "路径已保存",
     "defaultPath": "默认: {path}",
@@ -534,6 +538,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "codexHomePath": "Codex Home Directory",
     "opencodePath": "OpenCode Database Path",
     "kiroHome": "Kiro Home Path",
+    "geminiHome": "Gemini Home Directory",
+    "platformGemini": "Gemini CLI",
     "pathPlaceholder": "Leave empty for default",
     "pathSaved": "Path saved",
     "defaultPath": "Default: {path}",

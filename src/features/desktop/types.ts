@@ -13,6 +13,7 @@ export type DesktopSettings = {
   codexHome: string | null;
   opencodePath: string | null;
   kiroHome: string | null;
+  geminiHome: string | null;
 };
 
 export type DesktopSettingsPatch = Partial<DesktopSettings>;
@@ -32,7 +33,7 @@ export type DesktopSnapshot = {
 
 // ─── Session ───
 
-export type Platform = "claude" | "codex" | "opencode" | "kiro";
+export type Platform = "claude" | "codex" | "opencode" | "kiro" | "gemini";
 
 export type ContentMatch = {
   snippet: string;

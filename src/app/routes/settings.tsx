@@ -145,6 +145,13 @@ export default function SettingsPage() {
                 value={snapshot.settings.kiroHome ?? ""}
                 onSave={(v) => updateSettings({ kiroHome: v || null })}
               />
+              <PathRow
+                label={t("geminiHome")}
+                defaultHint="~/.gemini"
+                pickMode="directory"
+                value={snapshot.settings.geminiHome ?? ""}
+                onSave={(v) => updateSettings({ geminiHome: v || null })}
+              />
             </div>
           </section>
 

@@ -39,7 +39,7 @@ pub fn dashboard_summary(db: &DbState, settings: &AppSettings) -> Result<Dashboa
     let mut recent_sessions = Vec::new();
     let mut trend_map: HashMap<String, usize> = HashMap::new();
 
-    for platform_name in ["claude", "codex", "opencode", "kiro"] {
+    for platform_name in ["claude", "codex", "opencode", "kiro", "gemini"] {
         let tp = Instant::now();
         let adapter = platforms::get_adapter(platform_name, settings)?;
         let aliases = database::get_alias_map(&db.conn, platform_name)?;
