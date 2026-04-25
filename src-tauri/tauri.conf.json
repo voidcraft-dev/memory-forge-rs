@@ -6,7 +6,7 @@
     "devUrl": "http://localhost:1430"
   },
   "productName": "Memory Forge",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "identifier": "com.voidcraft.memoryforge",
   "bundle": {
     "active": true,
