@@ -1,6 +1,6 @@
 [package]
 name = "memory-forge"
-version = "3.2.0"
+version = "3.3.0"
 description = "Memory Forge — Local AI Session Manager"
 authors = ["VoidCraft"]
 edition = "2021"
