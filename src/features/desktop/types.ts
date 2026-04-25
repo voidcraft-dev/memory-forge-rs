@@ -13,6 +13,7 @@ export type DesktopSettings = {
   codexHome: string | null;
   opencodePath: string | null;
   kiroHome: string | null;
+  kiroIdeHome: string | null;
   geminiHome: string | null;
 };
 
@@ -33,7 +34,7 @@ export type DesktopSnapshot = {
 
 // ─── Session ───
 
-export type Platform = "claude" | "codex" | "opencode" | "kiro" | "gemini";
+export type Platform = "claude" | "codex" | "opencode" | "kiro" | "kiro-ide" | "gemini";
 
 export type ContentMatch = {
   snippet: string;

@@ -15,6 +15,7 @@ export type MessageKey =
   | "platformCodex"
   | "platformOpencode"
   | "platformKiro"
+  | "platformKiroIde"
   // Dashboard
   | "welcomeTitle"
   | "welcomeDesc"
@@ -165,6 +166,7 @@ export type MessageKey =
   | "codexHomePath"
   | "opencodePath"
   | "kiroHome"
+  | "kiroIdeHome"
   | "geminiHome"
   | "platformGemini"
   | "pathPlaceholder"
@@ -208,7 +210,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformClaude: "Claude",
     platformCodex: "Codex",
     platformOpencode: "OpenCode",
-    platformKiro: "Kiro",
+    platformKiro: "Kiro CLI",
+    platformKiroIde: "Kiro IDE",
     welcomeTitle: "停止重开，直接编辑。",
     welcomeDesc: "AI 对话走偏了？别重新开始 — 直接改掉历史记录。注入上下文、纠正错误、删除废话，然后无缝继续对话。",
     totalSessions: "总会话数",
@@ -352,6 +355,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "codexHomePath": "Codex 数据目录",
     "opencodePath": "OpenCode 数据库路径",
     "kiroHome": "Kiro 主目录路径",
+    "kiroIdeHome": "Kiro IDE 数据目录",
     "geminiHome": "Gemini 数据目录",
     "platformGemini": "Gemini CLI",
     "pathPlaceholder": "留空使用默认路径",
@@ -394,7 +398,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformClaude: "Claude",
     platformCodex: "Codex",
     platformOpencode: "OpenCode",
-    platformKiro: "Kiro",
+    platformKiro: "Kiro CLI",
+    platformKiroIde: "Kiro IDE",
     welcomeTitle: "Stop resetting. Start editing.",
     welcomeDesc: "AI went off track? Don't restart — edit the history directly. Inject context, fix errors, remove noise, then seamlessly continue.",
     totalSessions: "Total Sessions",
@@ -538,6 +543,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "codexHomePath": "Codex Home Directory",
     "opencodePath": "OpenCode Database Path",
     "kiroHome": "Kiro Home Path",
+    "kiroIdeHome": "Kiro IDE Data Directory",
     "geminiHome": "Gemini Home Directory",
     "platformGemini": "Gemini CLI",
     "pathPlaceholder": "Leave empty for default",

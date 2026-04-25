@@ -27,6 +27,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub kiro_home: Option<String>,
     #[serde(default)]
+    pub kiro_ide_home: Option<String>,
+    #[serde(default)]
     pub gemini_home: Option<String>,
 }
 
@@ -42,6 +44,7 @@ impl Default for AppSettings {
             codex_home: None,
             opencode_path: None,
             kiro_home: None,
+            kiro_ide_home: None,
             gemini_home: None,
         }
     }
@@ -59,6 +62,7 @@ pub struct AppSettingsPatch {
     pub codex_home: Option<Option<String>>,
     pub opencode_path: Option<Option<String>>,
     pub kiro_home: Option<Option<String>>,
+    pub kiro_ide_home: Option<Option<String>>,
     pub gemini_home: Option<Option<String>>,
 }
 
@@ -162,6 +166,10 @@ pub fn update_settings(
 
     if let Some(kiro_home) = patch.kiro_home {
         settings.kiro_home = kiro_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(kiro_ide_home) = patch.kiro_ide_home {
+        settings.kiro_ide_home = kiro_ide_home.filter(|s| !s.trim().is_empty());
     }
 
     if let Some(gemini_home) = patch.gemini_home {

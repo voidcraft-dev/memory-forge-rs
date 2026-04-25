@@ -25,6 +25,7 @@ const defaultSettings = {
   codexHome: null,
   opencodePath: null,
   kiroHome: null,
+  kiroIdeHome: null,
   geminiHome: null,
 };
 

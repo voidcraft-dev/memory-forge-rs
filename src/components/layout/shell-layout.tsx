@@ -26,6 +26,7 @@ const navigation = [
   { to: "/codex", labelKey: "platformCodex" as const, icon: Terminal },
   { to: "/opencode", labelKey: "platformOpencode" as const, icon: Code },
   { to: "/kiro", labelKey: "platformKiro" as const, icon: Sparkles },
+  { to: "/kiro-ide", labelKey: "platformKiroIde" as const, icon: Sparkles },
   { to: "/gemini", labelKey: "platformGemini" as const, icon: Gem },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },

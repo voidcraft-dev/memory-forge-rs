@@ -49,6 +49,7 @@ const platformColors = {
   codex: 'bg-gradient-to-br from-orange-500 to-red-500',
   opencode: 'bg-gradient-to-br from-green-500 to-emerald-600',
   kiro: 'bg-gradient-to-br from-purple-500 to-violet-600',
+  'kiro-ide': 'bg-gradient-to-br from-fuchsia-500 to-purple-600',
 }
 
 const platformBorderColors = {
@@ -56,6 +57,7 @@ const platformBorderColors = {
   codex: 'border-l-orange-500',
   opencode: 'border-l-green-500',
   kiro: 'border-l-purple-500',
+  'kiro-ide': 'border-l-fuchsia-500',
 }
 
 const PAGE_SIZE = 50

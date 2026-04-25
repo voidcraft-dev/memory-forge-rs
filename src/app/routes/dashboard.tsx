@@ -10,6 +10,7 @@ const platformMeta = [
   { key: "codex", label: "Codex CLI", icon: Terminal, to: "/codex", gradient: "from-emerald-500/15 to-emerald-600/5", border: "border-emerald-500/30", iconBg: "bg-emerald-500/20 text-emerald-400" },
   { key: "opencode", label: "OpenCode", icon: Code, to: "/opencode", gradient: "from-sky-500/15 to-sky-600/5", border: "border-sky-500/30", iconBg: "bg-sky-500/20 text-sky-400" },
   { key: "kiro", label: "Kiro CLI", icon: Sparkles, to: "/kiro", gradient: "from-purple-500/15 to-purple-600/5", border: "border-purple-500/30", iconBg: "bg-purple-500/20 text-purple-400" },
+  { key: "kiro-ide", label: "Kiro IDE", icon: Sparkles, to: "/kiro-ide", gradient: "from-fuchsia-500/15 to-fuchsia-600/5", border: "border-fuchsia-500/30", iconBg: "bg-fuchsia-500/20 text-fuchsia-400" },
 ] as const;
 
 export default function DashboardPage() {
@@ -53,7 +54,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Platform Session Cards */}
-      <section className="mt-5 grid gap-4 grid-cols-2 xl:grid-cols-4">
+      <section className="mt-5 grid gap-4 grid-cols-2 xl:grid-cols-5">
         {platformMeta.map((pm) => {
           const Icon = pm.icon;
           const summary = platforms.find((p) => p.platform === pm.key);

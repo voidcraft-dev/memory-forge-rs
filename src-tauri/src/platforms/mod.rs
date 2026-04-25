@@ -2,6 +2,7 @@ pub mod claude;
 pub mod codex;
 pub mod gemini;
 pub mod kiro;
+pub mod kiro_ide;
 pub mod opencode;
 
 use serde::Serialize;
@@ -124,6 +125,13 @@ pub fn get_adapter(platform: &str, settings: &AppSettings) -> Result<Box<dyn Pla
                 .unwrap_or_else(|| home.join(".kiro"));
             Ok(Box::new(kiro::KiroPlatform::new(path)))
         }
+        "kiro-ide" => {
+            let path = settings.kiro_ide_home.as_ref()
+                .map(PathBuf::from)
+                .or_else(kiro_ide::default_agent_home)
+                .unwrap_or_else(|| home.join(".config/Kiro/User/globalStorage/kiro.kiroagent"));
+            Ok(Box::new(kiro_ide::KiroIdePlatform::new(path)))
+        }
         "gemini" => {
             let path = settings.gemini_home.as_ref()
                 .map(PathBuf::from)
@@ -158,6 +166,7 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
             m.insert("resume".into(), format!("kiro-cli chat --resume-id {session_id}"));
             m
         }
+        "kiro-ide" => HashMap::new(),
         "gemini" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("gemini --resume '{session_id}'"));

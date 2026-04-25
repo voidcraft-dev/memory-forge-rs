@@ -146,6 +146,13 @@ export default function SettingsPage() {
                 onSave={(v) => updateSettings({ kiroHome: v || null })}
               />
               <PathRow
+                label={t("kiroIdeHome")}
+                defaultHint="%APPDATA%\\Kiro\\User\\globalStorage\\kiro.kiroagent"
+                pickMode="directory"
+                value={snapshot.settings.kiroIdeHome ?? ""}
+                onSave={(v) => updateSettings({ kiroIdeHome: v || null })}
+              />
+              <PathRow
                 label={t("geminiHome")}
                 defaultHint="~/.gemini"
                 pickMode="directory"
