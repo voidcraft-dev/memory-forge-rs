@@ -23,6 +23,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub codex_home: Option<String>,
     #[serde(default)]
+    pub codex_project_root: Option<String>,
+    #[serde(default)]
     pub opencode_path: Option<String>,
     #[serde(default)]
     pub kiro_home: Option<String>,
@@ -42,6 +44,7 @@ impl Default for AppSettings {
             reduce_motion: false,
             claude_home: None,
             codex_home: None,
+            codex_project_root: None,
             opencode_path: None,
             kiro_home: None,
             kiro_ide_home: None,
@@ -60,6 +63,7 @@ pub struct AppSettingsPatch {
     pub reduce_motion: Option<bool>,
     pub claude_home: Option<Option<String>>,
     pub codex_home: Option<Option<String>>,
+    pub codex_project_root: Option<Option<String>>,
     pub opencode_path: Option<Option<String>>,
     pub kiro_home: Option<Option<String>>,
     pub kiro_ide_home: Option<Option<String>>,
@@ -158,6 +162,10 @@ pub fn update_settings(
 
     if let Some(codex_home) = patch.codex_home {
         settings.codex_home = codex_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(codex_project_root) = patch.codex_project_root {
+        settings.codex_project_root = codex_project_root.filter(|s| !s.trim().is_empty());
     }
 
     if let Some(opencode_path) = patch.opencode_path {

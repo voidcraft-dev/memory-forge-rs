@@ -165,6 +165,7 @@ export type MessageKey =
   | "platformPathsDesc"
   | "claudeHomePath"
   | "codexHomePath"
+  | "codexProjectRootPath"
   | "opencodePath"
   | "kiroHome"
   | "kiroIdeHome"
@@ -355,6 +356,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "platformPathsDesc": "自定义各平台的数据目录。留空则使用默认路径。",
     "claudeHomePath": "Claude 数据目录",
     "codexHomePath": "Codex 数据目录",
+    "codexProjectRootPath": "Codex 项目根目录",
     "opencodePath": "OpenCode 数据库路径",
     "kiroHome": "Kiro 主目录路径",
     "kiroIdeHome": "Kiro IDE 数据目录",
@@ -544,6 +546,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "platformPathsDesc": "Customize data directories for each platform. Leave empty to use defaults.",
     "claudeHomePath": "Claude Home Directory",
     "codexHomePath": "Codex Home Directory",
+    "codexProjectRootPath": "Codex Project Root",
     "opencodePath": "OpenCode Database Path",
     "kiroHome": "Kiro Home Path",
     "kiroIdeHome": "Kiro IDE Data Directory",

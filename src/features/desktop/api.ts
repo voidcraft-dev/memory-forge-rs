@@ -23,6 +23,7 @@ const defaultSettings = {
   reduceMotion: false,
   claudeHome: null,
   codexHome: null,
+  codexProjectRoot: null,
   opencodePath: null,
   kiroHome: null,
   kiroIdeHome: null,

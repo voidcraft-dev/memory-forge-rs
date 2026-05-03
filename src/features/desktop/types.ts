@@ -11,6 +11,7 @@ export type DesktopSettings = {
   reduceMotion: boolean;
   claudeHome: string | null;
   codexHome: string | null;
+  codexProjectRoot: string | null;
   opencodePath: string | null;
   kiroHome: string | null;
   kiroIdeHome: string | null;

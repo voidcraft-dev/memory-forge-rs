@@ -132,6 +132,13 @@ export default function SettingsPage() {
                 onSave={(v) => updateSettings({ codexHome: v || null })}
               />
               <PathRow
+                label={t("codexProjectRootPath")}
+                defaultHint="例如 F:\\workspacevk；留空显示全部 Codex 会话"
+                pickMode="directory"
+                value={snapshot.settings.codexProjectRoot ?? ""}
+                onSave={(v) => updateSettings({ codexProjectRoot: v || null })}
+              />
+              <PathRow
                 label={t("opencodePath")}
                 defaultHint="~/.local/share/opencode/opencode.db"
                 pickMode="file"

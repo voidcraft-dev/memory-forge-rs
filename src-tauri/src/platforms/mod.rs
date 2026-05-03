@@ -167,7 +167,8 @@ pub fn get_adapter(platform: &str, settings: &AppSettings) -> Result<Box<dyn Pla
             let path = settings.codex_home.as_ref()
                 .map(PathBuf::from)
                 .unwrap_or_else(|| home.join(".codex"));
-            Ok(Box::new(codex::CodexPlatform::new(path)))
+            let project_root = settings.codex_project_root.as_ref().map(PathBuf::from);
+            Ok(Box::new(codex::CodexPlatform::new(path, project_root)))
         }
         "opencode" => {
             let path = settings.opencode_path.as_ref()

@@ -13,6 +13,7 @@ use super::{
 
 pub struct CodexPlatform {
     sessions_root: PathBuf,
+    project_root: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -23,9 +24,10 @@ struct SummaryData {
 }
 
 impl CodexPlatform {
-    pub fn new(codex_home: PathBuf) -> Self {
+    pub fn new(codex_home: PathBuf, project_root: Option<PathBuf>) -> Self {
         Self {
             sessions_root: codex_home.join("sessions"),
+            project_root,
         }
     }
 
@@ -190,6 +192,13 @@ impl CodexPlatform {
 
         blocks
     }
+
+    fn includes_project_cwd(&self, cwd: &str) -> bool {
+        let Some(project_root) = &self.project_root else {
+            return true;
+        };
+        path_is_within_root(cwd, project_root)
+    }
 }
 
 fn codex_function_call_to_block(payload: &Value, line_index: usize) -> ToolCallBlock {
@@ -266,39 +275,39 @@ impl PlatformAdapter for CodexPlatform {
         collect_jsonl_recursive(&self.sessions_root, &mut entries);
         entries.sort_by(|a, b| modified_nanos(b).cmp(&modified_nanos(a)));
 
-        let total = entries.len();
-        let page = if offset < total {
-            let end = limit.map(|l| (offset + l).min(total)).unwrap_or(total);
-            &entries[offset..end]
-        } else {
-            &[]
-        };
+        if self.project_root.is_none() {
+            let total = entries.len();
+            let page = if offset < total {
+                let end = limit.map(|l| (offset + l).min(total)).unwrap_or(total);
+                &entries[offset..end]
+            } else {
+                &[]
+            };
 
-        let mut items = Vec::new();
-        for path in page {
-            let session_key = encode_path_key(path);
-            let summary = self.scan_summary(path);
-            let alias = alias_map.get(&session_key).cloned().unwrap_or_default();
-
-            items.push(SessionListItem {
-                platform: "codex".to_string(),
-                session_key,
-                session_id: summary.session_id.clone(),
-                display_title: if alias.is_empty() {
-                    summary.session_id
-                } else {
-                    alias.clone()
-                },
-                alias_title: alias,
-                preview: summary.preview,
-                updated_at: modified_nanos(path).to_string(),
-                cwd: summary.cwd,
-                editable: true,
-                content_matches: vec![],
-                total_content_matches: 0,
-                favorite: false,
-            });
+            let items = page
+                .iter()
+                .map(|path| self.session_item(path, alias_map))
+                .collect();
+            return SessionListResult { total, items };
         }
+
+        let items: Vec<SessionListItem> = entries
+            .iter()
+            .filter_map(|path| {
+                let item = self.session_item(path, alias_map);
+                if self.includes_project_cwd(&item.cwd) {
+                    Some(item)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let total = items.len();
+        let items = items
+            .into_iter()
+            .skip(offset)
+            .take(limit.unwrap_or(usize::MAX))
+            .collect();
 
         SessionListResult { total, items }
     }
@@ -452,13 +461,63 @@ fn collect_jsonl_recursive(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+impl CodexPlatform {
+    fn session_item(&self, path: &Path, alias_map: &HashMap<String, String>) -> SessionListItem {
+        let session_key = encode_path_key(path);
+        let summary = self.scan_summary(path);
+        let alias = alias_map.get(&session_key).cloned().unwrap_or_default();
+
+        SessionListItem {
+            platform: "codex".to_string(),
+            session_key,
+            session_id: summary.session_id.clone(),
+            display_title: if alias.is_empty() {
+                summary.session_id
+            } else {
+                alias.clone()
+            },
+            alias_title: alias,
+            preview: summary.preview,
+            updated_at: modified_nanos(path).to_string(),
+            cwd: summary.cwd,
+            editable: true,
+            content_matches: vec![],
+            total_content_matches: 0,
+            favorite: false,
+        }
+    }
+}
+
+fn path_is_within_root(path: &str, root: &Path) -> bool {
+    let path = normalize_path_for_prefix(path);
+    let root = normalize_path_for_prefix(&root.to_string_lossy());
+
+    if path.is_empty() || root.is_empty() {
+        return false;
+    }
+
+    path == root || path.starts_with(&format!("{root}/"))
+}
+
+fn normalize_path_for_prefix(path: &str) -> String {
+    let mut value = path.trim().replace('\\', "/");
+    while value.ends_with('/') {
+        value.pop();
+    }
+    #[cfg(windows)]
+    {
+        value = value.to_lowercase();
+    }
+    value
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn blocks_attach_function_calls_to_following_agent_message() {
-        let platform = CodexPlatform::new(PathBuf::from("unused"));
+        let platform = CodexPlatform::new(PathBuf::from("unused"), None);
         let lines = vec![
             json!({ "payload": { "type": "user_message", "message": "run tests" } }),
             json!({ "payload": { "type": "function_call", "call_id": "call_1", "name": "shell", "arguments": { "command": "cargo test" } } }),
@@ -475,5 +534,69 @@ mod tests {
         assert_eq!(blocks[1].tool_calls[0].name, "shell");
         assert_eq!(blocks[1].tool_calls[0].input.as_deref(), Some("{\n  \"command\": \"cargo test\"\n}"));
         assert_eq!(blocks[1].tool_calls[1].output.as_deref(), Some("ok"));
+    }
+
+    #[test]
+    fn path_filter_matches_project_root_boundaries() {
+        assert!(path_is_within_root(
+            r"F:\workspacevk\project-a",
+            Path::new(r"F:\workspacevk")
+        ));
+        assert!(path_is_within_root(
+            r"F:\workspacevk",
+            Path::new(r"F:\workspacevk")
+        ));
+        assert!(!path_is_within_root(
+            r"F:\workspacevk-other\project-a",
+            Path::new(r"F:\workspacevk")
+        ));
+    }
+
+    #[test]
+    fn list_sessions_filters_by_configured_project_root() {
+        let root = std::env::temp_dir().join(format!(
+            "memory-forge-codex-root-test-{}",
+            std::process::id()
+        ));
+        let codex_home = root.join("codex-home");
+        let sessions_dir = codex_home.join("sessions").join("2026");
+        let project_root = root.join("workspace");
+        let project_a = project_root.join("project-a");
+        let other_project = root.join("other").join("project-b");
+        fs::create_dir_all(&sessions_dir).expect("create sessions dir");
+
+        fs::write(
+            sessions_dir.join("inside.jsonl"),
+            serde_json::to_string(&json!({
+                "payload": {
+                    "type": "user_message",
+                    "id": "inside",
+                    "cwd": project_a.display().to_string(),
+                    "message": "inside"
+                }
+            })).expect("serialize inside session"),
+        )
+        .expect("write inside session");
+        fs::write(
+            sessions_dir.join("outside.jsonl"),
+            serde_json::to_string(&json!({
+                "payload": {
+                    "type": "user_message",
+                    "id": "outside",
+                    "cwd": other_project.display().to_string(),
+                    "message": "outside"
+                }
+            })).expect("serialize outside session"),
+        )
+        .expect("write outside session");
+
+        let platform = CodexPlatform::new(codex_home, Some(project_root));
+        let result = platform.list_sessions(&HashMap::new(), None, 0);
+
+        fs::remove_dir_all(root).ok();
+
+        assert_eq!(result.total, 1);
+        assert_eq!(result.items[0].session_id, "inside");
+        assert_eq!(result.items[0].preview, "inside");
     }
 }
