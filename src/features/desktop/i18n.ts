@@ -141,6 +141,7 @@ export type MessageKey =
   | "session.totalMessages"
   | "session.export"
   | "session.exported"
+  | "session.includeToolCalls"
   | "session.erase"
   | "session.eraseConfirm"
   | "session.restore"
@@ -331,6 +332,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.totalMessages": "共 {count} 条消息",
     "session.export": "导出",
     "session.exported": "已导出",
+    "session.includeToolCalls": "包含工具调用历史",
     "session.erase": "擦除此消息",
     "session.eraseConfirm": "确定擦除这条消息的内容吗？此操作不可撤销。",
     "session.restore": "复原",
@@ -519,6 +521,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.totalMessages": "{count} messages",
     "session.export": "Export",
     "session.exported": "Exported",
+    "session.includeToolCalls": "Include tool history",
     "session.erase": "Erase Message",
     "session.eraseConfirm": "Are you sure you want to erase this message? This cannot be undone.",
     "session.restore": "Restore",

@@ -149,6 +149,7 @@ impl KiroPlatform {
                     "lineIndex": line_index,
                     "messageId": message_id,
                 }),
+                tool_calls: Vec::new(),
             });
         }
 

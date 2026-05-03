@@ -9,10 +9,34 @@ import { api } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
 import { Clock, Pencil, Check, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List } from 'lucide-react'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
-
-const PAGE_SIZE = 50
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
+
+const PAGE_SIZE = 50
+const TOOL_INPUT_EXPORT_LIMIT = 8192
+const TOOL_OUTPUT_EXPORT_LIMIT = 32768
+
+function truncateExportText(value: string, maxChars: number) {
+  const chars = Array.from(value)
+  if (chars.length <= maxChars) return value
+  return `${chars.slice(0, maxChars).join('')}\n\n[truncated: showing first ${maxChars} chars of ${chars.length}]`
+}
+
+function markdownFence(value: string) {
+  const runs = value.match(/`+/g) ?? []
+  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0)
+  return '`'.repeat(Math.max(3, longest + 1))
+}
+
+function pushMarkdownCodeBlock(lines: string[], label: string, language: string, value: string, maxChars: number) {
+  const text = truncateExportText(value, maxChars)
+  const fence = markdownFence(text)
+  lines.push(`${label}:`)
+  lines.push(`${fence}${language}`)
+  lines.push(text)
+  lines.push(fence)
+  lines.push('')
+}
 
 export function SessionDetail() {
   const { t, state, dispatch } = useDesktop()
@@ -36,6 +60,7 @@ export function SessionDetail() {
   const [tocOpen, setTocOpen] = useState(false)
   const [loadingExecutionTargets, setLoadingExecutionTargets] = useState<Set<string>>(new Set())
   const [loadingAllExecutionOutputs, setLoadingAllExecutionOutputs] = useState(false)
+  const [includeToolCallsInExport, setIncludeToolCallsInExport] = useState(false)
   const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const activeSessionKeyRef = useRef<string | null>(null)
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog()
@@ -69,6 +94,7 @@ export function SessionDetail() {
   }, [dispatch, sessionStatus])
 
   const blocks = sessionDetail?.blocks ?? []
+  const hasExportableToolCalls = blocks.some(block => (block.toolCalls?.length ?? 0) > 0)
   const kiroExecutionPlaceholderBlocks = useMemo(() => {
     if (currentPlatform !== 'kiro-ide') return []
     return blocks.filter(block =>
@@ -293,6 +319,31 @@ export function SessionDetail() {
       lines.push('')
       lines.push(block.content)
       lines.push('')
+
+      if (includeToolCallsInExport && block.toolCalls?.length) {
+        lines.push('### Tool Calls')
+        lines.push('')
+        block.toolCalls.forEach((toolCall, index) => {
+          lines.push(`#### ${index + 1}. ${toolCall.name || toolCall.kind || 'tool'}`)
+          lines.push('')
+          lines.push(`- Type: ${toolCall.kind || 'tool'}`)
+          lines.push(`- Status: ${toolCall.status || 'unknown'}`)
+          if (toolCall.id) lines.push(`- ID: ${toolCall.id}`)
+          if (toolCall.startedAt) lines.push(`- Started At: ${toolCall.startedAt}`)
+          if (toolCall.endedAt) lines.push(`- Ended At: ${toolCall.endedAt}`)
+          lines.push('')
+          if (toolCall.input) {
+            pushMarkdownCodeBlock(lines, 'Input', 'json', toolCall.input, TOOL_INPUT_EXPORT_LIMIT)
+          }
+          if (toolCall.output) {
+            pushMarkdownCodeBlock(lines, 'Output', 'text', toolCall.output, TOOL_OUTPUT_EXPORT_LIMIT)
+          }
+          if (toolCall.error) {
+            pushMarkdownCodeBlock(lines, 'Error', 'text', toolCall.error, TOOL_INPUT_EXPORT_LIMIT)
+          }
+        })
+      }
+
       lines.push('---')
       lines.push('')
     }
@@ -397,6 +448,21 @@ export function SessionDetail() {
               {exportDone ? <CheckCircle className="w-4 h-4" /> : <Download className="w-4 h-4" />}
               <span className="hidden sm:inline">{exportDone ? t('session.exported') : t('session.export')}</span>
             </Button>
+            <label
+              className={cn(
+                "flex h-9 items-center gap-2 rounded-md border border-border/50 bg-background/40 px-3 text-xs text-muted-foreground",
+                hasExportableToolCalls ? "cursor-pointer hover:bg-muted/40 hover:text-foreground" : "cursor-not-allowed opacity-50"
+              )}
+            >
+              <input
+                type="checkbox"
+                className="size-3.5 accent-primary"
+                checked={includeToolCallsInExport}
+                disabled={!hasExportableToolCalls}
+                onChange={(event) => setIncludeToolCallsInExport(event.target.checked)}
+              />
+              <span className="hidden lg:inline">{t('session.includeToolCalls')}</span>
+            </label>
             <Button variant="ghost" size="sm"
               className="gap-2 hover:bg-amber-500/10 hover:text-amber-400"
               onClick={async () => {

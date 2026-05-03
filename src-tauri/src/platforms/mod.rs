@@ -41,6 +41,21 @@ pub struct SessionListItem {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ToolCallBlock {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub status: String,
+    pub input: Option<String>,
+    pub output: Option<String>,
+    pub error: Option<String>,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
+    pub source_meta: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TimelineBlock {
     pub id: String,
     pub role: String,
@@ -48,6 +63,8 @@ pub struct TimelineBlock {
     pub editable: bool,
     pub edit_target: String,
     pub source_meta: serde_json::Value,
+    #[serde(default)]
+    pub tool_calls: Vec<ToolCallBlock>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -108,6 +125,33 @@ pub fn extract_snippet(text: &str, needle: &str) -> String {
         snippet.push_str("...");
     }
     snippet
+}
+
+pub fn tool_text_from_value(value: &serde_json::Value, max_chars: usize) -> Option<String> {
+    if value.is_null() {
+        return None;
+    }
+
+    let raw = value
+        .as_str()
+        .map(ToString::to_string)
+        .unwrap_or_else(|| serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string()));
+
+    tool_text_from_str(&raw, max_chars)
+}
+
+pub fn tool_text_from_str(value: &str, max_chars: usize) -> Option<String> {
+    if value.is_empty() {
+        return None;
+    }
+
+    let char_count = value.chars().count();
+    if char_count <= max_chars {
+        return Some(value.to_string());
+    }
+
+    let truncated: String = value.chars().take(max_chars).collect();
+    Some(format!("{truncated}\n\n[truncated: showing first {max_chars} chars of {char_count}]"))
 }
 
 pub fn get_adapter(platform: &str, settings: &AppSettings) -> Result<Box<dyn PlatformAdapter>, String> {

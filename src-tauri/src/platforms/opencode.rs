@@ -4,7 +4,10 @@ use std::path::PathBuf;
 use rusqlite::params;
 use serde_json::{json, Value};
 
-use super::{ContentMatch, SessionDetail, SessionListItem, SessionListResult, TimelineBlock, build_commands};
+use super::{
+    build_commands, tool_text_from_value, ContentMatch, SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
+    ToolCallBlock,
+};
 
 pub struct OpenCodePlatform {
     db_path: PathBuf,
@@ -110,7 +113,8 @@ impl super::PlatformAdapter for OpenCodePlatform {
 
         let mut rows = stmt.query(params![session_key]).map_err(|e| format!("Query error: {e}"))?;
 
-        let mut blocks = Vec::new();
+        let mut blocks: Vec<TimelineBlock> = Vec::new();
+        let mut pending_tool_calls = Vec::new();
         while let Some(row) = rows.next().map_err(|e| format!("Row error: {e}"))? {
             let part_id: String = row.get(0).map_err(|e| format!("Row column error: {e}"))?;
             let data_str: String = row.get(1).map_err(|e| format!("Row column error: {e}"))?;
@@ -119,8 +123,21 @@ impl super::PlatformAdapter for OpenCodePlatform {
             let data: Value = serde_json::from_str(&data_str).unwrap_or_default();
             let message_data: Value = serde_json::from_str(&message_data_str).unwrap_or_default();
 
-            if let Some(block) = part_to_block(&part_id, &data, &message_data) {
+            if let Some(mut block) = part_to_block(&part_id, &data, &message_data) {
+                block.tool_calls.append(&mut pending_tool_calls);
                 blocks.push(block);
+            } else if let Some(tool_call) = tool_part_to_block(&part_id, &data) {
+                if let Some(last) = blocks.last_mut() {
+                    last.tool_calls.push(tool_call);
+                } else {
+                    pending_tool_calls.push(tool_call);
+                }
+            }
+        }
+
+        if !pending_tool_calls.is_empty() {
+            if let Some(last) = blocks.last_mut() {
+                last.tool_calls.append(&mut pending_tool_calls);
             }
         }
 
@@ -290,6 +307,7 @@ fn part_to_block(part_id: &str, data: &Value, message_data: &Value) -> Option<Ti
             editable: true,
             edit_target: part_id.to_string(),
             source_meta: serde_json::json!({"partType": kind, "messageRole": message_role}),
+            tool_calls: Vec::new(),
         }),
         "reasoning" => Some(TimelineBlock {
             id: part_id.to_string(),
@@ -298,7 +316,83 @@ fn part_to_block(part_id: &str, data: &Value, message_data: &Value) -> Option<Ti
             editable: true,
             edit_target: part_id.to_string(),
             source_meta: serde_json::json!({"partType": kind}),
+            tool_calls: Vec::new(),
         }),
         _ => None,
+    }
+}
+
+fn tool_part_to_block(part_id: &str, data: &Value) -> Option<ToolCallBlock> {
+    let kind = data.get("type").and_then(|v| v.as_str())?;
+    if kind != "tool" {
+        return None;
+    }
+
+    let state = data.get("state");
+    let status = state
+        .and_then(|value| value.get("status"))
+        .or_else(|| data.get("status"))
+        .and_then(Value::as_str)
+        .unwrap_or("completed")
+        .to_string();
+
+    Some(ToolCallBlock {
+        id: part_id.to_string(),
+        name: data
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("tool")
+            .to_string(),
+        kind: "tool".to_string(),
+        status,
+        input: state
+            .and_then(|value| value.get("input"))
+            .or_else(|| data.get("input"))
+            .and_then(|value| tool_text_from_value(value, 8192)),
+        output: state
+            .and_then(|value| value.get("output"))
+            .or_else(|| data.get("output"))
+            .and_then(|value| tool_text_from_value(value, 32768)),
+        error: state
+            .and_then(|value| value.get("error"))
+            .or_else(|| data.get("error"))
+            .and_then(|value| tool_text_from_value(value, 8192)),
+        started_at: state
+            .and_then(|value| value.get("time_start"))
+            .or_else(|| data.get("time_start"))
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
+        ended_at: state
+            .and_then(|value| value.get("time_end"))
+            .or_else(|| data.get("time_end"))
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
+        source_meta: serde_json::json!({"partType": kind}),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_part_to_block_extracts_name_input_output_and_status() {
+        let data = json!({
+            "type": "tool",
+            "name": "bash",
+            "state": {
+                "status": "completed",
+                "input": { "command": "npm test" },
+                "output": "ok"
+            }
+        });
+
+        let tool_call = tool_part_to_block("part_1", &data).expect("tool call");
+
+        assert_eq!(tool_call.id, "part_1");
+        assert_eq!(tool_call.name, "bash");
+        assert_eq!(tool_call.status, "completed");
+        assert_eq!(tool_call.input.as_deref(), Some("{\n  \"command\": \"npm test\"\n}"));
+        assert_eq!(tool_call.output.as_deref(), Some("ok"));
     }
 }

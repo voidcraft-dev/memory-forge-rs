@@ -6,7 +6,10 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-use super::{build_commands, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock};
+use super::{
+    build_commands, tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
+    SessionListResult, TimelineBlock, ToolCallBlock,
+};
 
 pub struct CodexPlatform {
     sessions_root: PathBuf,
@@ -125,6 +128,7 @@ impl CodexPlatform {
 
     fn blocks(&self, lines: &[Value], file_key: &str) -> Vec<TimelineBlock> {
         let mut blocks = Vec::new();
+        let mut pending_tool_calls = Vec::new();
 
         for (line_index, line) in lines.iter().enumerate() {
             let Some(payload) = line.get("payload") else {
@@ -132,35 +136,123 @@ impl CodexPlatform {
             };
 
             match payload.get("type").and_then(Value::as_str).unwrap_or_default() {
-                "user_message" => blocks.push(TimelineBlock {
-                    id: format!("{line_index}:user"),
-                    role: "user".to_string(),
-                    content: payload
-                        .get("message")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_string(),
-                    editable: true,
-                    edit_target: format!("{file_key}::{line_index}"),
-                    source_meta: json!({ "lineIndex": line_index }),
-                }),
-                "agent_message" => blocks.push(TimelineBlock {
-                    id: format!("{line_index}:assistant"),
-                    role: "assistant".to_string(),
-                    content: payload
-                        .get("message")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_string(),
-                    editable: true,
-                    edit_target: format!("{file_key}::{line_index}"),
-                    source_meta: json!({ "lineIndex": line_index }),
-                }),
+                "user_message" => {
+                    let mut block = TimelineBlock {
+                        id: format!("{line_index}:user"),
+                        role: "user".to_string(),
+                        content: payload
+                            .get("message")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string(),
+                        editable: true,
+                        edit_target: format!("{file_key}::{line_index}"),
+                        source_meta: json!({ "lineIndex": line_index }),
+                        tool_calls: Vec::new(),
+                    };
+                    block.tool_calls.append(&mut pending_tool_calls);
+                    blocks.push(block);
+                }
+                "agent_message" => {
+                    let mut block = TimelineBlock {
+                        id: format!("{line_index}:assistant"),
+                        role: "assistant".to_string(),
+                        content: payload
+                            .get("message")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string(),
+                        editable: true,
+                        edit_target: format!("{file_key}::{line_index}"),
+                        source_meta: json!({ "lineIndex": line_index }),
+                        tool_calls: Vec::new(),
+                    };
+                    block.tool_calls.append(&mut pending_tool_calls);
+                    blocks.push(block);
+                }
+                "function_call" => {
+                    let tool_call = codex_function_call_to_block(payload, line_index);
+                    pending_tool_calls.push(tool_call);
+                }
+                "function_call_output" => {
+                    let tool_call = codex_function_output_to_block(payload, line_index);
+                    pending_tool_calls.push(tool_call);
+                }
                 _ => {}
             }
         }
 
+        if !pending_tool_calls.is_empty() {
+            if let Some(last) = blocks.last_mut() {
+                last.tool_calls.append(&mut pending_tool_calls);
+            }
+        }
+
         blocks
+    }
+}
+
+fn codex_function_call_to_block(payload: &Value, line_index: usize) -> ToolCallBlock {
+    ToolCallBlock {
+        id: payload
+            .get("call_id")
+            .or_else(|| payload.get("id"))
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+            .unwrap_or_else(|| format!("{line_index}:function_call")),
+        name: payload
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("function_call")
+            .to_string(),
+        kind: "function_call".to_string(),
+        status: "requested".to_string(),
+        input: payload
+            .get("arguments")
+            .or_else(|| payload.get("input"))
+            .and_then(|value| tool_text_from_value(value, 8192)),
+        output: None,
+        error: None,
+        started_at: payload.get("timestamp").and_then(Value::as_str).map(ToString::to_string),
+        ended_at: None,
+        source_meta: json!({
+            "lineIndex": line_index,
+            "payloadType": "function_call",
+        }),
+    }
+}
+
+fn codex_function_output_to_block(payload: &Value, line_index: usize) -> ToolCallBlock {
+    ToolCallBlock {
+        id: payload
+            .get("call_id")
+            .or_else(|| payload.get("id"))
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+            .unwrap_or_else(|| format!("{line_index}:function_call_output")),
+        name: payload
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("function_call_output")
+            .to_string(),
+        kind: "function_call_output".to_string(),
+        status: "completed".to_string(),
+        input: None,
+        output: payload
+            .get("output")
+            .and_then(|value| {
+                value
+                    .as_str()
+                    .and_then(|text| tool_text_from_str(text, 32768))
+                    .or_else(|| tool_text_from_value(value, 32768))
+            }),
+        error: payload.get("error").and_then(|value| tool_text_from_value(value, 8192)),
+        started_at: None,
+        ended_at: payload.get("timestamp").and_then(Value::as_str).map(ToString::to_string),
+        source_meta: json!({
+            "lineIndex": line_index,
+            "payloadType": "function_call_output",
+        }),
     }
 }
 
@@ -357,5 +449,31 @@ fn collect_jsonl_recursive(dir: &Path, out: &mut Vec<PathBuf>) {
         } else if path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
             out.push(path);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blocks_attach_function_calls_to_following_agent_message() {
+        let platform = CodexPlatform::new(PathBuf::from("unused"));
+        let lines = vec![
+            json!({ "payload": { "type": "user_message", "message": "run tests" } }),
+            json!({ "payload": { "type": "function_call", "call_id": "call_1", "name": "shell", "arguments": { "command": "cargo test" } } }),
+            json!({ "payload": { "type": "function_call_output", "call_id": "call_1", "output": "ok" } }),
+            json!({ "payload": { "type": "agent_message", "message": "Tests passed." } }),
+        ];
+
+        let blocks = platform.blocks(&lines, "session.jsonl");
+
+        assert_eq!(blocks.len(), 2);
+        assert!(blocks[0].tool_calls.is_empty());
+        assert_eq!(blocks[1].role, "assistant");
+        assert_eq!(blocks[1].tool_calls.len(), 2);
+        assert_eq!(blocks[1].tool_calls[0].name, "shell");
+        assert_eq!(blocks[1].tool_calls[0].input.as_deref(), Some("{\n  \"command\": \"cargo test\"\n}"));
+        assert_eq!(blocks[1].tool_calls[1].output.as_deref(), Some("ok"));
     }
 }

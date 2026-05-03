@@ -622,6 +622,7 @@ impl PlatformAdapter for KiroIdePlatform {
                                 "messageId": message_id,
                                 "executionId": execution_id,
                             }),
+                            tool_calls: Vec::new(),
                         })
                     })
                     .collect()

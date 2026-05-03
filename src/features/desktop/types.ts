@@ -42,6 +42,19 @@ export type ContentMatch = {
   role: string;
 };
 
+export type ToolCallBlock = {
+  id: string;
+  name: string;
+  kind: string;
+  status: string;
+  input?: string | null;
+  output?: string | null;
+  error?: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  sourceMeta: Record<string, unknown>;
+};
+
 export type Session = {
   platform: string;
   sessionKey: string;
@@ -64,6 +77,7 @@ export type TimelineBlock = {
   editable: boolean;
   editTarget: string;
   sourceMeta: Record<string, unknown>;
+  toolCalls?: ToolCallBlock[];
 };
 
 export type SessionDetail = {

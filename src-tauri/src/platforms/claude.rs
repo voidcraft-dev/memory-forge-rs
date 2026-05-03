@@ -6,7 +6,10 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-use super::{build_commands, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock};
+use super::{
+    build_commands, tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
+    SessionListResult, TimelineBlock, ToolCallBlock,
+};
 
 pub struct ClaudePlatform {
     projects_root: PathBuf,
@@ -134,6 +137,7 @@ impl ClaudePlatform {
 
     fn blocks(&self, lines: &[Value], file_key: &str) -> Vec<TimelineBlock> {
         let mut blocks = Vec::new();
+        let mut pending_tool_calls = Vec::new();
 
         for (line_index, line) in lines.iter().enumerate() {
             let Some(message) = line.get("message") else {
@@ -146,7 +150,7 @@ impl ClaudePlatform {
 
             if let Some(text) = message.get("content").and_then(Value::as_str) {
                 if role == "user" || role == "assistant" {
-                    blocks.push(TimelineBlock {
+                    let mut block = TimelineBlock {
                         id: format!("{line_index}:0:{role}"),
                         role: role.to_string(),
                         content: text.to_string(),
@@ -156,7 +160,10 @@ impl ClaudePlatform {
                             "lineIndex": line_index,
                             "contentIndex": 0,
                         }),
-                    });
+                        tool_calls: Vec::new(),
+                    };
+                    block.tool_calls.append(&mut pending_tool_calls);
+                    blocks.push(block);
                 }
                 continue;
             }
@@ -169,36 +176,46 @@ impl ClaudePlatform {
                 let item_type = item.get("type").and_then(Value::as_str).unwrap_or_default();
 
                 match (role, item_type) {
-                    ("user", "text") => blocks.push(TimelineBlock {
-                        id: format!("{line_index}:{content_index}:user"),
-                        role: "user".to_string(),
-                        content: item
-                            .get("text")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default()
-                            .to_string(),
-                        editable: true,
-                        edit_target: format!("{file_key}::{line_index}::{content_index}::text"),
-                        source_meta: json!({
-                            "lineIndex": line_index,
-                            "contentIndex": content_index,
-                        }),
-                    }),
-                    ("assistant", "text") => blocks.push(TimelineBlock {
-                        id: format!("{line_index}:{content_index}:assistant"),
-                        role: "assistant".to_string(),
-                        content: item
-                            .get("text")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default()
-                            .to_string(),
-                        editable: true,
-                        edit_target: format!("{file_key}::{line_index}::{content_index}::text"),
-                        source_meta: json!({
-                            "lineIndex": line_index,
-                            "contentIndex": content_index,
-                        }),
-                    }),
+                    ("user", "text") => {
+                        let mut block = TimelineBlock {
+                            id: format!("{line_index}:{content_index}:user"),
+                            role: "user".to_string(),
+                            content: item
+                                .get("text")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string(),
+                            editable: true,
+                            edit_target: format!("{file_key}::{line_index}::{content_index}::text"),
+                            source_meta: json!({
+                                "lineIndex": line_index,
+                                "contentIndex": content_index,
+                            }),
+                            tool_calls: Vec::new(),
+                        };
+                        block.tool_calls.append(&mut pending_tool_calls);
+                        blocks.push(block);
+                    }
+                    ("assistant", "text") => {
+                        let mut block = TimelineBlock {
+                            id: format!("{line_index}:{content_index}:assistant"),
+                            role: "assistant".to_string(),
+                            content: item
+                                .get("text")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string(),
+                            editable: true,
+                            edit_target: format!("{file_key}::{line_index}::{content_index}::text"),
+                            source_meta: json!({
+                                "lineIndex": line_index,
+                                "contentIndex": content_index,
+                            }),
+                            tool_calls: Vec::new(),
+                        };
+                        block.tool_calls.append(&mut pending_tool_calls);
+                        blocks.push(block);
+                    }
                     ("assistant", "thinking") | ("assistant", "reasoning") => {
                         let field_name = if item.get("thinking").is_some() {
                             "thinking"
@@ -221,15 +238,106 @@ impl ClaudePlatform {
                                 "lineIndex": line_index,
                                 "contentIndex": content_index,
                             }),
+                            tool_calls: Vec::new(),
                         });
+                    }
+                    ("assistant", "tool_use") => {
+                        let tool_call = claude_tool_use_to_block(item, line_index, content_index);
+                        append_tool_call(&mut blocks, &mut pending_tool_calls, tool_call);
+                    }
+                    (_, "tool_result") => {
+                        let tool_call = claude_tool_result_to_block(item, line_index, content_index);
+                        append_tool_call(&mut blocks, &mut pending_tool_calls, tool_call);
                     }
                     _ => {}
                 }
             }
         }
 
+        if !pending_tool_calls.is_empty() {
+            if let Some(last) = blocks.last_mut() {
+                last.tool_calls.append(&mut pending_tool_calls);
+            }
+        }
+
         blocks
     }
+}
+
+fn append_tool_call(blocks: &mut [TimelineBlock], pending: &mut Vec<ToolCallBlock>, tool_call: ToolCallBlock) {
+    if let Some(last) = blocks.last_mut() {
+        last.tool_calls.push(tool_call);
+    } else {
+        pending.push(tool_call);
+    }
+}
+
+fn claude_tool_use_to_block(item: &Value, line_index: usize, content_index: usize) -> ToolCallBlock {
+    let name = item
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("tool_use")
+        .to_string();
+    ToolCallBlock {
+        id: item
+            .get("id")
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+            .unwrap_or_else(|| format!("{line_index}:{content_index}:tool_use")),
+        name,
+        kind: "tool_use".to_string(),
+        status: "requested".to_string(),
+        input: item.get("input").and_then(|value| tool_text_from_value(value, 8192)),
+        output: None,
+        error: None,
+        started_at: None,
+        ended_at: None,
+        source_meta: json!({
+            "lineIndex": line_index,
+            "contentIndex": content_index,
+            "itemType": "tool_use",
+        }),
+    }
+}
+
+fn claude_tool_result_to_block(item: &Value, line_index: usize, content_index: usize) -> ToolCallBlock {
+    ToolCallBlock {
+        id: item
+            .get("tool_use_id")
+            .or_else(|| item.get("id"))
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+            .unwrap_or_else(|| format!("{line_index}:{content_index}:tool_result")),
+        name: item
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("tool_result")
+            .to_string(),
+        kind: "tool_result".to_string(),
+        status: if item.get("is_error").and_then(Value::as_bool).unwrap_or(false) {
+            "error".to_string()
+        } else {
+            "completed".to_string()
+        },
+        input: None,
+        output: claude_tool_result_content(item),
+        error: None,
+        started_at: None,
+        ended_at: None,
+        source_meta: json!({
+            "lineIndex": line_index,
+            "contentIndex": content_index,
+            "itemType": "tool_result",
+        }),
+    }
+}
+
+fn claude_tool_result_content(item: &Value) -> Option<String> {
+    let content = item.get("content")?;
+    if let Some(text) = content.as_str() {
+        return tool_text_from_str(text, 32768);
+    }
+    tool_text_from_value(content, 32768)
 }
 
 impl PlatformAdapter for ClaudePlatform {
@@ -500,4 +608,44 @@ fn clean_preview_text(text: &str) -> String {
 
 fn truncate(value: &str, max: usize) -> String {
     value.chars().take(max).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blocks_attach_tool_use_and_result_to_conversation_block() {
+        let platform = ClaudePlatform::new(PathBuf::from("unused"));
+        let lines = vec![
+            json!({
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        { "type": "text", "text": "I will inspect the files." },
+                        { "type": "tool_use", "id": "toolu_1", "name": "Read", "input": { "file_path": "src/main.rs" } }
+                    ]
+                }
+            }),
+            json!({
+                "message": {
+                    "role": "user",
+                    "content": [
+                        { "type": "tool_result", "tool_use_id": "toolu_1", "content": "file contents" },
+                        { "type": "text", "text": "continue" }
+                    ]
+                }
+            }),
+        ];
+
+        let blocks = platform.blocks(&lines, "session.jsonl");
+
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0].role, "assistant");
+        assert_eq!(blocks[0].tool_calls.len(), 2);
+        assert_eq!(blocks[0].tool_calls[0].name, "Read");
+        assert_eq!(blocks[0].tool_calls[0].input.as_deref(), Some("{\n  \"file_path\": \"src/main.rs\"\n}"));
+        assert_eq!(blocks[0].tool_calls[1].output.as_deref(), Some("file contents"));
+        assert!(blocks[1].tool_calls.is_empty());
+    }
 }
