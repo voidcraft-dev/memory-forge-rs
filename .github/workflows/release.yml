@@ -65,6 +65,14 @@ jobs:
           releaseBody: |
             ## Memory Forge ${{ github.ref_name }}
 
+            ### 更新 / Changes
+
+            - Kiro IDE: 修复 `On it.` 占位消息无法加载真实执行输出的问题，并改为按需异步批量加载，降低大对话卡死风险。
+            - 导出: Markdown 导出新增“包含工具调用历史 / Include tool history”选项，支持 Claude、Codex、OpenCode 的工具调用记录。
+            - Gemini CLI: 支持 `.jsonl` 会话文件，过滤空助手消息，并去重重复消息更新。
+            - Codex / omx: 新增 Codex 项目根目录过滤，可按 `cwd` 聚合同一项目根下的多项目会话。
+            - 稳定性: 补充解析与导出相关测试，覆盖 Kiro 输出加载、工具调用导出、Gemini CLI 解析、Codex 项目过滤。
+
             ### 下载 / Download
 
             | 平台 | 文件 | 说明 |
