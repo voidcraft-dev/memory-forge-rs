@@ -67,11 +67,11 @@ jobs:
 
             ### 更新 / Changes
 
-            - Kiro IDE: 修复 `On it.` 占位消息无法加载真实执行输出的问题，并改为按需异步批量加载，降低大对话卡死风险。
-            - 导出: Markdown 导出新增“包含工具调用历史 / Include tool history”选项，支持 Claude、Codex、OpenCode 的工具调用记录。
-            - Gemini CLI: 支持 `.jsonl` 会话文件，过滤空助手消息，并去重重复消息更新。
-            - Codex / omx: 新增 Codex 项目根目录过滤，可按 `cwd` 聚合同一项目根下的多项目会话。
-            - 稳定性: 补充解析与导出相关测试，覆盖 Kiro 输出加载、工具调用导出、Gemini CLI 解析、Codex 项目过滤。
+            - Codex: 兼容新的 `response_item/message` 会话结构，去重镜像消息，并在编辑时同步镜像记录。
+            - Codex: 识别加密 `reasoning` 记录；有明文 `content/summary` 时展示为只读思考块。
+            - 导出: Codex 工具调用历史按 `call_id` 合并 input/output，并避免工具记录挂到用户消息下。
+            - UI: 优化会话详情、列表、仪表盘、提示词、设置和关于页面的视觉与交互。
+            - 整理: README 使用统一 logo 资源，并归档暂缓实现的 Cursor / Trae / Windsurf 调研文档。
 
             ### 下载 / Download
 
