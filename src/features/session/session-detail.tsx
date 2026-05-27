@@ -314,16 +314,27 @@ export function SessionDetail() {
     lines.push('')
 
     for (const block of sessionDetail.blocks) {
+      const toolCalls = block.toolCalls ?? []
+      const hasContent = block.content.trim().length > 0
+      const hasToolCalls = includeToolCallsInExport && toolCalls.length > 0
+      if (!hasContent && !hasToolCalls) continue
+
       const roleLabel = block.role === 'user' ? 'User' : block.role === 'assistant' ? 'Assistant' : 'Thinking'
-      lines.push(`## ${roleLabel}`)
-      lines.push('')
-      lines.push(block.content)
+      const headingLabel = !hasContent && hasToolCalls && block.role === 'assistant'
+        ? 'Assistant Tool Calls'
+        : roleLabel
+      lines.push(`## ${headingLabel}`)
       lines.push('')
 
-      if (includeToolCallsInExport && block.toolCalls?.length) {
+      if (hasContent) {
+        lines.push(block.content)
+        lines.push('')
+      }
+
+      if (hasToolCalls) {
         lines.push('### Tool Calls')
         lines.push('')
-        block.toolCalls.forEach((toolCall, index) => {
+        toolCalls.forEach((toolCall, index) => {
           lines.push(`#### ${index + 1}. ${toolCall.name || toolCall.kind || 'tool'}`)
           lines.push('')
           lines.push(`- Type: ${toolCall.kind || 'tool'}`)
@@ -856,6 +867,7 @@ const MessageBlock = forwardRef<HTMLDivElement, {
     && block.editTarget?.includes('::execution::')
 
   const isThinking = block.role === 'thinking'
+  const hasContent = block.content.trim().length > 0
 
   return (
     <div
@@ -891,26 +903,28 @@ const MessageBlock = forwardRef<HTMLDivElement, {
             </div>
 
             {/* Collapsible content log wrapper for Thinking Logs */}
-            {(!isThinking || thinkingExpanded) ? (
-              <div className={cn(
-                "overflow-hidden rounded-xl p-4 bg-background/55 border border-border/30",
-                isThinking && "bg-amber-500/3 border-dashed border-amber-500/20"
-              )}>
+            {hasContent && (
+              (!isThinking || thinkingExpanded) ? (
                 <div className={cn(
-                  "text-sm font-sans leading-relaxed text-foreground whitespace-pre-wrap break-words",
-                  isThinking && "font-mono text-xs text-quiet"
+                  "overflow-hidden rounded-xl p-4 bg-background/55 border border-border/30",
+                  isThinking && "bg-amber-500/3 border-dashed border-amber-500/20"
                 )}>
-                  {parseContentWithCodeBlocks(block.content, searchHighlight)}
+                  <div className={cn(
+                    "text-sm font-sans leading-relaxed text-foreground whitespace-pre-wrap break-words",
+                    isThinking && "font-mono text-xs text-quiet"
+                  )}>
+                    {parseContentWithCodeBlocks(block.content, searchHighlight)}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div
-                onClick={() => setThinkingExpanded(true)}
-                className="overflow-hidden rounded-xl px-4 py-3 bg-amber-500/3 border border-dashed border-amber-500/20 cursor-pointer hover:bg-amber-500/6 text-[11px] text-amber-500/80 font-mono flex items-center gap-2 transition-all select-none"
-              >
-                <Lightbulb className="size-3.5 text-amber-500 animate-pulse shrink-0" />
-                <span>已折叠系统思维链路 ({block.content.length} 字符)，点击此处展开...</span>
-              </div>
+              ) : (
+                <div
+                  onClick={() => setThinkingExpanded(true)}
+                  className="overflow-hidden rounded-xl px-4 py-3 bg-amber-500/3 border border-dashed border-amber-500/20 cursor-pointer hover:bg-amber-500/6 text-[11px] text-amber-500/80 font-mono flex items-center gap-2 transition-all select-none"
+                >
+                  <Lightbulb className="size-3.5 text-amber-500 animate-pulse shrink-0" />
+                  <span>已折叠系统思维链路 ({block.content.length} 字符)，点击此处展开...</span>
+                </div>
+              )
             )}
 
             {/* Interactive console widget for tool calls if available */}

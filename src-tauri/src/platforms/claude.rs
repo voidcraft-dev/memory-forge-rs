@@ -150,7 +150,7 @@ impl ClaudePlatform {
 
             if let Some(text) = message.get("content").and_then(Value::as_str) {
                 if role == "user" || role == "assistant" {
-                    let mut block = TimelineBlock {
+                    let block = TimelineBlock {
                         id: format!("{line_index}:0:{role}"),
                         role: role.to_string(),
                         content: text.to_string(),
@@ -162,8 +162,7 @@ impl ClaudePlatform {
                         }),
                         tool_calls: Vec::new(),
                     };
-                    block.tool_calls.append(&mut pending_tool_calls);
-                    blocks.push(block);
+                    push_claude_block(&mut blocks, &mut pending_tool_calls, block);
                 }
                 continue;
             }
@@ -177,7 +176,7 @@ impl ClaudePlatform {
 
                 match (role, item_type) {
                     ("user", "text") => {
-                        let mut block = TimelineBlock {
+                        let block = TimelineBlock {
                             id: format!("{line_index}:{content_index}:user"),
                             role: "user".to_string(),
                             content: item
@@ -193,11 +192,10 @@ impl ClaudePlatform {
                             }),
                             tool_calls: Vec::new(),
                         };
-                        block.tool_calls.append(&mut pending_tool_calls);
-                        blocks.push(block);
+                        push_claude_block(&mut blocks, &mut pending_tool_calls, block);
                     }
                     ("assistant", "text") => {
-                        let mut block = TimelineBlock {
+                        let block = TimelineBlock {
                             id: format!("{line_index}:{content_index}:assistant"),
                             role: "assistant".to_string(),
                             content: item
@@ -213,8 +211,7 @@ impl ClaudePlatform {
                             }),
                             tool_calls: Vec::new(),
                         };
-                        block.tool_calls.append(&mut pending_tool_calls);
-                        blocks.push(block);
+                        push_claude_block(&mut blocks, &mut pending_tool_calls, block);
                     }
                     ("assistant", "thinking") | ("assistant", "reasoning") => {
                         let field_name = if item.get("thinking").is_some() {
@@ -243,11 +240,11 @@ impl ClaudePlatform {
                     }
                     ("assistant", "tool_use") => {
                         let tool_call = claude_tool_use_to_block(item, line_index, content_index);
-                        append_tool_call(&mut blocks, &mut pending_tool_calls, tool_call);
+                        push_claude_tool_call(&mut blocks, &mut pending_tool_calls, tool_call);
                     }
                     (_, "tool_result") => {
                         let tool_call = claude_tool_result_to_block(item, line_index, content_index);
-                        append_tool_call(&mut blocks, &mut pending_tool_calls, tool_call);
+                        push_claude_tool_result(&mut blocks, &mut pending_tool_calls, tool_call);
                     }
                     _ => {}
                 }
@@ -255,21 +252,198 @@ impl ClaudePlatform {
         }
 
         if !pending_tool_calls.is_empty() {
-            if let Some(last) = blocks.last_mut() {
-                last.tool_calls.append(&mut pending_tool_calls);
-            }
+            flush_claude_tool_calls(&mut blocks, &mut pending_tool_calls);
         }
 
         blocks
     }
 }
 
-fn append_tool_call(blocks: &mut [TimelineBlock], pending: &mut Vec<ToolCallBlock>, tool_call: ToolCallBlock) {
-    if let Some(last) = blocks.last_mut() {
-        last.tool_calls.push(tool_call);
+fn push_claude_block(
+    blocks: &mut Vec<TimelineBlock>,
+    pending_tool_calls: &mut Vec<ToolCallBlock>,
+    mut block: TimelineBlock,
+) {
+    if block.role == "assistant" {
+        append_or_merge_tool_calls(&mut block.tool_calls, pending_tool_calls);
     } else {
-        pending.push(tool_call);
+        flush_claude_tool_calls(blocks, pending_tool_calls);
     }
+    blocks.push(block);
+}
+
+fn push_claude_tool_call(
+    blocks: &mut [TimelineBlock],
+    pending: &mut Vec<ToolCallBlock>,
+    tool_call: ToolCallBlock,
+) {
+    let tool_line_index = source_line_index(&tool_call.source_meta);
+    if let Some(last_assistant) = blocks.iter_mut().rev().find(|block| {
+        block.role == "assistant" && source_line_index(&block.source_meta) == tool_line_index
+    }) {
+        push_or_merge_tool_call(&mut last_assistant.tool_calls, tool_call);
+    } else {
+        push_or_merge_tool_call(pending, tool_call);
+    }
+}
+
+fn push_claude_tool_result(
+    blocks: &mut [TimelineBlock],
+    pending: &mut Vec<ToolCallBlock>,
+    tool_call: ToolCallBlock,
+) {
+    if merge_tool_call_in_blocks(blocks, &tool_call) {
+        return;
+    }
+    push_or_merge_tool_call(pending, tool_call);
+}
+
+fn merge_tool_call_in_blocks(blocks: &mut [TimelineBlock], tool_call: &ToolCallBlock) -> bool {
+    for block in blocks.iter_mut().rev().filter(|block| block.role == "assistant") {
+        if let Some(existing) = block
+            .tool_calls
+            .iter_mut()
+            .find(|existing| existing.id == tool_call.id)
+        {
+            merge_tool_call(existing, tool_call.clone());
+            return true;
+        }
+    }
+    false
+}
+
+fn source_line_index(source_meta: &Value) -> Option<u64> {
+    source_meta.get("lineIndex").and_then(Value::as_u64)
+}
+
+fn flush_claude_tool_calls(
+    blocks: &mut Vec<TimelineBlock>,
+    pending: &mut Vec<ToolCallBlock>,
+) {
+    if pending.is_empty() {
+        return;
+    }
+
+    if let Some(last) = blocks.last_mut() {
+        if last.role == "assistant" {
+            append_or_merge_tool_calls(&mut last.tool_calls, pending);
+            return;
+        }
+    }
+
+    let line_indices = collect_tool_line_indices(pending);
+    let first_line_index = line_indices.first().copied().unwrap_or(blocks.len() as u64);
+    let mut block = TimelineBlock {
+        id: format!("{first_line_index}:tool-calls:assistant"),
+        role: "assistant".to_string(),
+        content: String::new(),
+        editable: false,
+        edit_target: String::new(),
+        source_meta: json!({
+            "lineIndex": first_line_index,
+            "lineIndices": line_indices,
+            "itemType": "tool_calls",
+        }),
+        tool_calls: Vec::new(),
+    };
+    append_or_merge_tool_calls(&mut block.tool_calls, pending);
+    blocks.push(block);
+}
+
+fn collect_tool_line_indices(tool_calls: &[ToolCallBlock]) -> Vec<u64> {
+    let mut line_indices = Vec::new();
+    for tool_call in tool_calls {
+        if let Some(line_index) = source_line_index(&tool_call.source_meta) {
+            line_indices.push(line_index);
+        }
+        if let Some(items) = tool_call
+            .source_meta
+            .get("lineIndices")
+            .and_then(Value::as_array)
+        {
+            for item in items {
+                if let Some(line_index) = item.as_u64() {
+                    line_indices.push(line_index);
+                }
+            }
+        }
+    }
+    line_indices.sort_unstable();
+    line_indices.dedup();
+    line_indices
+}
+
+fn append_or_merge_tool_calls(target: &mut Vec<ToolCallBlock>, pending: &mut Vec<ToolCallBlock>) {
+    for tool_call in pending.drain(..) {
+        push_or_merge_tool_call(target, tool_call);
+    }
+}
+
+fn push_or_merge_tool_call(target: &mut Vec<ToolCallBlock>, tool_call: ToolCallBlock) {
+    if let Some(existing) = target.iter_mut().find(|existing| existing.id == tool_call.id) {
+        merge_tool_call(existing, tool_call);
+    } else {
+        target.push(tool_call);
+    }
+}
+
+fn merge_tool_call(existing: &mut ToolCallBlock, incoming: ToolCallBlock) {
+    if existing.name == "tool_result" && incoming.name != "tool_result" {
+        existing.name = incoming.name;
+    }
+
+    if existing.kind == "tool_result" && incoming.kind != "tool_result" {
+        existing.kind = incoming.kind;
+    }
+
+    if incoming.input.is_some() {
+        existing.input = incoming.input;
+    }
+    if incoming.output.is_some() {
+        existing.output = incoming.output;
+    }
+    if incoming.error.is_some() {
+        existing.error = incoming.error;
+    }
+    if incoming.started_at.is_some() {
+        existing.started_at = incoming.started_at;
+    }
+    if incoming.ended_at.is_some() {
+        existing.ended_at = incoming.ended_at;
+    }
+
+    existing.status = if existing.error.is_some() || incoming.status == "error" {
+        "error".to_string()
+    } else if existing.output.is_some() {
+        "completed".to_string()
+    } else {
+        "requested".to_string()
+    };
+
+    existing.source_meta = merge_tool_source_meta(&existing.source_meta, &incoming.source_meta);
+}
+
+fn merge_tool_source_meta(left: &Value, right: &Value) -> Value {
+    let mut line_indices = Vec::new();
+    for value in [left, right] {
+        if let Some(line_index) = value.get("lineIndex").and_then(Value::as_u64) {
+            line_indices.push(line_index);
+        }
+        if let Some(items) = value.get("lineIndices").and_then(Value::as_array) {
+            for item in items {
+                if let Some(line_index) = item.as_u64() {
+                    line_indices.push(line_index);
+                }
+            }
+        }
+    }
+    line_indices.sort_unstable();
+    line_indices.dedup();
+
+    json!({
+        "itemType": "tool_use",
+        "lineIndices": line_indices,
+    })
 }
 
 fn claude_tool_use_to_block(item: &Value, line_index: usize, content_index: usize) -> ToolCallBlock {
@@ -642,10 +816,113 @@ mod tests {
 
         assert_eq!(blocks.len(), 2);
         assert_eq!(blocks[0].role, "assistant");
-        assert_eq!(blocks[0].tool_calls.len(), 2);
+        assert_eq!(blocks[0].tool_calls.len(), 1);
         assert_eq!(blocks[0].tool_calls[0].name, "Read");
+        assert_eq!(blocks[0].tool_calls[0].kind, "tool_use");
+        assert_eq!(blocks[0].tool_calls[0].status, "completed");
         assert_eq!(blocks[0].tool_calls[0].input.as_deref(), Some("{\n  \"file_path\": \"src/main.rs\"\n}"));
-        assert_eq!(blocks[0].tool_calls[1].output.as_deref(), Some("file contents"));
+        assert_eq!(blocks[0].tool_calls[0].output.as_deref(), Some("file contents"));
         assert!(blocks[1].tool_calls.is_empty());
+    }
+
+    #[test]
+    fn blocks_do_not_attach_tool_results_to_user_text() {
+        let platform = ClaudePlatform::new(PathBuf::from("unused"));
+        let lines = vec![
+            json!({
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        { "type": "text", "text": "I will search the repo." },
+                        { "type": "tool_use", "id": "toolu_2", "name": "Grep", "input": { "pattern": "TODO" } }
+                    ]
+                }
+            }),
+            json!({
+                "message": {
+                    "role": "user",
+                    "content": [
+                        { "type": "text", "text": "continue" },
+                        { "type": "tool_result", "tool_use_id": "toolu_2", "content": "src/main.rs: TODO" }
+                    ]
+                }
+            }),
+        ];
+
+        let blocks = platform.blocks(&lines, "session.jsonl");
+
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0].role, "assistant");
+        assert_eq!(blocks[0].tool_calls.len(), 1);
+        assert_eq!(blocks[0].tool_calls[0].name, "Grep");
+        assert_eq!(blocks[0].tool_calls[0].status, "completed");
+        assert_eq!(blocks[0].tool_calls[0].input.as_deref(), Some("{\n  \"pattern\": \"TODO\"\n}"));
+        assert_eq!(blocks[0].tool_calls[0].output.as_deref(), Some("src/main.rs: TODO"));
+        assert_eq!(blocks[1].role, "user");
+        assert!(blocks[1].tool_calls.is_empty());
+    }
+
+    #[test]
+    fn blocks_keep_tool_only_assistant_messages_before_user_text() {
+        let platform = ClaudePlatform::new(PathBuf::from("unused"));
+        let lines = vec![
+            json!({
+                "message": {
+                    "role": "user",
+                    "content": "format this document"
+                }
+            }),
+            json!({
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        { "type": "tool_use", "id": "toolu_3", "name": "Read", "input": { "file_path": "doc.md" } }
+                    ]
+                }
+            }),
+            json!({
+                "message": {
+                    "role": "user",
+                    "content": [
+                        { "type": "tool_result", "tool_use_id": "toolu_3", "content": "doc contents" }
+                    ]
+                }
+            }),
+            json!({
+                "message": {
+                    "role": "user",
+                    "content": [
+                        { "type": "text", "text": "[Request interrupted by user]" }
+                    ]
+                }
+            }),
+            json!({
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        { "type": "text", "text": "Now I can continue." }
+                    ]
+                }
+            }),
+        ];
+
+        let blocks = platform.blocks(&lines, "session.jsonl");
+
+        assert_eq!(blocks.len(), 4);
+        assert_eq!(blocks[0].role, "user");
+        assert_eq!(blocks[0].content, "format this document");
+        assert!(blocks[0].tool_calls.is_empty());
+        assert_eq!(blocks[1].role, "assistant");
+        assert!(blocks[1].content.is_empty());
+        assert_eq!(blocks[1].tool_calls.len(), 1);
+        assert_eq!(blocks[1].tool_calls[0].name, "Read");
+        assert_eq!(blocks[1].tool_calls[0].status, "completed");
+        assert_eq!(blocks[1].tool_calls[0].output.as_deref(), Some("doc contents"));
+        assert_eq!(blocks[2].role, "user");
+        assert_eq!(blocks[2].content, "[Request interrupted by user]");
+        assert!(blocks[2].tool_calls.is_empty());
+        assert_eq!(blocks[3].role, "assistant");
+        assert_eq!(blocks[3].content, "Now I can continue.");
+        assert!(blocks[3].tool_calls.is_empty());
     }
 }

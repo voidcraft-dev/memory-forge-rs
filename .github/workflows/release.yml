@@ -67,11 +67,11 @@ jobs:
 
             ### 更新 / Changes
 
-            - Codex: 兼容新的 `response_item/message` 会话结构，去重镜像消息，并在编辑时同步镜像记录。
-            - Codex: 识别加密 `reasoning` 记录；有明文 `content/summary` 时展示为只读思考块。
-            - 导出: Codex 工具调用历史按 `call_id` 合并 input/output，并避免工具记录挂到用户消息下。
-            - UI: 优化会话详情、列表、仪表盘、提示词、设置和关于页面的视觉与交互。
-            - 整理: README 使用统一 logo 资源，并归档暂缓实现的 Cursor / Trae / Windsurf 调研文档。
+            - Claude: 按 `tool_use_id` 合并 `tool_use/tool_result`，避免工具结果挂到用户消息下。
+            - Claude: 保留纯工具调用块的时间线位置，避免工具历史延后挂到后续助手文本。
+            - UI: 纯工具调用块不再显示空白消息气泡。
+            - 导出: 纯工具调用块导出为 `Assistant Tool Calls`，避免生成空的助手消息段。
+            - 测试: 增加 Claude 工具调用归属和纯工具块回归用例。
 
             ### 下载 / Download
 
