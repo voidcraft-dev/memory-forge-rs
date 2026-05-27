@@ -1,5 +1,5 @@
 import { type ComponentType, useState } from "react";
-import { Check, FolderOpen, Languages, Rocket, Sparkles } from "lucide-react";
+import { Check, FolderOpen, Languages, Rocket, Sparkles, SlidersHorizontal } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   localeCatalog,
@@ -8,6 +8,15 @@ import {
 import { useDesktop } from "@/features/desktop/provider";
 import type { ThemeId } from "@/features/desktop/types";
 import { cn } from "@/lib/utils";
+
+const PLATFORM_ITEMS = [
+  { id: "claude", labelKey: "platformClaude" as const },
+  { id: "codex", labelKey: "platformCodex" as const },
+  { id: "opencode", labelKey: "platformOpencode" as const },
+  { id: "kiro", labelKey: "platformKiro" as const },
+  { id: "kiro-ide", labelKey: "platformKiroIde" as const },
+  { id: "gemini", labelKey: "platformGemini" as const },
+];
 
 export default function SettingsPage() {
   const {
@@ -33,25 +42,31 @@ export default function SettingsPage() {
     );
   }
 
+  const visiblePlatforms = snapshot.settings.visiblePlatforms ?? ["claude", "codex", "opencode"];
+
+  const togglePlatformVisible = async (platformId: string, enabled: boolean) => {
+    const next = enabled
+      ? [...visiblePlatforms, platformId]
+      : visiblePlatforms.filter((p) => p !== platformId);
+    await updateSettings({ visiblePlatforms: next });
+  };
+
   return (
     <div className="flex h-full flex-col overflow-y-auto pr-2">
-      <section className="relative overflow-hidden rounded-[28px] border border-border/80 px-6 py-6 md:px-8 md:py-8">
-        <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),transparent_64%)] lg:block" />
-        <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <section className="relative overflow-hidden rounded-[28px] border border-border/80 px-6 py-5 md:px-8">
+        <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.14),transparent_64%)] lg:block" />
+        <div className="relative flex items-center justify-between gap-4">
           <div>
             <p className="text-fine uppercase tracking-[0.28em] text-quiet">{t("settings")}</p>
-            <h2 className="mt-2 text-3xl font-semibold">Memory Forge</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-quiet">
-              {t("desktopBehaviorDesc")}
-            </p>
+            <h2 className="mt-1.5 text-2xl font-semibold">Memory Forge</h2>
           </div>
-          <div className="rounded-full border border-border/80 bg-white/5 px-4 py-2 text-sm text-quiet">
-            {saving ? "Saving..." : `${t("currentTheme")}: ${snapshot.settings.theme}`}
+          <div className="rounded-full border border-border/80 bg-white/5 px-4 py-1.5 text-sm text-quiet shrink-0">
+            {saving ? "Saving..." : snapshot.settings.theme}
           </div>
         </div>
       </section>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.86fr)]">
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.86fr)]">
         <div className="space-y-4">
           <section className="setting-card rounded-[24px] p-5">
             <SectionHeader icon={Sparkles} title={t("themeSection")} description={t("themeSectionDesc")} />
@@ -111,6 +126,38 @@ export default function SettingsPage() {
                 onToggle={setLaunchOnStartup}
               />
               <ToggleRow checked={snapshot.settings.reduceMotion} description={t("reduceMotionDesc")} label={t("reduceMotion")} onToggle={setReduceMotion} />
+            </div>
+          </section>
+
+          <section className="setting-card rounded-[24px] p-5">
+            <SectionHeader icon={SlidersHorizontal} title={t("sidebarSection")} description={t("sidebarSectionDesc")} />
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              {PLATFORM_ITEMS.map(({ id, labelKey }) => {
+                const enabled = visiblePlatforms.includes(id);
+                return (
+                  <div
+                    key={id}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-[18px] border px-3 py-2.5 transition",
+                      enabled ? "border-primary/30 bg-primary/8" : "border-border/50 bg-white/3"
+                    )}
+                  >
+                    <span className={cn("text-sm font-medium truncate", enabled ? "text-foreground" : "text-quiet")}>
+                      {t(labelKey)}
+                    </span>
+                    <button
+                      aria-checked={enabled}
+                      className="toggle-track shrink-0 scale-[0.85]"
+                      data-state={enabled ? "on" : "off"}
+                      onClick={() => void togglePlatformVisible(id, !enabled)}
+                      role="switch"
+                      type="button"
+                    >
+                      <span className="toggle-thumb" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </section>
 

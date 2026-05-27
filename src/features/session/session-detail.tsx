@@ -711,14 +711,16 @@ const MessageBlock = forwardRef<HTMLDivElement, {
             <div className="overflow-hidden rounded-xl p-3 bg-background/50 border border-border/30">
               <pre className="text-sm text-foreground whitespace-pre-wrap break-words font-mono leading-relaxed">{renderContent()}</pre>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 gap-1.5 border-border/60 bg-background/55 text-xs hover:bg-background/80"
-              onClick={(e) => { e.stopPropagation(); onEdit() }}
-            >
-              <Pencil className="w-3 h-3" />{t('session.editThisMessage')}
-            </Button>
+            {block.editable !== false && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 gap-1.5 border-border/60 bg-background/55 text-xs hover:bg-background/80"
+                onClick={(e) => { e.stopPropagation(); onEdit() }}
+              >
+                <Pencil className="w-3 h-3" />{t('session.editThisMessage')}
+              </Button>
+            )}
             {isKiroExecutionPlaceholder && onLoadExecutionOutput && (
               <Button
                 variant="outline"
@@ -731,14 +733,16 @@ const MessageBlock = forwardRef<HTMLDivElement, {
                 {loadingExecutionOutput ? '加载中' : '加载真实输出'}
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 gap-1.5 border-red-500/30 bg-red-500/5 text-red-400 text-xs hover:bg-red-500/15 hover:text-red-300"
-              onClick={(e) => { e.stopPropagation(); onErase() }}
-            >
-              <Trash2 className="w-3 h-3" />{t('session.erase')}
-            </Button>
+            {block.editable !== false && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 gap-1.5 border-red-500/30 bg-red-500/5 text-red-400 text-xs hover:bg-red-500/15 hover:text-red-300"
+                onClick={(e) => { e.stopPropagation(); onErase() }}
+              >
+                <Trash2 className="w-3 h-3" />{t('session.erase')}
+              </Button>
+            )}
           </div>
         </div>
       </div>

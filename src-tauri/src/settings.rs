@@ -32,6 +32,12 @@ pub struct AppSettings {
     pub kiro_ide_home: Option<String>,
     #[serde(default)]
     pub gemini_home: Option<String>,
+    #[serde(default = "default_visible_platforms")]
+    pub visible_platforms: Vec<String>,
+}
+
+fn default_visible_platforms() -> Vec<String> {
+    vec!["claude".to_string(), "codex".to_string(), "opencode".to_string()]
 }
 
 impl Default for AppSettings {
@@ -49,6 +55,7 @@ impl Default for AppSettings {
             kiro_home: None,
             kiro_ide_home: None,
             gemini_home: None,
+            visible_platforms: default_visible_platforms(),
         }
     }
 }
@@ -68,6 +75,7 @@ pub struct AppSettingsPatch {
     pub kiro_home: Option<Option<String>>,
     pub kiro_ide_home: Option<Option<String>>,
     pub gemini_home: Option<Option<String>>,
+    pub visible_platforms: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -182,6 +190,10 @@ pub fn update_settings(
 
     if let Some(gemini_home) = patch.gemini_home {
         settings.gemini_home = gemini_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(visible_platforms) = patch.visible_platforms {
+        settings.visible_platforms = visible_platforms;
     }
 
     let autostart_supported = if let Some(launch_on_startup) = patch.launch_on_startup {

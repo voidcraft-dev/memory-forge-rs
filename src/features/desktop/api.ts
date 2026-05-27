@@ -28,6 +28,7 @@ const defaultSettings = {
   kiroHome: null,
   kiroIdeHome: null,
   geminiHome: null,
+  visiblePlatforms: ["claude", "codex", "opencode"] as string[],
 };
 
 function isTauriRuntime() {

@@ -22,12 +22,12 @@ import { useState, useEffect } from "react";
 
 const navigation = [
   { to: "/", labelKey: "dashboard" as const, icon: LayoutGrid },
-  { to: "/claude", labelKey: "platformClaude" as const, icon: Bot },
-  { to: "/codex", labelKey: "platformCodex" as const, icon: Terminal },
-  { to: "/opencode", labelKey: "platformOpencode" as const, icon: Code },
-  { to: "/kiro", labelKey: "platformKiro" as const, icon: Sparkles },
-  { to: "/kiro-ide", labelKey: "platformKiroIde" as const, icon: Sparkles },
-  { to: "/gemini", labelKey: "platformGemini" as const, icon: Gem },
+  { to: "/claude", labelKey: "platformClaude" as const, icon: Bot, platformId: "claude" },
+  { to: "/codex", labelKey: "platformCodex" as const, icon: Terminal, platformId: "codex" },
+  { to: "/opencode", labelKey: "platformOpencode" as const, icon: Code, platformId: "opencode" },
+  { to: "/kiro", labelKey: "platformKiro" as const, icon: Sparkles, platformId: "kiro" },
+  { to: "/kiro-ide", labelKey: "platformKiroIde" as const, icon: Sparkles, platformId: "kiro-ide" },
+  { to: "/gemini", labelKey: "platformGemini" as const, icon: Gem, platformId: "gemini" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },
@@ -107,7 +107,11 @@ export default function ShellLayout() {
 
             {/* Navigation */}
             <nav className={cn("mt-6 space-y-2", sidebarCollapsed && "mt-4 space-y-1")}>
-              {navigation.map((item) => {
+              {navigation.filter((item) => {
+                if (!item.platformId) return true;
+                const visible = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode"];
+                return visible.includes(item.platformId);
+              }).map((item) => {
                 const Icon = item.icon;
                 return (
                   <NavLink

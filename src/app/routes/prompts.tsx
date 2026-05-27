@@ -31,6 +31,7 @@ import {
 
 const PRESET_TAGS = ["代码", "写作", "翻译", "分析", "设计", "优化", "学习", "CTF", "焚诀", "其他"];
 const FENJUE_PROMPT_NAMES = ["焚诀·CTF 比赛"];
+const FENJUE_VAULT_KEY = "焚诀";
 
 const tagColors: Record<string, string> = {
   代码: "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -78,7 +79,7 @@ export default function PromptsPage() {
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [showVault, setShowVault] = useState(false);
-  const [vaultKey, setVaultKey] = useState("");
+  const [vaultKey, setVaultKey] = useState(FENJUE_VAULT_KEY);
   const [fenjueUnlocked, setFenjueUnlocked] = useState(false);
 
   // Modal state
@@ -192,10 +193,10 @@ export default function PromptsPage() {
 
   const handleUnlockVault = () => {
     const normalized = vaultKey.trim();
-    if (normalized === "焚诀") {
+    if (normalized === FENJUE_VAULT_KEY) {
       setFenjueUnlocked(true);
       setShowVault(false);
-      setVaultKey("");
+      setVaultKey(FENJUE_VAULT_KEY);
       return;
     }
     if (!normalized) {
@@ -291,7 +292,10 @@ export default function PromptsPage() {
             <button
               type="button"
               className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-border/50 bg-background/55 text-muted-foreground/70 transition hover:bg-muted/60 hover:text-foreground"
-              onClick={() => setShowVault(true)}
+              onClick={() => {
+                setVaultKey(FENJUE_VAULT_KEY);
+                setShowVault(true);
+              }}
               title="彩蛋入口"
             >
               <KeyRound className="h-4 w-4" />

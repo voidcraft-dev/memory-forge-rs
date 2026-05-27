@@ -161,6 +161,8 @@ export type MessageKey =
   | "editLog.traceDesc"
   | "sidebar.collapse"
   | "sidebar.expand"
+  | "sidebarSection"
+  | "sidebarSectionDesc"
   | "platformPaths"
   | "platformPathsDesc"
   | "claudeHomePath"
@@ -352,6 +354,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "editLog.traceDesc": "每次编辑都会记录原始内容和新内容，支持 diff 对比。",
     "sidebar.collapse": "收起菜单",
     "sidebar.expand": "展开菜单",
+    sidebarSection: "平台显示",
+    sidebarSectionDesc: "选择在侧边栏显示哪些平台入口，总览/提示词/设置/关于始终显示。",
     "platformPaths": "平台路径",
     "platformPathsDesc": "自定义各平台的数据目录。留空则使用默认路径。",
     "claudeHomePath": "Claude 数据目录",
@@ -542,6 +546,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "editLog.traceDesc": "Each edit records the original and new content with diff comparison.",
     "sidebar.collapse": "Collapse",
     "sidebar.expand": "Expand",
+    sidebarSection: "Platform Visibility",
+    sidebarSectionDesc: "Choose which platforms appear in the sidebar. Dashboard, Prompts, Settings & About are always visible.",
     "platformPaths": "Platform Paths",
     "platformPathsDesc": "Customize data directories for each platform. Leave empty to use defaults.",
     "claudeHomePath": "Claude Home Directory",

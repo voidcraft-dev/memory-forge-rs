@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="memory-forge-logo-v8.svg" alt="Memory Forge" width="128" />
+<img src="public/memory-forge.svg" alt="Memory Forge" width="128" />
 
 # Memory Forge RS
 
@@ -231,7 +231,7 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 
 <div align="center">
 
-<img src="memory-forge-logo-v8.svg" alt="Memory Forge" width="128" />
+<img src="public/memory-forge.svg" alt="Memory Forge" width="128" />
 
 # 记忆锻造 RS
 

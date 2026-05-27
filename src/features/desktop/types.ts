@@ -16,6 +16,7 @@ export type DesktopSettings = {
   kiroHome: string | null;
   kiroIdeHome: string | null;
   geminiHome: string | null;
+  visiblePlatforms: string[];
 };
 
 export type DesktopSettingsPatch = Partial<DesktopSettings>;
