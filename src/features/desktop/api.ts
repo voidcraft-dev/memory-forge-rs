@@ -29,6 +29,7 @@ const defaultSettings = {
   kiroHome: null,
   kiroIdeHome: null,
   geminiHome: null,
+  preferredTerminal: null,
   visiblePlatforms: ["claude", "codex", "cursor", "opencode"] as string[],
 };
 
@@ -304,6 +305,13 @@ export const api = {
       return invoke<Record<string, string>>("session_execution_outputs", { platform, sessionKey, editTargets });
     }
     throw new Error("Execution output loading is not supported in web preview");
+  },
+
+  async launchSessionTerminal(command: string, cwd?: string | null): Promise<boolean> {
+    if (isTauriRuntime()) {
+      return invoke<boolean>("launch_session_terminal", { command, cwd: cwd ?? null });
+    }
+    throw new Error("Terminal launch is not supported in web preview");
   },
 
   async setAlias(platform: string, sessionKey: string, title: string) {

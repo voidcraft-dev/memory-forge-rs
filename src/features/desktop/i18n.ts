@@ -38,6 +38,22 @@ export type MessageKey =
   | "launchOnStartupDesc"
   | "reduceMotion"
   | "reduceMotionDesc"
+  | "terminalSection"
+  | "terminalSectionDesc"
+  | "preferredTerminal"
+  | "terminalCmd"
+  | "terminalPowerShell"
+  | "terminalWindowsTerminal"
+  | "terminalMacTerminal"
+  | "terminalITerm2"
+  | "terminalAlacritty"
+  | "terminalKitty"
+  | "terminalGhostty"
+  | "terminalWezTerm"
+  | "terminalKaku"
+  | "terminalGnomeTerminal"
+  | "terminalKonsole"
+  | "terminalXfceTerminal"
   | "currentTheme"
   | "currentLanguage"
   | "runtime"
@@ -135,6 +151,9 @@ export type MessageKey =
   | "session.closeEditor"
   | "session.cancel"
   | "session.copied"
+  | "session.openTerminal"
+  | "session.terminalOpened"
+  | "session.terminalOpenFailed"
   | "session.filter.all"
   | "session.filter.user"
   | "session.filter.assistant"
@@ -238,6 +257,22 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     launchOnStartupDesc: "让应用跟随系统启动。",
     reduceMotion: "减少动画",
     reduceMotionDesc: "对低性能设备更友好。",
+    terminalSection: "首选终端",
+    terminalSectionDesc: "恢复会话时使用的终端应用。",
+    preferredTerminal: "终端应用",
+    terminalCmd: "命令提示符",
+    terminalPowerShell: "PowerShell",
+    terminalWindowsTerminal: "Windows Terminal",
+    terminalMacTerminal: "Terminal.app",
+    terminalITerm2: "iTerm2",
+    terminalAlacritty: "Alacritty",
+    terminalKitty: "Kitty",
+    terminalGhostty: "Ghostty",
+    terminalWezTerm: "WezTerm",
+    terminalKaku: "Kaku",
+    terminalGnomeTerminal: "GNOME Terminal",
+    terminalKonsole: "Konsole",
+    terminalXfceTerminal: "Xfce Terminal",
     currentTheme: "当前主题",
     currentLanguage: "当前语言",
     runtime: "运行环境",
@@ -331,6 +366,9 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.closeEditor": "关闭编辑器",
     "session.cancel": "取消",
     "session.copied": "已复制",
+    "session.openTerminal": "打开终端",
+    "session.terminalOpened": "已打开终端",
+    "session.terminalOpenFailed": "打开终端失败，已复制命令",
     "session.filter.all": "全部",
     "session.filter.user": "用户",
     "session.filter.assistant": "助手",
@@ -432,6 +470,22 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     launchOnStartupDesc: "Let the app follow system startup.",
     reduceMotion: "Reduce motion",
     reduceMotionDesc: "Better for lower-powered machines.",
+    terminalSection: "Preferred Terminal",
+    terminalSectionDesc: "Terminal app used when resuming sessions.",
+    preferredTerminal: "Terminal app",
+    terminalCmd: "Command Prompt",
+    terminalPowerShell: "PowerShell",
+    terminalWindowsTerminal: "Windows Terminal",
+    terminalMacTerminal: "Terminal.app",
+    terminalITerm2: "iTerm2",
+    terminalAlacritty: "Alacritty",
+    terminalKitty: "Kitty",
+    terminalGhostty: "Ghostty",
+    terminalWezTerm: "WezTerm",
+    terminalKaku: "Kaku",
+    terminalGnomeTerminal: "GNOME Terminal",
+    terminalKonsole: "Konsole",
+    terminalXfceTerminal: "Xfce Terminal",
     currentTheme: "Current theme",
     currentLanguage: "Current language",
     runtime: "Runtime",
@@ -525,6 +579,9 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.closeEditor": "Close editor",
     "session.cancel": "Cancel",
     "session.copied": "Copied",
+    "session.openTerminal": "Open terminal",
+    "session.terminalOpened": "Terminal opened",
+    "session.terminalOpenFailed": "Failed to open terminal; command copied",
     "session.filter.all": "All",
     "session.filter.user": "User",
     "session.filter.assistant": "Assistant",

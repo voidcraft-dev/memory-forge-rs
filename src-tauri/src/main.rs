@@ -6,6 +6,7 @@ mod platforms;
 mod session_service;
 mod settings;
 mod shell;
+mod terminal;
 mod update_checker;
 
 use database::{DbState, PromptCreate, PromptUpdate};
@@ -108,6 +109,32 @@ async fn session_execution_outputs(
     })
     .await
     .map_err(|e| format!("Task error: {e}"))?
+}
+
+#[tauri::command]
+async fn launch_session_terminal(
+    settings_state: tauri::State<'_, SharedSettingsState>,
+    command: String,
+    cwd: Option<String>,
+) -> Result<bool, String> {
+    let preferred_terminal = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?
+        .preferred_terminal
+        .clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        terminal::launch_session_terminal(
+            &command,
+            cwd.as_deref(),
+            preferred_terminal.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| format!("Task error: {e}"))??;
+
+    Ok(true)
 }
 
 #[tauri::command]
@@ -280,6 +307,7 @@ fn main() {
             session_detail,
             session_execution_output,
             session_execution_outputs,
+            launch_session_terminal,
             session_set_alias,
             session_toggle_flag,
             session_batch_set_flag,

@@ -17,6 +17,7 @@ export type DesktopSettings = {
   kiroHome: string | null;
   kiroIdeHome: string | null;
   geminiHome: string | null;
+  preferredTerminal: string | null;
   visiblePlatforms: string[];
 };
 

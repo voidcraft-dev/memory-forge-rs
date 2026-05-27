@@ -6,6 +6,7 @@ import {
   Rocket,
   SlidersHorizontal,
   Sparkles,
+  Terminal,
 } from "lucide-react";
 import { type ComponentType, useState } from "react";
 import { localeCatalog, themeCatalog } from "@/features/desktop/catalog";
@@ -22,6 +23,50 @@ const PLATFORM_ITEMS = [
   { id: "kiro-ide", labelKey: "platformKiroIde" as const },
   { id: "gemini", labelKey: "platformGemini" as const },
 ];
+
+const TERMINAL_OPTIONS = {
+  windows: [
+    { value: "cmd", labelKey: "terminalCmd" as const },
+    { value: "powershell", labelKey: "terminalPowerShell" as const },
+    { value: "wt", labelKey: "terminalWindowsTerminal" as const },
+  ],
+  macos: [
+    { value: "terminal", labelKey: "terminalMacTerminal" as const },
+    { value: "iterm2", labelKey: "terminalITerm2" as const },
+    { value: "alacritty", labelKey: "terminalAlacritty" as const },
+    { value: "kitty", labelKey: "terminalKitty" as const },
+    { value: "ghostty", labelKey: "terminalGhostty" as const },
+    { value: "wezterm", labelKey: "terminalWezTerm" as const },
+    { value: "kaku", labelKey: "terminalKaku" as const },
+  ],
+  linux: [
+    { value: "gnome-terminal", labelKey: "terminalGnomeTerminal" as const },
+    { value: "konsole", labelKey: "terminalKonsole" as const },
+    { value: "xfce4-terminal", labelKey: "terminalXfceTerminal" as const },
+    { value: "alacritty", labelKey: "terminalAlacritty" as const },
+    { value: "kitty", labelKey: "terminalKitty" as const },
+    { value: "ghostty", labelKey: "terminalGhostty" as const },
+  ],
+} as const;
+
+function getDesktopPlatform(): keyof typeof TERMINAL_OPTIONS {
+  if (typeof navigator === "undefined") return "windows";
+  const platform = navigator.platform.toLowerCase();
+  if (platform.includes("mac")) return "macos";
+  if (platform.includes("linux")) return "linux";
+  return "windows";
+}
+
+function getTerminalOptions() {
+  return TERMINAL_OPTIONS[getDesktopPlatform()];
+}
+
+function getDefaultTerminal() {
+  const platform = getDesktopPlatform();
+  if (platform === "macos") return "terminal";
+  if (platform === "linux") return "gnome-terminal";
+  return "cmd";
+}
 
 export default function SettingsPage() {
   const {
@@ -186,7 +231,35 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* 4. Platform Visibility Filters */}
+        {/* 4. Preferred terminal */}
+        <section className="setting-card rounded-[24px] p-5">
+          <SectionHeader
+            description={t("terminalSectionDesc")}
+            icon={Terminal}
+            title={t("terminalSection")}
+          />
+          <div className="mt-5">
+            <label className="block font-semibold text-sm" htmlFor="preferred-terminal">
+              {t("preferredTerminal")}
+            </label>
+            <select
+              className="mt-2 h-10 w-full max-w-xs cursor-pointer rounded-xl border border-border/50 bg-muted/20 px-3.5 py-2 text-sm text-foreground transition-all duration-200 focus:border-primary/50 focus:bg-background/40 focus:outline-none"
+              id="preferred-terminal"
+              onChange={(event) =>
+                void updateSettings({ preferredTerminal: event.target.value })
+              }
+              value={snapshot.settings.preferredTerminal ?? getDefaultTerminal()}
+            >
+              {getTerminalOptions().map((terminal) => (
+                <option key={terminal.value} value={terminal.value}>
+                  {t(terminal.labelKey)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+
+        {/* 5. Platform Visibility Filters */}
         <section className="setting-card rounded-[24px] p-5">
           <SectionHeader
             description={t("sidebarSectionDesc")}
@@ -230,7 +303,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* 5. Directory Paths configuration */}
+        {/* 6. Directory Paths configuration */}
         <section className="setting-card rounded-[24px] p-5">
           <SectionHeader
             description={t("platformPathsDesc")}

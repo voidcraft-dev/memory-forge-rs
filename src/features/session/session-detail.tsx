@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
-import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List } from 'lucide-react'
+import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play } from 'lucide-react'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
@@ -52,6 +52,7 @@ export function SessionDetail() {
   const [aliasTitle, setAliasTitle] = useState('')
   const [savingAlias, setSavingAlias] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [openingKey, setOpeningKey] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshDone, setRefreshDone] = useState(false)
   const [exportDone, setExportDone] = useState(false)
@@ -298,6 +299,22 @@ export function SessionDetail() {
     }
   }
 
+  const handleOpenCommand = async (label: string, command: string) => {
+    setOpeningKey(label)
+    dispatch({ type: 'setSessionStatus', payload: null })
+
+    try {
+      await api.launchSessionTerminal(command, sessionDetail.cwd || null)
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.terminalOpened') } })
+    } catch (err) {
+      console.error('Failed to launch terminal:', err)
+      await handleCopyCommand(label, command)
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.terminalOpenFailed') } })
+    } finally {
+      setOpeningKey(null)
+    }
+  }
+
   const handleExportMarkdown = async () => {
     if (!sessionDetail) return
 
@@ -445,12 +462,29 @@ export function SessionDetail() {
             {['resume', 'fork'].filter(label => sessionDetail.commands?.[label]).map(label => {
               const command = sessionDetail.commands[label]
               return (
-                <Button key={label} variant={copiedKey === label ? "secondary" : "ghost"} size="sm"
-                  className={cn("gap-1.5 font-mono text-xs", copiedKey === label ? "border border-green-500/30 bg-green-500/20 text-green-400" : "text-muted-foreground hover:bg-blue-500/10 hover:text-foreground")}
-                  onClick={() => handleCopyCommand(label, command)}>
-                  <Terminal className="w-3.5 h-3.5" />
-                  {copiedKey === label ? <><Check className="w-3.5 h-3.5" /> {t('session.copied')}</> : label}
-                </Button>
+                <div key={label} className="flex items-center gap-1">
+                  <Button variant={copiedKey === label ? "secondary" : "ghost"} size="sm"
+                    className={cn("gap-1.5 font-mono text-xs", copiedKey === label ? "border border-green-500/30 bg-green-500/20 text-green-400" : "text-muted-foreground hover:bg-blue-500/10 hover:text-foreground")}
+                    onClick={() => handleCopyCommand(label, command)}>
+                    <Terminal className="w-3.5 h-3.5" />
+                    {copiedKey === label ? <><Check className="w-3.5 h-3.5" /> {t('session.copied')}</> : label}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400"
+                    disabled={openingKey === label}
+                    onClick={() => handleOpenCommand(label, command)}
+                    aria-label={t('session.openTerminal')}
+                    title={t('session.openTerminal')}
+                  >
+                    {openingKey === label ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5" />
+                    )}
+                  </Button>
+                </div>
               )
             })}
             <Button variant="ghost" size="sm"
