@@ -1,5 +1,6 @@
 pub mod claude;
 pub mod codex;
+pub mod cursor;
 pub mod gemini;
 pub mod kiro;
 pub mod kiro_ide;
@@ -170,6 +171,13 @@ pub fn get_adapter(platform: &str, settings: &AppSettings) -> Result<Box<dyn Pla
             let project_root = settings.codex_project_root.as_ref().map(PathBuf::from);
             Ok(Box::new(codex::CodexPlatform::new(path, project_root)))
         }
+        "cursor" => {
+            let path = settings.cursor_home.as_ref()
+                .map(PathBuf::from)
+                .or_else(cursor::default_cursor_home)
+                .unwrap_or_else(|| home.join(".config/Cursor/User"));
+            Ok(Box::new(cursor::CursorPlatform::new(path)))
+        }
         "opencode" => {
             let path = settings.opencode_path.as_ref()
                 .map(PathBuf::from)
@@ -212,6 +220,7 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
             m.insert("resume".into(), format!("codex resume {session_id}"));
             m
         }
+        "cursor" => HashMap::new(),
         "opencode" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("opencode -s {session_id}"));

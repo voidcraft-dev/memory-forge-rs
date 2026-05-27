@@ -25,6 +25,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub codex_project_root: Option<String>,
     #[serde(default)]
+    pub cursor_home: Option<String>,
+    #[serde(default)]
     pub opencode_path: Option<String>,
     #[serde(default)]
     pub kiro_home: Option<String>,
@@ -37,7 +39,26 @@ pub struct AppSettings {
 }
 
 fn default_visible_platforms() -> Vec<String> {
-    vec!["claude".to_string(), "codex".to_string(), "opencode".to_string()]
+    vec![
+        "claude".to_string(),
+        "codex".to_string(),
+        "cursor".to_string(),
+        "opencode".to_string(),
+    ]
+}
+
+fn migrate_settings(mut settings: AppSettings) -> AppSettings {
+    let old_default = vec![
+        "claude".to_string(),
+        "codex".to_string(),
+        "opencode".to_string(),
+    ];
+
+    if settings.visible_platforms == old_default {
+        settings.visible_platforms = default_visible_platforms();
+    }
+
+    settings
 }
 
 impl Default for AppSettings {
@@ -51,6 +72,7 @@ impl Default for AppSettings {
             claude_home: None,
             codex_home: None,
             codex_project_root: None,
+            cursor_home: None,
             opencode_path: None,
             kiro_home: None,
             kiro_ide_home: None,
@@ -71,6 +93,7 @@ pub struct AppSettingsPatch {
     pub claude_home: Option<Option<String>>,
     pub codex_home: Option<Option<String>>,
     pub codex_project_root: Option<Option<String>>,
+    pub cursor_home: Option<Option<String>>,
     pub opencode_path: Option<Option<String>>,
     pub kiro_home: Option<Option<String>>,
     pub kiro_ide_home: Option<Option<String>>,
@@ -176,6 +199,10 @@ pub fn update_settings(
         settings.codex_project_root = codex_project_root.filter(|s| !s.trim().is_empty());
     }
 
+    if let Some(cursor_home) = patch.cursor_home {
+        settings.cursor_home = cursor_home.filter(|s| !s.trim().is_empty());
+    }
+
     if let Some(opencode_path) = patch.opencode_path {
         settings.opencode_path = opencode_path.filter(|s| !s.trim().is_empty());
     }
@@ -275,7 +302,7 @@ fn load_settings(app: &AppHandle) -> Result<AppSettings, String> {
     let raw = fs::read_to_string(&path)
         .map_err(|error| format!("failed to read settings file '{}': {error}", path.display()))?;
 
-    serde_json::from_str::<AppSettings>(&raw).map_err(|error| {
+    serde_json::from_str::<AppSettings>(&raw).map(migrate_settings).map_err(|error| {
         format!(
             "failed to parse settings file '{}': {error}",
             path.display()

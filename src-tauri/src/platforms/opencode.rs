@@ -38,18 +38,18 @@ impl super::PlatformAdapter for OpenCodePlatform {
 
         // Get total count
         let total: usize = conn.query_row(
-            "SELECT COUNT(*) FROM session",
+            "SELECT COUNT(*) FROM session WHERE parent_id IS NULL OR parent_id = ''",
             [],
             |row| row.get(0),
         ).unwrap_or(0);
 
         let sql = match limit {
             Some(l) => format!(
-                "SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC LIMIT {} OFFSET {}",
+                "SELECT id, title, directory, time_updated FROM session WHERE parent_id IS NULL OR parent_id = '' ORDER BY time_updated DESC LIMIT {} OFFSET {}",
                 l, offset
             ),
             None => format!(
-                "SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC LIMIT -1 OFFSET {}",
+                "SELECT id, title, directory, time_updated FROM session WHERE parent_id IS NULL OR parent_id = '' ORDER BY time_updated DESC LIMIT -1 OFFSET {}",
                 offset
             ),
         };

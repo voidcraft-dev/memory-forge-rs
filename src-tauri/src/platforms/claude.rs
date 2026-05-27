@@ -755,6 +755,9 @@ fn collect_jsonl_recursive(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
+            if path.file_name().and_then(|name| name.to_str()) == Some("subagents") {
+                continue;
+            }
             collect_jsonl_recursive(&path, out);
         } else if path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
             out.push(path);

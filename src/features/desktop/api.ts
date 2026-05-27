@@ -24,11 +24,12 @@ const defaultSettings = {
   claudeHome: null,
   codexHome: null,
   codexProjectRoot: null,
+  cursorHome: null,
   opencodePath: null,
   kiroHome: null,
   kiroIdeHome: null,
   geminiHome: null,
-  visiblePlatforms: ["claude", "codex", "opencode"] as string[],
+  visiblePlatforms: ["claude", "codex", "cursor", "opencode"] as string[],
 };
 
 function isTauriRuntime() {

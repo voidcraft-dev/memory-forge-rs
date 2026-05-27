@@ -5,6 +5,7 @@ import {
   Info,
   LayoutGrid,
   Menu,
+  MousePointer2,
   Settings2,
   X,
   Bot,
@@ -24,6 +25,7 @@ const navigation = [
   { to: "/", labelKey: "dashboard" as const, icon: LayoutGrid },
   { to: "/claude", labelKey: "platformClaude" as const, icon: Bot, platformId: "claude" },
   { to: "/codex", labelKey: "platformCodex" as const, icon: Terminal, platformId: "codex" },
+  { to: "/cursor", labelKey: "platformCursor" as const, icon: MousePointer2, platformId: "cursor" },
   { to: "/opencode", labelKey: "platformOpencode" as const, icon: Code, platformId: "opencode" },
   { to: "/kiro", labelKey: "platformKiro" as const, icon: Sparkles, platformId: "kiro" },
   { to: "/kiro-ide", labelKey: "platformKiroIde" as const, icon: Sparkles, platformId: "kiro-ide" },
@@ -109,7 +111,7 @@ export default function ShellLayout() {
             <nav className={cn("mt-6 space-y-2", sidebarCollapsed && "mt-4 space-y-1.5")}>
               {navigation.filter((item) => {
                 if (!item.platformId) return true;
-                const visible = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode"];
+                const visible = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "cursor", "opencode"];
                 return visible.includes(item.platformId);
               }).map((item) => {
                 const Icon = item.icon;

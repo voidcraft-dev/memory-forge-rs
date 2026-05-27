@@ -67,11 +67,11 @@ jobs:
 
             ### 更新 / Changes
 
-            - Claude: 按 `tool_use_id` 合并 `tool_use/tool_result`，避免工具结果挂到用户消息下。
-            - Claude: 保留纯工具调用块的时间线位置，避免工具历史延后挂到后续助手文本。
-            - UI: 纯工具调用块不再显示空白消息气泡。
-            - 导出: 纯工具调用块导出为 `Assistant Tool Calls`，避免生成空的助手消息段。
-            - 测试: 增加 Claude 工具调用归属和纯工具块回归用例。
+            - Cursor: 新增会话适配器，读取 Cursor 本地 composer 历史。
+            - Cursor: 顶层列表隐藏归档、草稿、空壳和 subagent 子会话。
+            - Claude Code: 顶层列表跳过 `subagents` sidechain 会话文件。
+            - OpenCode: 顶层列表隐藏 `parent_id` 子会话。
+            - 测试: 增加 Cursor 子会话与空壳会话过滤回归用例。
 
             ### 下载 / Download
 

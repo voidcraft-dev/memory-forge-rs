@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 const PLATFORM_ITEMS = [
   { id: "claude", labelKey: "platformClaude" as const },
   { id: "codex", labelKey: "platformCodex" as const },
+  { id: "cursor", labelKey: "platformCursor" as const },
   { id: "opencode", labelKey: "platformOpencode" as const },
   { id: "kiro", labelKey: "platformKiro" as const },
   { id: "kiro-ide", labelKey: "platformKiroIde" as const },
@@ -49,6 +50,7 @@ export default function SettingsPage() {
   const visiblePlatforms = snapshot.settings.visiblePlatforms ?? [
     "claude",
     "codex",
+    "cursor",
     "opencode",
   ];
 
@@ -256,6 +258,13 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ codexProjectRoot: v || null })}
               pickMode="directory"
               value={snapshot.settings.codexProjectRoot ?? ""}
+            />
+            <PathRow
+              defaultHint="%APPDATA%\\Cursor\\User"
+              label={t("cursorHomePath")}
+              onSave={(v) => updateSettings({ cursorHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.cursorHome ?? ""}
             />
             <PathRow
               defaultHint="~/.local/share/opencode/opencode.db"

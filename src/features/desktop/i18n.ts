@@ -13,6 +13,7 @@ export type MessageKey =
   | "platforms"
   | "platformClaude"
   | "platformCodex"
+  | "platformCursor"
   | "platformOpencode"
   | "platformKiro"
   | "platformKiroIde"
@@ -168,6 +169,7 @@ export type MessageKey =
   | "claudeHomePath"
   | "codexHomePath"
   | "codexProjectRootPath"
+  | "cursorHomePath"
   | "opencodePath"
   | "kiroHome"
   | "kiroIdeHome"
@@ -213,6 +215,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platforms: "平台",
     platformClaude: "Claude",
     platformCodex: "Codex",
+    platformCursor: "Cursor",
     platformOpencode: "OpenCode",
     platformKiro: "Kiro CLI",
     platformKiroIde: "Kiro IDE",
@@ -361,6 +364,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "claudeHomePath": "Claude 数据目录",
     "codexHomePath": "Codex 数据目录",
     "codexProjectRootPath": "Codex 项目根目录",
+    "cursorHomePath": "Cursor 数据目录",
     "opencodePath": "OpenCode 数据库路径",
     "kiroHome": "Kiro 主目录路径",
     "kiroIdeHome": "Kiro IDE 数据目录",
@@ -405,6 +409,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platforms: "Platforms",
     platformClaude: "Claude",
     platformCodex: "Codex",
+    platformCursor: "Cursor",
     platformOpencode: "OpenCode",
     platformKiro: "Kiro CLI",
     platformKiroIde: "Kiro IDE",
@@ -553,6 +558,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "claudeHomePath": "Claude Home Directory",
     "codexHomePath": "Codex Home Directory",
     "codexProjectRootPath": "Codex Project Root",
+    "cursorHomePath": "Cursor Data Directory",
     "opencodePath": "OpenCode Database Path",
     "kiroHome": "Kiro Home Path",
     "kiroIdeHome": "Kiro IDE Data Directory",
