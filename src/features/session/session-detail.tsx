@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
-import { Clock, Pencil, Check, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List } from 'lucide-react'
+import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List } from 'lucide-react'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
@@ -653,8 +653,164 @@ export function SessionDetail() {
   )
 }
 
+function CodeBlockRenderer({ code, language }: { code: string; language: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="my-3 overflow-hidden rounded-xl border border-border/40 bg-[#0b0e14] text-[#c9d1d9] font-mono text-xs shadow-md">
+      <div className="flex items-center justify-between bg-[#11151c] px-4 py-2 border-b border-border/30 text-[10px] text-muted-foreground select-none">
+        <span className="font-bold uppercase tracking-wider text-[#79c0ff]">{language || 'code'}</span>
+        <button
+          onClick={handleCopy}
+          className={cn(
+            "flex items-center gap-1.5 hover:text-foreground transition-colors px-2.5 py-1 rounded bg-white/5 border border-border/20",
+            copied && "text-green-400 bg-green-500/10 border-green-500/20"
+          )}
+        >
+          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre className="p-4 overflow-x-auto whitespace-pre leading-relaxed">{code}</pre>
+    </div>
+  )
+}
+
+function parseContentWithCodeBlocks(text: string, searchHighlight?: string) {
+  if (!text) return ''
+
+  const highlightWord = (val: string) => {
+    if (!searchHighlight) return val
+    const regex = new RegExp(`(${searchHighlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+    const parts = val.split(regex)
+    if (parts.length === 1) return val
+    return parts.map((part, i) =>
+      regex.test(part)
+        ? <mark key={i} className="bg-amber-400/35 text-foreground rounded-sm px-0.5">{part}</mark>
+        : part
+    )
+  }
+
+  const parts: React.ReactNode[] = [];
+  const regex = /```(\w*)\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(
+        <span key={key++} className="whitespace-pre-wrap leading-relaxed text-sm">
+          {highlightWord(text.slice(lastIndex, match.index))}
+        </span>
+      );
+    }
+    parts.push(
+      <CodeBlockRenderer
+        key={key++}
+        language={match[1]}
+        code={match[2]?.trim()}
+      />
+    );
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(
+      <span key={key++} className="whitespace-pre-wrap leading-relaxed text-sm">
+        {highlightWord(text.slice(lastIndex))}
+      </span>
+    );
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
+function ToolCallsConsole({ toolCalls }: {
+  toolCalls: Array<any>;
+}) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
+
+  return (
+    <div className="mt-4 space-y-2 border-t border-border/30 pt-3.5">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold">
+        <Terminal className="size-3.5 text-primary" />
+        <span>Executed Tools ({toolCalls.length})</span>
+      </div>
+      <div className="space-y-2">
+        {toolCalls.map((tc, idx) => {
+          const isExpanded = expandedIndex === idx
+          const isSuccess = tc.status === 'success' || (!tc.error && tc.status !== 'error')
+          const isError = tc.status === 'error' || tc.error
+
+          return (
+            <div key={idx} className="rounded-xl border border-border/40 bg-[#0a0d13] overflow-hidden text-xs shadow-sm">
+              <div
+                onClick={() => setExpandedIndex(isExpanded ? null : idx)}
+                className="flex items-center justify-between px-3.5 py-2.5 hover:bg-white/4 cursor-pointer transition-all duration-200 select-none"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={cn(
+                    "size-2 rounded-full",
+                    isSuccess && "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]",
+                    isError && "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]",
+                    !isSuccess && !isError && "bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                  )} />
+                  <code className="text-[#79c0ff] font-mono text-[11px] font-bold truncate">{tc.name || tc.kind || 'tool_call'}</code>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0 text-[10px] text-quiet">
+                  <span className="font-mono text-fine uppercase tracking-wider">{tc.status || 'completed'}</span>
+                  {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                </div>
+              </div>
+
+              {isExpanded && (
+                <div className="border-t border-border/20 bg-[#06080c] p-3 space-y-3 font-mono animate-in fade-in duration-200">
+                  {tc.input && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold select-none">Arguments</div>
+                      <pre className="p-3 rounded-lg bg-background/50 border border-border/30 overflow-x-auto text-[11px] leading-relaxed text-[#8cb8c5]">{tc.input}</pre>
+                    </div>
+                  )}
+                  {tc.output && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold select-none">Stdout/Output</div>
+                      <pre className="p-3 rounded-lg bg-background/40 border border-border/30 overflow-x-auto text-[11px] leading-relaxed text-foreground/85 whitespace-pre-wrap break-all max-h-[260px] overflow-y-auto">{tc.output}</pre>
+                    </div>
+                  )}
+                  {tc.error && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-rose-400/80 uppercase tracking-wider font-semibold select-none">Stderr/Error</div>
+                      <pre className="p-3 rounded-lg bg-rose-950/20 border border-rose-500/20 overflow-x-auto text-[11px] leading-relaxed text-rose-400 whitespace-pre-wrap break-all">{tc.error}</pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 const MessageBlock = forwardRef<HTMLDivElement, {
-  block: { role: string; content: string; id: string; editTarget?: string; editable?: boolean }
+  block: {
+    role: string
+    content: string
+    id: string
+    editTarget?: string
+    editable?: boolean
+    toolCalls?: Array<any>
+  }
   index: number
   onEdit: () => void
   onErase: () => void
@@ -665,10 +821,33 @@ const MessageBlock = forwardRef<HTMLDivElement, {
   isSearchMatch?: boolean
   isCurrentMatch?: boolean
 }>(function MessageBlock({ block, index, onEdit, onErase, onLoadExecutionOutput, loadingExecutionOutput, t, searchHighlight, isCurrentMatch }, ref) {
+  const [thinkingExpanded, setThinkingExpanded] = useState(false)
+
   const roleConfig = {
-    user: { label: t('session.filter.user'), icon: User, bgGradient: 'from-blue-500/10 to-blue-500/5', borderColor: 'border-l-blue-500', iconBg: 'bg-blue-500/20 text-blue-400', badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
-    assistant: { label: t('session.filter.assistant'), icon: Bot, bgGradient: 'from-green-500/10 to-green-500/5', borderColor: 'border-l-green-500', iconBg: 'bg-green-500/20 text-green-400', badgeClass: 'bg-green-500/15 text-green-400 border-green-500/30' },
-    thinking: { label: t('session.filter.thinking'), icon: Lightbulb, bgGradient: 'from-orange-500/10 to-orange-500/5', borderColor: 'border-l-orange-500', iconBg: 'bg-orange-500/20 text-orange-400', badgeClass: 'bg-orange-500/15 text-orange-400 border-orange-500/30' },
+    user: {
+      label: t('session.filter.user'),
+      icon: User,
+      bgGradient: 'from-blue-500/10 via-blue-500/3 to-transparent',
+      borderColor: 'border-l-blue-500/60',
+      iconBg: 'bg-blue-500/20 text-blue-400',
+      badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+    },
+    assistant: {
+      label: t('session.filter.assistant'),
+      icon: Bot,
+      bgGradient: 'from-green-500/8 via-green-500/2 to-transparent',
+      borderColor: 'border-l-green-500/60',
+      iconBg: 'bg-green-500/20 text-green-400',
+      badgeClass: 'bg-green-500/15 text-green-400 border-green-500/30'
+    },
+    thinking: {
+      label: t('session.filter.thinking'),
+      icon: Lightbulb,
+      bgGradient: 'from-amber-500/8 via-amber-500/2 to-transparent',
+      borderColor: 'border-l-amber-500/60 border-l-dashed',
+      iconBg: 'bg-amber-500/20 text-amber-400',
+      badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+    },
   }
   const config = roleConfig[block.role as keyof typeof roleConfig] || roleConfig.assistant
   const Icon = config.icon
@@ -676,17 +855,7 @@ const MessageBlock = forwardRef<HTMLDivElement, {
     && block.content.trim() === 'On it.'
     && block.editTarget?.includes('::execution::')
 
-  const renderContent = () => {
-    if (!searchHighlight) return block.content
-    const regex = new RegExp(`(${searchHighlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
-    const parts = block.content.split(regex)
-    if (parts.length === 1) return block.content
-    return parts.map((part, i) =>
-      regex.test(part)
-        ? <mark key={i} className="bg-amber-400/30 text-foreground rounded-sm px-0.5">{part}</mark>
-        : part
-    )
-  }
+  const isThinking = block.role === 'thinking'
 
   return (
     <div
@@ -696,53 +865,93 @@ const MessageBlock = forwardRef<HTMLDivElement, {
         `rounded-r-2xl border-l-4 ${config.borderColor}`,
         isCurrentMatch && "ring-2 ring-amber-400/50 rounded-2xl"
       )}
-      style={{ animationDelay: `${index * 50}ms` }}
+      style={{ animationDelay: `${index * 40}ms` }}
     >
-      <div className={cn("ml-0 rounded-2xl rounded-l-none border border-border/50 bg-gradient-to-r p-4", `bg-gradient-to-b ${config.bgGradient}`)}>
+      <div className={cn("ml-0 rounded-2xl rounded-l-none border border-border/40 p-4 backdrop-blur-sm", `bg-gradient-to-b ${config.bgGradient}`)}>
         <div className="flex items-start gap-3">
-          <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg", config.iconBg)}>
-            <Icon className="w-4 h-4" />
+          <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md", config.iconBg)}>
+            <Icon className={cn("w-4 h-4", isThinking && "animate-pulse")} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-3">
-              <Badge variant="outline" className={cn("text-xs", config.badgeClass)}>{config.label}</Badge>
-              <span className="text-[10px] text-muted-foreground/50">#{index + 1}</span>
+            <div className="flex items-center justify-between gap-2 mb-3 select-none">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className={cn("text-xs font-semibold rounded-lg", config.badgeClass)}>{config.label}</Badge>
+                <span className="text-[10px] text-muted-foreground/50">#{index + 1}</span>
+              </div>
+
+              {isThinking && (
+                <button
+                  type="button"
+                  onClick={() => setThinkingExpanded(!thinkingExpanded)}
+                  className="text-[10px] font-semibold text-amber-500 hover:text-amber-400 border border-amber-500/30 rounded-lg px-2.5 py-1 bg-amber-500/5 transition-all"
+                >
+                  {thinkingExpanded ? '隐藏思考过程' : '查看思考过程'}
+                </button>
+              )}
             </div>
-            <div className="overflow-hidden rounded-xl p-3 bg-background/50 border border-border/30">
-              <pre className="text-sm text-foreground whitespace-pre-wrap break-words font-mono leading-relaxed">{renderContent()}</pre>
+
+            {/* Collapsible content log wrapper for Thinking Logs */}
+            {(!isThinking || thinkingExpanded) ? (
+              <div className={cn(
+                "overflow-hidden rounded-xl p-4 bg-background/55 border border-border/30",
+                isThinking && "bg-amber-500/3 border-dashed border-amber-500/20"
+              )}>
+                <div className={cn(
+                  "text-sm font-sans leading-relaxed text-foreground whitespace-pre-wrap break-words",
+                  isThinking && "font-mono text-xs text-quiet"
+                )}>
+                  {parseContentWithCodeBlocks(block.content, searchHighlight)}
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => setThinkingExpanded(true)}
+                className="overflow-hidden rounded-xl px-4 py-3 bg-amber-500/3 border border-dashed border-amber-500/20 cursor-pointer hover:bg-amber-500/6 text-[11px] text-amber-500/80 font-mono flex items-center gap-2 transition-all select-none"
+              >
+                <Lightbulb className="size-3.5 text-amber-500 animate-pulse shrink-0" />
+                <span>已折叠系统思维链路 ({block.content.length} 字符)，点击此处展开...</span>
+              </div>
+            )}
+
+            {/* Interactive console widget for tool calls if available */}
+            {block.toolCalls && block.toolCalls.length > 0 && (
+              <ToolCallsConsole toolCalls={block.toolCalls} />
+            )}
+
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              {block.editable !== false && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-border/50 bg-background/60 text-xs hover:bg-background/80 rounded-xl"
+                  onClick={(e) => { e.stopPropagation(); onEdit() }}
+                >
+                  <Pencil className="w-3 h-3" />{t('session.editThisMessage')}
+                </Button>
+              )}
+              {isKiroExecutionPlaceholder && onLoadExecutionOutput && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-blue-500/35 bg-blue-500/5 text-blue-400 text-xs hover:bg-blue-500/15 hover:text-blue-300 rounded-xl"
+                  disabled={loadingExecutionOutput}
+                  onClick={(e) => { e.stopPropagation(); onLoadExecutionOutput() }}
+                >
+                  <RefreshCw className={cn("w-3 h-3", loadingExecutionOutput && "animate-spin")} />
+                  {loadingExecutionOutput ? '加载中' : '加载真实输出'}
+                </Button>
+              )}
+              {block.editable !== false && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-red-500/35 bg-red-500/5 text-red-400 text-xs hover:bg-red-500/15 hover:text-red-300 rounded-xl"
+                  onClick={(e) => { e.stopPropagation(); onErase() }}
+                >
+                  <Trash2 className="w-3 h-3" />{t('session.erase')}
+                </Button>
+              )}
             </div>
-            {block.editable !== false && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 gap-1.5 border-border/60 bg-background/55 text-xs hover:bg-background/80"
-                onClick={(e) => { e.stopPropagation(); onEdit() }}
-              >
-                <Pencil className="w-3 h-3" />{t('session.editThisMessage')}
-              </Button>
-            )}
-            {isKiroExecutionPlaceholder && onLoadExecutionOutput && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 ml-2 gap-1.5 border-blue-500/30 bg-blue-500/5 text-blue-400 text-xs hover:bg-blue-500/15 hover:text-blue-300"
-                disabled={loadingExecutionOutput}
-                onClick={(e) => { e.stopPropagation(); onLoadExecutionOutput() }}
-              >
-                <RefreshCw className={cn("w-3 h-3", loadingExecutionOutput && "animate-spin")} />
-                {loadingExecutionOutput ? '加载中' : '加载真实输出'}
-              </Button>
-            )}
-            {block.editable !== false && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 gap-1.5 border-red-500/30 bg-red-500/5 text-red-400 text-xs hover:bg-red-500/15 hover:text-red-300"
-                onClick={(e) => { e.stopPropagation(); onErase() }}
-              >
-                <Trash2 className="w-3 h-3" />{t('session.erase')}
-              </Button>
-            )}
           </div>
         </div>
       </div>

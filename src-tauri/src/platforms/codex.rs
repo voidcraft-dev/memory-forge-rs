@@ -164,7 +164,7 @@ impl CodexPlatform {
                                 continue;
                             }
 
-                            let mut block = TimelineBlock {
+                            let block = TimelineBlock {
                                 id: format!("{line_index}:{}:{role}", part.content_index),
                                 role: role.to_string(),
                                 content: part.text,
@@ -181,8 +181,7 @@ impl CodexPlatform {
                                 }),
                                 tool_calls: Vec::new(),
                             };
-                            block.tool_calls.append(&mut pending_tool_calls);
-                            blocks.push(block);
+                            push_codex_block(&mut blocks, &mut pending_tool_calls, block);
                         }
                     }
                 }
@@ -201,7 +200,7 @@ impl CodexPlatform {
                         continue;
                     }
 
-                    let mut block = TimelineBlock {
+                    let block = TimelineBlock {
                         id: format!("{line_index}:user"),
                         role: "user".to_string(),
                         content,
@@ -210,8 +209,7 @@ impl CodexPlatform {
                         source_meta: json!({ "lineIndex": line_index }),
                         tool_calls: Vec::new(),
                     };
-                    block.tool_calls.append(&mut pending_tool_calls);
-                    blocks.push(block);
+                    push_codex_block(&mut blocks, &mut pending_tool_calls, block);
                 }
                 "agent_message" => {
                     let content = payload
@@ -223,7 +221,7 @@ impl CodexPlatform {
                         continue;
                     }
 
-                    let mut block = TimelineBlock {
+                    let block = TimelineBlock {
                         id: format!("{line_index}:assistant"),
                         role: "assistant".to_string(),
                         content,
@@ -232,24 +230,23 @@ impl CodexPlatform {
                         source_meta: json!({ "lineIndex": line_index }),
                         tool_calls: Vec::new(),
                     };
-                    block.tool_calls.append(&mut pending_tool_calls);
-                    blocks.push(block);
+                    push_codex_block(&mut blocks, &mut pending_tool_calls, block);
                 }
                 "function_call" => {
                     let tool_call = codex_function_call_to_block(payload, line_index);
-                    pending_tool_calls.push(tool_call);
+                    push_codex_tool_call(&mut pending_tool_calls, tool_call);
                 }
                 "function_call_output" => {
                     let tool_call = codex_function_output_to_block(payload, line_index);
-                    pending_tool_calls.push(tool_call);
+                    push_codex_tool_call(&mut pending_tool_calls, tool_call);
                 }
                 _ => {}
             }
         }
 
         if !pending_tool_calls.is_empty() {
-            if let Some(last) = blocks.last_mut() {
-                last.tool_calls.append(&mut pending_tool_calls);
+            if let Some(last_assistant) = blocks.iter_mut().rev().find(|block| block.role == "assistant") {
+                last_assistant.tool_calls.append(&mut pending_tool_calls);
             }
         }
 
@@ -262,6 +259,91 @@ impl CodexPlatform {
         };
         path_is_within_root(cwd, project_root)
     }
+}
+
+fn push_codex_block(
+    blocks: &mut Vec<TimelineBlock>,
+    pending_tool_calls: &mut Vec<ToolCallBlock>,
+    mut block: TimelineBlock,
+) {
+    if block.role == "assistant" {
+        block.tool_calls.append(pending_tool_calls);
+    } else if !pending_tool_calls.is_empty() {
+        if let Some(last_assistant) = blocks.iter_mut().rev().find(|block| block.role == "assistant") {
+            last_assistant.tool_calls.append(pending_tool_calls);
+        }
+    }
+    blocks.push(block);
+}
+
+fn push_codex_tool_call(pending_tool_calls: &mut Vec<ToolCallBlock>, tool_call: ToolCallBlock) {
+    if let Some(existing) = pending_tool_calls
+        .iter_mut()
+        .find(|pending| pending.id == tool_call.id)
+    {
+        merge_codex_tool_call(existing, tool_call);
+    } else {
+        pending_tool_calls.push(tool_call);
+    }
+}
+
+fn merge_codex_tool_call(existing: &mut ToolCallBlock, incoming: ToolCallBlock) {
+    if existing.name == "function_call_output" && incoming.name != "function_call_output" {
+        existing.name = incoming.name;
+    }
+
+    if existing.kind == "function_call_output" && incoming.kind != "function_call_output" {
+        existing.kind = incoming.kind;
+    }
+
+    if incoming.input.is_some() {
+        existing.input = incoming.input;
+    }
+    if incoming.output.is_some() {
+        existing.output = incoming.output;
+    }
+    if incoming.error.is_some() {
+        existing.error = incoming.error;
+    }
+    if incoming.started_at.is_some() {
+        existing.started_at = incoming.started_at;
+    }
+    if incoming.ended_at.is_some() {
+        existing.ended_at = incoming.ended_at;
+    }
+
+    existing.status = if existing.error.is_some() {
+        "error".to_string()
+    } else if existing.output.is_some() {
+        "completed".to_string()
+    } else {
+        "requested".to_string()
+    };
+
+    existing.source_meta = merge_codex_tool_source_meta(&existing.source_meta, &incoming.source_meta);
+}
+
+fn merge_codex_tool_source_meta(left: &Value, right: &Value) -> Value {
+    let mut line_indices = Vec::new();
+    for value in [left, right] {
+        if let Some(line_index) = value.get("lineIndex").and_then(Value::as_u64) {
+            line_indices.push(line_index);
+        }
+        if let Some(items) = value.get("lineIndices").and_then(Value::as_array) {
+            for item in items {
+                if let Some(line_index) = item.as_u64() {
+                    line_indices.push(line_index);
+                }
+            }
+        }
+    }
+    line_indices.sort_unstable();
+    line_indices.dedup();
+
+    json!({
+        "payloadType": "function_call",
+        "lineIndices": line_indices,
+    })
 }
 
 fn codex_function_call_to_block(payload: &Value, line_index: usize) -> ToolCallBlock {
@@ -874,7 +956,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn blocks_attach_function_calls_to_following_agent_message() {
+    fn blocks_merge_function_call_and_output_on_following_agent_message() {
         let platform = CodexPlatform::new(PathBuf::from("unused"), None);
         let lines = vec![
             json!({ "payload": { "type": "user_message", "message": "run tests" } }),
@@ -888,10 +970,35 @@ mod tests {
         assert_eq!(blocks.len(), 2);
         assert!(blocks[0].tool_calls.is_empty());
         assert_eq!(blocks[1].role, "assistant");
-        assert_eq!(blocks[1].tool_calls.len(), 2);
+        assert_eq!(blocks[1].tool_calls.len(), 1);
         assert_eq!(blocks[1].tool_calls[0].name, "shell");
+        assert_eq!(blocks[1].tool_calls[0].kind, "function_call");
+        assert_eq!(blocks[1].tool_calls[0].status, "completed");
         assert_eq!(blocks[1].tool_calls[0].input.as_deref(), Some("{\n  \"command\": \"cargo test\"\n}"));
-        assert_eq!(blocks[1].tool_calls[1].output.as_deref(), Some("ok"));
+        assert_eq!(blocks[1].tool_calls[0].output.as_deref(), Some("ok"));
+    }
+
+    #[test]
+    fn blocks_attach_pending_function_calls_to_previous_agent_before_user_message() {
+        let platform = CodexPlatform::new(PathBuf::from("unused"), None);
+        let lines = vec![
+            json!({ "payload": { "type": "agent_message", "message": "I will inspect it." } }),
+            json!({ "payload": { "type": "function_call", "call_id": "call_1", "name": "shell", "arguments": { "command": "rg TODO" } } }),
+            json!({ "payload": { "type": "function_call_output", "call_id": "call_1", "output": "todo found" } }),
+            json!({ "payload": { "type": "user_message", "message": "continue" } }),
+        ];
+
+        let blocks = platform.blocks(&lines, "session.jsonl");
+
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0].role, "assistant");
+        assert_eq!(blocks[0].tool_calls.len(), 1);
+        assert_eq!(blocks[0].tool_calls[0].name, "shell");
+        assert_eq!(blocks[0].tool_calls[0].status, "completed");
+        assert_eq!(blocks[0].tool_calls[0].input.as_deref(), Some("{\n  \"command\": \"rg TODO\"\n}"));
+        assert_eq!(blocks[0].tool_calls[0].output.as_deref(), Some("todo found"));
+        assert_eq!(blocks[1].role, "user");
+        assert!(blocks[1].tool_calls.is_empty());
     }
 
     #[test]

@@ -74,7 +74,7 @@ export default function ShellLayout() {
 
       <div
         className={cn(
-          "relative grid h-full gap-4 p-4 pt-[4.5rem] lg:pt-4 transition-[grid-template-columns] duration-300",
+          "relative grid h-full gap-4 p-4 pt-[4.5rem] lg:pt-4 transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
           sidebarCollapsed
             ? "lg:grid-cols-[72px_minmax(0,1fr)]"
             : "lg:grid-cols-[290px_minmax(0,1fr)]"
@@ -83,20 +83,20 @@ export default function ShellLayout() {
         {/* Sidebar */}
         <aside
           className={cn(
-            "panel-surface fixed inset-y-4 left-4 z-50 flex h-[calc(100vh-2rem)] w-[280px] flex-col overflow-hidden rounded-[32px] p-5 transition-all duration-300 lg:static lg:h-full lg:translate-x-0",
+            "panel-surface fixed inset-y-4 left-4 z-50 flex h-[calc(100vh-2rem)] w-[280px] flex-col overflow-hidden rounded-[32px] p-5 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:static lg:h-full lg:translate-x-0",
             sidebarCollapsed ? "lg:w-auto lg:p-3" : "lg:w-auto lg:p-6",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
-          <div className="absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_70%)]" />
+          <div className="absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_70%)]" />
           <div className="relative flex h-full min-h-0 flex-col">
             {/* Logo */}
             <div className={cn("flex items-center", sidebarCollapsed ? "justify-center" : "gap-3")}>
-              <div className="flex size-12 items-center justify-center rounded-2xl ring-soft overflow-hidden">
+              <div className="flex size-12 items-center justify-center rounded-2xl ring-soft overflow-hidden transition-all duration-300">
                 <AppLogo className="size-12" />
               </div>
               {!sidebarCollapsed && (
-                <div>
+                <div className="animate-in fade-in slide-in-from-left-2 duration-300">
                   <p className="text-fine uppercase tracking-[0.24em] text-quiet">
                     Memory Forge
                   </p>
@@ -106,7 +106,7 @@ export default function ShellLayout() {
             </div>
 
             {/* Navigation */}
-            <nav className={cn("mt-6 space-y-2", sidebarCollapsed && "mt-4 space-y-1")}>
+            <nav className={cn("mt-6 space-y-2", sidebarCollapsed && "mt-4 space-y-1.5")}>
               {navigation.filter((item) => {
                 if (!item.platformId) return true;
                 const visible = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode"];
@@ -122,18 +122,23 @@ export default function ShellLayout() {
                     title={sidebarCollapsed ? t(item.labelKey) : undefined}
                     className={({ isActive }) =>
                       cn(
-                        "flex items-center rounded-2xl text-sm transition",
+                        "group flex items-center rounded-2xl text-sm font-medium transition-all duration-300 relative",
                         sidebarCollapsed
                           ? "justify-center px-2 py-3"
                           : "gap-3 px-4 py-3",
                         isActive
-                          ? "theme-chip text-foreground"
-                          : "text-quiet hover:bg-white/5 hover:text-foreground"
+                          ? cn(
+                              "theme-chip text-foreground shadow-md shadow-primary/5 border-l-[3px] border-l-primary rounded-l-none",
+                              sidebarCollapsed ? "px-2" : "pl-[13px] pr-4"
+                            )
+                          : "text-quiet hover:bg-white/4 hover:text-foreground"
                       )
                     }
                   >
-                    <Icon className="size-4 flex-shrink-0" />
-                    {!sidebarCollapsed && t(item.labelKey)}
+                    <Icon className="size-4 flex-shrink-0 transition-transform duration-300 group-hover:scale-110" />
+                    {!sidebarCollapsed && (
+                      <span className="animate-in fade-in slide-in-from-left-1 duration-300">{t(item.labelKey)}</span>
+                    )}
                   </NavLink>
                 );
               })}

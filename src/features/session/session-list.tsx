@@ -52,13 +52,7 @@ const platformColors = {
   'kiro-ide': 'bg-gradient-to-br from-fuchsia-500 to-purple-600',
 }
 
-const platformBorderColors = {
-  claude: 'border-l-blue-500',
-  codex: 'border-l-orange-500',
-  opencode: 'border-l-green-500',
-  kiro: 'border-l-purple-500',
-  'kiro-ide': 'border-l-fuchsia-500',
-}
+
 
 const PAGE_SIZE = 50
 
@@ -336,15 +330,15 @@ export function SessionList() {
         </div>
       </div>
       {selectionMode && (
-        <div className="border-b border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-transparent px-4 py-2.5">
+        <div className="border-b border-primary/20 bg-gradient-to-r from-primary/10 to-primary/3 px-4 py-2.5 animate-in slide-in-from-top duration-300 backdrop-blur-md">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-semibold text-blue-400 mr-1">
+            <span className="text-xs font-bold text-primary mr-1">
               {t('session.selectedCount', { count: selectedKeys.size })}
             </span>
-            <Button size="sm" variant="ghost" onClick={handleSelectAll} className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground">
+            <Button size="sm" variant="ghost" onClick={handleSelectAll} className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground rounded-lg">
               {t('session.selectAll')}
             </Button>
-            <Button size="sm" variant="ghost" onClick={handleInvertSelection} className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground">
+            <Button size="sm" variant="ghost" onClick={handleInvertSelection} className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground rounded-lg">
               {t('session.invertSelection')}
             </Button>
             <div className="flex-1" />
@@ -352,19 +346,19 @@ export function SessionList() {
               size="sm"
               variant="ghost"
               onClick={exitSelectionMode}
-              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground rounded-lg"
               title={t('session.exitSelect')}
             >
               <X className="w-3.5 h-3.5" />
             </Button>
           </div>
-          <div className="mt-2 flex items-center gap-1.5">
+          <div className="mt-2.5 flex items-center gap-2">
             <Button
               size="sm"
               variant="secondary"
               disabled={batchOperating || selectedKeys.size === 0}
               onClick={() => handleBatchAction('archived', !showArchived)}
-              className="h-7 gap-1 px-2.5 text-xs flex-1"
+              className="h-8 gap-1.5 px-3 text-xs flex-1 rounded-xl shadow-sm hover:shadow"
             >
               {showArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
               {showArchived ? t('session.batchUnarchive') : t('session.batchArchive')}
@@ -374,7 +368,7 @@ export function SessionList() {
               variant="secondary"
               disabled={batchOperating || selectedKeys.size === 0}
               onClick={() => handleBatchAction('favorite', true)}
-              className="h-7 gap-1 px-2.5 text-xs flex-1"
+              className="h-8 gap-1.5 px-3 text-xs flex-1 rounded-xl shadow-sm hover:shadow"
             >
               <Star className="w-3.5 h-3.5" />
               {t('session.batchFavorite')}
@@ -384,7 +378,7 @@ export function SessionList() {
               variant="ghost"
               disabled={batchOperating || selectedKeys.size === 0}
               onClick={() => handleBatchAction('favorite', false)}
-              className="h-7 w-7 p-0 text-muted-foreground hover:text-amber-400"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-amber-400 hover:bg-amber-400/10 rounded-xl transition-all"
               title={t('session.batchUnfavorite')}
             >
               <Star className="w-3.5 h-3.5" />
@@ -480,7 +474,6 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
   archiveLabel: string
 }) {
   const platform = session.platform || 'claude'
-  const borderColor = platformBorderColors[platform as keyof typeof platformBorderColors] || platformBorderColors.claude
   const [copied, setCopied] = useState(false)
   const [matchesExpanded, setMatchesExpanded] = useState(false)
 
@@ -500,17 +493,34 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
     <div
       onClick={onClick}
       className={cn(
-        "group relative cursor-pointer rounded-2xl border-l-4 p-4 transition-all duration-200 select-none",
-        "bg-gradient-to-r from-muted/30 to-transparent",
+        "group relative cursor-pointer rounded-2xl border transition-all duration-300 select-none overflow-hidden p-4",
         highlightAsSelection
-          ? cn("bg-gradient-to-r from-blue-500/10 to-transparent border-blue-500/50 shadow-lg shadow-blue-500/10", "border-l-blue-500")
-          : cn("border-border/50 hover:border-border hover:from-muted/50", borderColor)
+          ? "bg-gradient-to-r from-primary/8 via-primary/3 to-transparent border-primary/25 shadow-md shadow-primary/4 pl-[18px]"
+          : "border-border/40 bg-gradient-to-r from-muted/20 to-transparent hover:border-border/80 hover:bg-white/4 pl-[18px]"
       )}
     >
+      {/* Accent Gradient Capsule Bar */}
+      <div
+        className={cn(
+          "absolute left-0 top-3 bottom-3 w-[4.5px] rounded-r-full transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          highlightAsSelection
+            ? "bg-gradient-to-b from-primary to-indigo-500 shadow-[0_0_10px_color-mix(in srgb,var(--primary)_70%,transparent)] h-[calc(100%-24px)] scale-y-110"
+            : cn(
+                "h-5 opacity-40 group-hover:opacity-100 group-hover:h-[calc(100%-24px)]",
+                platform === 'claude' && "bg-gradient-to-b from-violet-400 to-indigo-500",
+                platform === 'codex' && "bg-gradient-to-b from-orange-400 to-red-500",
+                platform === 'opencode' && "bg-gradient-to-b from-green-400 to-emerald-500",
+                platform === 'kiro' && "bg-gradient-to-b from-purple-400 to-violet-500",
+                platform === 'kiro-ide' && "bg-gradient-to-b from-fuchsia-400 to-purple-500",
+                platform === 'gemini' && "bg-gradient-to-b from-blue-400 to-indigo-500"
+              )
+        )}
+      />
+
       {selectionMode && (
         <div className="absolute top-3 right-3 z-10">
           <div className={cn(
-            "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all",
+            "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200",
             isMultiSelected
               ? "bg-blue-500 border-blue-500 shadow-sm shadow-blue-500/50"
               : "bg-background/60 border-muted-foreground/40 group-hover:border-blue-400"
@@ -520,14 +530,14 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
         </div>
       )}
       <div className={cn("flex items-start justify-between gap-2 mb-2 min-w-0", selectionMode && "pr-8")}>
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <span className={cn(
-            "w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-lg",
+            "w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-md",
             platformColors[platform as keyof typeof platformColors] || platformColors.claude
           )}>
             {platform[0].toUpperCase()}
           </span>
-          <h3 className={cn("font-semibold text-sm truncate min-w-0", highlightAsSelection ? "text-blue-400" : "text-foreground")}>
+          <h3 className={cn("font-bold text-sm truncate min-w-0 transition-colors duration-200", highlightAsSelection ? "text-primary" : "text-foreground group-hover:text-foreground")}>
             {session.displayTitle || session.sessionId || untitledLabel}
           </h3>
         </div>
@@ -553,7 +563,7 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
             >
               {showArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
             </button>
-            <span className="text-[10px] text-muted-foreground/60 bg-muted/30 px-2 py-1 rounded-md ml-1">
+            <span className="text-[10px] text-muted-foreground/60 bg-white/5 border border-border/20 px-2 py-0.5 rounded-md ml-1">
               {formatTime(session.updatedAt, justNowLabel)}
             </span>
           </div>
@@ -568,13 +578,13 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
       {session.contentMatches && session.contentMatches.length > 0 && (
         <div className="mt-2 space-y-1.5">
           {(matchesExpanded ? session.contentMatches : session.contentMatches.slice(0, 2)).map((match, i) => (
-            <div key={i} className="flex items-start gap-1.5 rounded-lg bg-amber-500/8 border border-amber-500/15 px-2.5 py-1.5">
+            <div key={i} className="flex items-start gap-1.5 rounded-lg bg-amber-500/5 border border-amber-500/12 px-2.5 py-1.5">
               {match.role === 'user' ? (
-                <User className="size-3 shrink-0 mt-0.5 text-amber-400/70" />
+                <User className="size-3 shrink-0 mt-0.5 text-amber-400/60" />
               ) : (
-                <Bot className="size-3 shrink-0 mt-0.5 text-amber-400/70" />
+                <Bot className="size-3 shrink-0 mt-0.5 text-amber-400/60" />
               )}
-              <p className="text-[11px] leading-relaxed text-muted-foreground/80 line-clamp-2 break-all">
+              <p className="text-[11px] leading-relaxed text-muted-foreground/80 line-clamp-2 break-all font-mono">
                 {match.snippet}
               </p>
             </div>
@@ -601,8 +611,8 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
         </div>
       )}
       {session.updatedAt && (
-        <div className="flex items-center gap-1.5 mt-2 text-[10px] text-muted-foreground/50">
-          <Clock className="w-3 h-3 flex-shrink-0" />
+        <div className="flex items-center gap-1.5 mt-2.5 text-[10px] text-muted-foreground/55">
+          <Clock className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/40" />
           <span>{formatDateTime(session.updatedAt)}</span>
         </div>
       )}
@@ -611,15 +621,15 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
           type="button"
           onClick={handleCopyCwd}
           className={cn(
-            "flex items-center gap-1.5 mt-1.5 max-w-full text-[10px] font-mono rounded-md px-2 py-1 transition-colors",
+            "flex items-center gap-1.5 mt-2 max-w-full text-[10px] font-mono rounded-lg px-2.5 py-1 border transition-all duration-200",
             copied
-              ? "bg-green-500/15 text-green-400"
-              : "bg-muted/30 text-muted-foreground/50 hover:bg-muted/50 hover:text-muted-foreground/80"
+              ? "bg-green-500/10 text-green-400 border-green-500/20"
+              : "bg-muted/30 text-muted-foreground/50 border-border/30 hover:bg-primary/10 hover:text-primary hover:border-primary/20"
           )}
         >
           {copied ? <Check className="w-3 h-3 flex-shrink-0" /> : <FolderOpen className="w-3 h-3 flex-shrink-0" />}
           <span className="truncate">{session.cwd}</span>
-          {!copied && <Copy className="w-3 h-3 flex-shrink-0 ml-auto opacity-0 group-hover:opacity-60 transition-opacity" />}
+          {!copied && <Copy className="w-3 h-3 flex-shrink-0 ml-auto opacity-0 group-hover:opacity-80 transition-opacity" />}
         </button>
       )}
     </div>

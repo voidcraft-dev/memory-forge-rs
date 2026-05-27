@@ -4,13 +4,59 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useDesktop } from "@/features/desktop/provider";
 import { api } from "@/features/desktop/api";
+import { cn } from "@/lib/utils";
 
 const platformMeta = [
-  { key: "claude", label: "Claude Code", icon: Bot, to: "/claude", gradient: "from-violet-500/15 to-violet-600/5", border: "border-violet-500/30", iconBg: "bg-violet-500/20 text-violet-400" },
-  { key: "codex", label: "Codex CLI", icon: Terminal, to: "/codex", gradient: "from-emerald-500/15 to-emerald-600/5", border: "border-emerald-500/30", iconBg: "bg-emerald-500/20 text-emerald-400" },
-  { key: "opencode", label: "OpenCode", icon: Code, to: "/opencode", gradient: "from-sky-500/15 to-sky-600/5", border: "border-sky-500/30", iconBg: "bg-sky-500/20 text-sky-400" },
-  { key: "kiro", label: "Kiro CLI", icon: Sparkles, to: "/kiro", gradient: "from-purple-500/15 to-purple-600/5", border: "border-purple-500/30", iconBg: "bg-purple-500/20 text-purple-400" },
-  { key: "kiro-ide", label: "Kiro IDE", icon: Sparkles, to: "/kiro-ide", gradient: "from-fuchsia-500/15 to-fuchsia-600/5", border: "border-fuchsia-500/30", iconBg: "bg-fuchsia-500/20 text-fuchsia-400" },
+  {
+    key: "claude",
+    label: "Claude Code",
+    icon: Bot,
+    to: "/claude",
+    gradient: "from-violet-500/10 to-violet-600/5",
+    border: "border-violet-500/20 hover:border-violet-500/40",
+    iconBg: "bg-violet-500/15 text-violet-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(139,92,246,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "codex",
+    label: "Codex CLI",
+    icon: Terminal,
+    to: "/codex",
+    gradient: "from-emerald-500/10 to-emerald-600/5",
+    border: "border-emerald-500/20 hover:border-emerald-500/40",
+    iconBg: "bg-emerald-500/15 text-emerald-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(16,185,129,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "opencode",
+    label: "OpenCode",
+    icon: Code,
+    to: "/opencode",
+    gradient: "from-sky-500/10 to-sky-600/5",
+    border: "border-sky-500/20 hover:border-sky-500/40",
+    iconBg: "bg-sky-500/15 text-sky-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(14,165,233,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "kiro",
+    label: "Kiro CLI",
+    icon: Sparkles,
+    to: "/kiro",
+    gradient: "from-purple-500/10 to-purple-600/5",
+    border: "border-purple-500/20 hover:border-purple-500/40",
+    iconBg: "bg-purple-500/15 text-purple-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(168,85,247,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "kiro-ide",
+    label: "Kiro IDE",
+    icon: Sparkles,
+    to: "/kiro-ide",
+    gradient: "from-fuchsia-500/10 to-fuchsia-600/5",
+    border: "border-fuchsia-500/20 hover:border-fuchsia-500/40",
+    iconBg: "bg-fuchsia-500/15 text-fuchsia-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(217,70,239,0.12)] hover:-translate-y-1"
+  },
 ] as const;
 
 export default function DashboardPage() {
@@ -25,29 +71,33 @@ export default function DashboardPage() {
   const platforms = state.dashboard?.platforms ?? [];
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto pr-2">
-      {/* Hero */}
-      <section className="relative overflow-hidden rounded-[28px] border border-border/80 px-6 py-6 md:px-8 md:py-8">
-        <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),transparent_64%)] lg:block" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-fine uppercase tracking-[0.28em] text-quiet">Memory Forge</p>
-            <h2 className="mt-3 max-w-2xl text-3xl font-semibold leading-tight md:text-4xl">
+    <div className="flex h-full flex-col overflow-y-auto pr-2 pb-6">
+      {/* Hero with dynamic glowing abstract background */}
+      <section className="relative overflow-hidden rounded-[28px] border border-border/80 bg-gradient-to-br from-card/85 via-card/75 to-card/40 px-6 py-7 md:px-8 md:py-8 backdrop-blur-md shadow-xl shadow-black/10">
+        {/* Glow Spheres */}
+        <div className="absolute -top-12 -left-12 size-48 bg-primary/8 blur-[90px] rounded-full pointer-events-none" />
+        <div className="absolute -bottom-16 -right-16 size-56 bg-violet-500/6 blur-[110px] rounded-full pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.04),transparent_72%)] lg:block pointer-events-none" />
+
+        <div className="relative flex flex-col gap-6">
+          <div className="max-w-4xl">
+            <p className="text-fine uppercase tracking-[0.28em] text-primary font-bold">Memory Forge</p>
+            <h2 className="mt-3 max-w-3xl text-3xl font-extrabold leading-tight md:text-4xl bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
               {t("welcomeTitle")}
             </h2>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-quiet">{t("welcomeDesc")}</p>
+            <p className="mt-4 max-w-3xl text-sm md:text-base leading-7 text-quiet">{t("welcomeDesc")}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button asChild size="lg">
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <Button asChild size="lg" className="rounded-xl shadow-md shadow-primary/14 hover:shadow-lg hover:shadow-primary/22 cursor-pointer transition-all duration-200">
               <Link to="/prompts">
                 {t("prompts")}
                 <ArrowRight className="size-4" />
               </Link>
             </Button>
-            <div className="rounded-full border border-border/80 bg-white/5 px-4 py-2 text-sm text-quiet">
+            <div className="rounded-xl border border-border/80 bg-white/5 px-4 py-2.5 text-xs md:text-sm text-quiet backdrop-blur-md select-none font-medium">
               {loading
                 ? t("loading")
-                : `${snapshot?.appName ?? "Memory Forge"} · v${snapshot?.version ?? "3.0.0"}`}
+                : `${snapshot?.appName ?? "Memory Forge"} · v${snapshot?.version ?? "3.3.1"}`}
             </div>
           </div>
         </div>
@@ -64,18 +114,23 @@ export default function DashboardPage() {
             <Link
               key={pm.key}
               to={pm.to}
-              className={`setting-card rounded-[24px] border ${pm.border} bg-gradient-to-b ${pm.gradient} p-5 transition hover:scale-[1.02] hover:shadow-lg h-[120px] flex flex-col justify-between`}
+              className={cn(
+                "group setting-card rounded-[24px] border bg-gradient-to-b p-5 h-[120px] flex flex-col justify-between transition-all duration-300",
+                pm.gradient,
+                pm.border,
+                pm.hoverGlow
+              )}
             >
               <div className="flex items-center gap-3">
-                <div className={`inline-flex size-11 items-center justify-center rounded-2xl ${pm.iconBg}`}>
+                <div className={cn("inline-flex size-11 items-center justify-center rounded-2xl transition-all duration-300", pm.iconBg)}>
                   <Icon className="size-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-quiet">{pm.label}</p>
-                  <p className="text-2xl font-bold">{count}</p>
+                  <p className="text-sm font-semibold text-quiet group-hover:text-foreground transition-colors">{pm.label}</p>
+                  <p className="text-2xl font-bold tracking-tight">{count}</p>
                 </div>
               </div>
-              <p className="truncate text-xs text-quiet">最近活跃: {latest}</p>
+              <p className="truncate text-xs text-quiet border-t border-border/30 pt-2 mt-1">最近活跃: {latest}</p>
             </Link>
           );
         })}
@@ -89,18 +144,23 @@ export default function DashboardPage() {
       </section>
 
       {/* Quick Links */}
-      <section className="mt-5 setting-card rounded-[24px] p-5">
-        <p className="text-fine uppercase tracking-[0.24em] text-quiet">Quick Links</p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link to="/prompts" className="rounded-full border border-border/80 bg-white/5 px-4 py-2 text-sm text-foreground/86 hover:bg-white/8 transition">
-            {t("promptLibrary")}
-          </Link>
-          <Link to="/settings" className="rounded-full border border-border/80 bg-white/5 px-4 py-2 text-sm text-foreground/86 hover:bg-white/8 transition">
-            {t("settings")}
-          </Link>
-          <Link to="/about" className="rounded-full border border-border/80 bg-white/5 px-4 py-2 text-sm text-foreground/86 hover:bg-white/8 transition">
-            {t("about")}
-          </Link>
+      <section className="mt-5 setting-card rounded-[24px] p-6 bg-gradient-to-r from-card/50 via-card/30 to-transparent border border-border/40">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="select-none">
+            <p className="text-fine uppercase tracking-[0.24em] text-primary font-bold">快捷导航</p>
+            <p className="text-xs text-quiet mt-1.5">快速跳转提示词库、全局参数配置或了解本项目</p>
+          </div>
+          <div className="flex flex-wrap gap-2.5">
+            <Link to="/prompts" className="rounded-xl border border-border/80 bg-white/4 px-4 py-2.5 text-xs font-semibold text-foreground/86 hover:bg-primary/12 hover:text-primary hover:border-primary/30 transition-all duration-300">
+              {t("promptLibrary")}
+            </Link>
+            <Link to="/settings" className="rounded-xl border border-border/80 bg-white/4 px-4 py-2.5 text-xs font-semibold text-foreground/86 hover:bg-primary/12 hover:text-primary hover:border-primary/30 transition-all duration-300">
+              {t("settings")}
+            </Link>
+            <Link to="/about" className="rounded-xl border border-border/80 bg-white/4 px-4 py-2.5 text-xs font-semibold text-foreground/86 hover:bg-primary/12 hover:text-primary hover:border-primary/30 transition-all duration-300">
+              {t("about")}
+            </Link>
+          </div>
         </div>
       </section>
     </div>
@@ -109,9 +169,9 @@ export default function DashboardPage() {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <article className="setting-card rounded-[24px] p-5">
+    <article className="setting-card rounded-[24px] p-5 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
       <div className="space-y-3">
-        <div className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+        <div className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-sm shadow-primary/5 transition-transform duration-300 hover:rotate-6">
           {icon}
         </div>
         <div>

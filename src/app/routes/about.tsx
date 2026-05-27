@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Brain, Eye, Flame, Globe, Monitor, Shield, ExternalLink, MessageCircle, Server, RefreshCw, CheckCircle, Download, ArrowUpCircle, AlertCircle } from "lucide-react";
+import { Brain, Eye, Flame, Globe, Monitor, Shield, ExternalLink, MessageCircle, Server, RefreshCw, CheckCircle, Download, ArrowUpCircle, AlertCircle, Copy, Check } from "lucide-react";
 import { AppLogo } from "@/components/logo";
 import { useDesktop } from "@/features/desktop/provider";
 import { api } from "@/features/desktop/api";
@@ -60,36 +60,40 @@ export default function AboutPage() {
 
   const features = [
     { icon: <Brain className="size-5" />, title: t("editMemory"), desc: t("memoryManipulationDesc") },
-    { icon: <Shield className="size-5" />, title: t("localFirst"), desc: "100% \u672c\u5730\u8fd0\u884c\uff0c\u96f6\u4e91\u7aef\u4f9d\u8d56\u3002\u4f60\u7684\u6570\u636e\u4e0d\u4f1a\u79bb\u5f00\u4f60\u7684\u7535\u8111\u3002" },
-    { icon: <Globe className="size-5" />, title: t("multiPlatform"), desc: "Claude Code / Codex CLI / OpenCode \u7edf\u4e00\u7ba1\u7406\u3002" },
-    { icon: <Eye className="size-5" />, title: t("auditLog"), desc: "\u53ea\u8bfb\u5ba1\u8ba1\u65e5\u5fd7\uff0c\u652f\u6301 diff \u5bf9\u6bd4\uff0c\u6bcf\u4e00\u6b65\u4fee\u6539\u53ef\u8ffd\u6eaf\u3002" },
-    { icon: <Monitor className="size-5" />, title: t("sessionAlias"), desc: "\u7ed9\u4f1a\u8bdd\u8d77\u4e00\u4e2a\u5bb9\u6613\u8bb0\u7684\u540d\u5b57\uff0c\u5feb\u901f\u5b9a\u4f4d\u3002" },
-    { icon: <Flame className="size-5" />, title: t("darkLightTheme"), desc: "\u77f3\u58a8\u591c\u8272\u3001\u4e9a\u9ebb\u7eb8\u611f\u3001\u6d77\u6e7e\u9752\u84dd\u3001\u4f59\u70ec\u94dc\u7ea2 \u2014 \u56db\u5957\u4e3b\u9898\u3002" },
+    { icon: <Shield className="size-5" />, title: t("localFirst"), desc: "100% 本地运行，零云端依赖。你的数据不会离开你的电脑。" },
+    { icon: <Globe className="size-5" />, title: t("multiPlatform"), desc: "Claude Code / Codex CLI / OpenCode 统一管理。" },
+    { icon: <Eye className="size-5" />, title: t("auditLog"), desc: "只读审计日志，支持 diff 对比，每一步修改可追溯。" },
+    { icon: <Monitor className="size-5" />, title: t("sessionAlias"), desc: "给会话起一个容易记的名字，快速定位。" },
+    { icon: <Flame className="size-5" />, title: t("darkLightTheme"), desc: "石墨夜色、亚麻纸感、素白云雾、海湾青蓝、余烬铜红、暮光星紫 — 六套主题。" },
   ];
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto pr-2">
-      {/* Author — top */}
-      <section className="relative shrink-0 overflow-hidden rounded-[28px] border border-border/80 px-6 py-6 md:px-8 md:py-8">
-        <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),transparent_64%)] lg:block" />
+    <div className="flex h-full flex-col overflow-y-auto pr-2 pb-6">
+      {/* Author — top with ambient glows */}
+      <section className="relative shrink-0 overflow-hidden rounded-[28px] border border-border/80 px-6 py-6 md:px-8 md:py-8 bg-gradient-to-br from-card/85 via-card/75 to-card/40 backdrop-blur-md shadow-xl shadow-black/10">
+        {/* Glow Spheres */}
+        <div className="absolute -top-12 -left-12 size-48 bg-primary/8 blur-[90px] rounded-full pointer-events-none" />
+        <div className="absolute -bottom-16 -right-16 size-56 bg-violet-500/6 blur-[110px] rounded-full pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.04),transparent_72%)] lg:block pointer-events-none" />
+
         <div className="relative flex items-center gap-5">
-          <div className="inline-flex size-16 shrink-0 items-center justify-center rounded-2xl overflow-hidden">
+          <div className="inline-flex size-16 shrink-0 items-center justify-center rounded-2xl overflow-hidden shadow-lg shadow-black/20 ring-soft">
             <AppLogo className="size-16" />
           </div>
           <div className="min-w-0">
-            <p className="text-fine uppercase tracking-[0.28em] text-quiet">Memory Forge</p>
-            <h2 className="mt-1 text-2xl font-semibold md:text-3xl">VoidCraft</h2>
+            <p className="text-fine uppercase tracking-[0.28em] text-primary font-bold">Memory Forge</p>
+            <h2 className="mt-1 text-2xl font-extrabold md:text-3xl bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">VoidCraft</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 onClick={() => openUrl("https://github.com/voidcraft-dev")}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-white/5 px-3 py-1.5 text-sm text-foreground/86 transition hover:bg-white/10"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-border/80 bg-white/4 px-4 py-2 text-xs font-semibold text-foreground/86 transition hover:bg-primary/15 hover:text-primary hover:border-primary/25 cursor-pointer shadow-sm"
               >
                 <ExternalLink className="size-3.5" />
                 GitHub
               </button>
               <button
                 onClick={() => openUrl("https://qm.qq.com/q/e2y8CNQ8lq")}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-white/5 px-3 py-1.5 text-sm text-foreground/86 transition hover:bg-white/10"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-border/80 bg-white/4 px-4 py-2 text-xs font-semibold text-foreground/86 transition hover:bg-primary/15 hover:text-primary hover:border-primary/25 cursor-pointer shadow-sm"
               >
                 <MessageCircle className="size-3.5" />
                 QQ群: 野生AI观测
@@ -98,10 +102,10 @@ export default function AboutPage() {
                 onClick={handleCheckUpdate}
                 disabled={checking}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition",
+                  "inline-flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer shadow-sm",
                   updateInfo?.hasUpdate
                     ? "border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
-                    : "border-border/80 bg-white/5 text-foreground/86 hover:bg-white/10"
+                    : "border-border/80 bg-white/4 text-foreground/86 hover:bg-primary/15 hover:text-primary hover:border-primary/25"
                 )}
               >
                 <RefreshCw className={cn("size-3.5", checking && "animate-spin")} />
@@ -114,31 +118,31 @@ export default function AboutPage() {
 
       {/* Update status */}
       {updateInfo && !updateInfo.hasUpdate && (
-        <section className="mt-4 flex items-center gap-3 rounded-2xl border border-green-500/30 bg-green-500/8 px-5 py-3">
+        <section className="mt-4 flex items-center gap-3 rounded-2xl border border-green-500/35 bg-green-500/5 px-5 py-3.5 animate-in slide-in-from-top duration-300">
           <CheckCircle className="size-5 text-green-400 shrink-0" />
           <div>
-            <p className="text-sm font-medium text-green-400">{t("upToDate")}</p>
-            <p className="text-xs text-quiet">v{updateInfo.currentVersion}</p>
+            <p className="text-sm font-semibold text-green-400">{t("upToDate")}</p>
+            <p className="text-xs text-quiet font-medium">v{updateInfo.currentVersion}</p>
           </div>
         </section>
       )}
 
       {updateInfo?.hasUpdate && (
-        <section className="mt-4 rounded-[24px] border border-amber-500/30 bg-gradient-to-r from-amber-500/8 to-transparent p-5">
+        <section className="mt-4 rounded-[24px] border border-amber-500/35 bg-gradient-to-r from-amber-500/8 to-transparent p-5 animate-in slide-in-from-top duration-300">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-400">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-400 shadow-sm">
                 <ArrowUpCircle className="size-5" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-amber-400">{t("updateAvailable")}</h3>
+                <h3 className="text-lg font-bold text-amber-400">{t("updateAvailable")}</h3>
                 <p className="mt-1 text-sm text-quiet">
                   v{updateInfo.currentVersion} → <span className="font-semibold text-foreground">v{updateInfo.latestVersion}</span>
                 </p>
                 {updateInfo.releaseNotes && (
                   <details className="mt-3">
-                    <summary className="cursor-pointer text-xs font-medium text-quiet hover:text-foreground">{t("releaseNotes")}</summary>
-                    <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-border/50 bg-background/50 p-4 text-xs leading-relaxed text-quiet space-y-2">
+                    <summary className="cursor-pointer text-xs font-semibold text-quiet hover:text-foreground">{t("releaseNotes")}</summary>
+                    <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-border/50 bg-background/50 p-4 text-xs leading-relaxed text-quiet space-y-2 font-mono">
                       {formatReleaseNotes(updateInfo.releaseNotes)}
                     </div>
                   </details>
@@ -147,7 +151,7 @@ export default function AboutPage() {
             </div>
             <button
               onClick={() => openUrl(updateInfo.releaseUrl)}
-              className="inline-flex shrink-0 items-center gap-2 rounded-full bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-400 transition hover:bg-amber-500/30"
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-amber-500/20 px-4 py-2 text-sm font-bold text-amber-400 transition hover:bg-amber-500/30 cursor-pointer shadow-sm"
             >
               <Download className="size-4" />
               {t("downloadUpdate")}
@@ -157,25 +161,25 @@ export default function AboutPage() {
       )}
 
       {checkError && (
-        <section className="mt-4 flex items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/8 px-5 py-3">
+        <section className="mt-4 flex items-center gap-3 rounded-2xl border border-red-500/35 bg-red-500/5 px-5 py-3.5 animate-in slide-in-from-top duration-300">
           <AlertCircle className="size-5 text-red-400 shrink-0" />
           <div>
-            <p className="text-sm font-medium text-red-400">{t("checkFailed")}</p>
-            <p className="text-xs text-quiet">{checkError}</p>
+            <p className="text-sm font-semibold text-red-400">{t("checkFailed")}</p>
+            <p className="text-xs text-quiet font-medium">{checkError}</p>
           </div>
         </section>
       )}
 
-      {/* Features */}
+      {/* Features Grid */}
       <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {features.map((f) => (
-          <article key={f.title} className="setting-card rounded-[24px] p-5">
+          <article key={f.title} className="setting-card rounded-[24px] p-5 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
             <div className="space-y-3">
-              <div className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+              <div className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-sm transition-transform duration-300 hover:rotate-6">
                 {f.icon}
               </div>
               <div>
-                <h3 className="text-lg font-semibold">{f.title}</h3>
+                <h3 className="text-lg font-bold">{f.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-quiet">{f.desc}</p>
               </div>
             </div>
@@ -184,12 +188,12 @@ export default function AboutPage() {
       </section>
 
       {/* Tech Stack */}
-      <section className="mt-5 setting-card rounded-[24px] p-5">
-        <p className="text-fine uppercase tracking-[0.24em] text-quiet">Tech Stack</p>
+      <section className="mt-5 setting-card rounded-[24px] p-5 bg-gradient-to-r from-card/50 via-card/25 to-transparent border border-border/40">
+        <p className="text-fine uppercase tracking-[0.24em] text-primary font-bold">Tech Stack</p>
         <div className="mt-4 flex flex-wrap gap-2">
           {["Tauri v2", "Rust", "React 19", "TypeScript", "Tailwind CSS 4", "SQLite", "Vite"].map(
             (tech) => (
-              <span key={tech} className="rounded-full border border-border/80 bg-white/5 px-3 py-1.5 text-sm text-foreground/86">
+              <span key={tech} className="rounded-xl border border-border/70 bg-white/4 hover:bg-white/8 hover:text-foreground px-3.5 py-2 text-xs font-semibold text-foreground/86 transition duration-200 hover:-translate-y-0.5 shadow-xs">
                 {tech}
               </span>
             )
@@ -197,19 +201,19 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Runtime */}
+      {/* Runtime Environment with copy path buttons */}
       {snapshot && (
-        <section className="mt-5 setting-card rounded-[24px] p-5">
+        <section className="mt-5 setting-card rounded-[24px] p-5 bg-gradient-to-r from-card/50 via-card/20 to-transparent border border-border/40">
           <div className="flex items-start gap-3">
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-sm">
               <Server className="size-5" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold">{t("runtime")}</h3>
-              <p className="mt-2 text-sm leading-6 text-quiet">{t("desktopBehaviorDesc")}</p>
+              <h3 className="text-lg font-bold">{t("runtime")}</h3>
+              <p className="mt-1 text-sm text-quiet">{t("desktopBehaviorDesc")}</p>
             </div>
           </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <MetaRow label={t("runtime")} value={snapshot.runtime === "tauri" ? t("runtimeTauri") : t("runtimeWebPreview")} />
             <MetaRow label={t("trayReady")} value={snapshot.trayAvailable ? t("toggleOn") : t("toggleOff")} />
             <MetaRow label={t("configDir")} value={snapshot.configDir} />
@@ -223,10 +227,40 @@ export default function AboutPage() {
 }
 
 function MetaRow({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const isPath = value.includes("\\") || value.includes("/") || value.includes(":");
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* ignore */ }
+  };
+
   return (
-    <div className="rounded-2xl border border-border/70 bg-white/4 px-4 py-3">
-      <div className="text-fine uppercase tracking-[0.18em] text-quiet">{label}</div>
-      <div className="mt-1 break-all text-sm text-foreground">{value}</div>
+    <div className="group relative rounded-2xl border border-border/60 bg-white/4 px-4 py-3.5 hover:bg-white/6 hover:border-border/80 transition-all duration-300 flex flex-col justify-between min-h-[96px]">
+      <div className="flex items-center justify-between gap-3 select-none">
+        <span className="text-fine uppercase tracking-[0.18em] text-primary/80 font-bold">{label}</span>
+        {isPath && (
+          <button
+            onClick={handleCopy}
+            className={cn(
+              "opacity-0 group-hover:opacity-100 flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-all duration-200 cursor-pointer bg-white/5 border border-border/20",
+              copied ? "text-green-400 bg-green-500/10 border-green-500/20 opacity-100!" : "text-quiet hover:text-foreground"
+            )}
+          >
+            {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+            {copied ? '已复制' : '复制路径'}
+          </button>
+        )}
+      </div>
+      <div className={cn(
+        "mt-2 break-all text-sm font-medium text-foreground/90 selection:bg-primary/20",
+        isPath && "font-mono text-xs text-foreground/80 bg-muted/20 border border-border/30 p-2.5 rounded-lg leading-relaxed select-all"
+      )}>
+        {value}
+      </div>
     </div>
   );
 }
