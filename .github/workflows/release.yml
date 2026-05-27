@@ -98,7 +98,6 @@ jobs:
 
       - name: Upload Windows portable zip to Release
         if: matrix.platform == 'windows-latest'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: ${{ env.PORTABLE_ZIP }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.ref_name }} "${{ env.PORTABLE_ZIP }}" --clobber
