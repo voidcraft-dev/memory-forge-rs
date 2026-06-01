@@ -270,10 +270,14 @@ export function SessionList() {
     <aside className="flex h-full w-[280px] flex-shrink-0 flex-col border-r border-border/50 bg-gradient-to-b from-card to-card/55 backdrop-blur-xl xl:w-[320px]">
       <div className="border-b border-border/50 p-4 md:p-5">
         <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="font-semibold text-foreground text-lg truncate">
-            {currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)} {showArchived ? t('session.archiveView') : t('session.sessions')}
+          <h2 className="font-semibold text-foreground text-lg truncate flex-1 min-w-0 pr-1">
+            {(() => {
+              if (currentPlatform === 'kiro-ide') return 'Kiro IDE'
+              if (currentPlatform === 'opencode') return 'OpenCode'
+              return currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)
+            })()} {showArchived ? t('session.archiveView') : t('session.sessions')}
           </h2>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <Button
               variant={favoritesOnly ? "secondary" : "ghost"}
               size="icon"
@@ -290,17 +294,17 @@ export function SessionList() {
             </Button>
             <Button
               variant={showArchived ? "secondary" : "ghost"}
-              size="sm"
+              size="icon"
               onClick={() => { setFavoritesOnly(false); dispatch({ type: 'setShowArchived', payload: !showArchived }) }}
               className={cn(
-                "h-8 gap-1.5 text-xs transition-all",
+                "h-8 w-8 transition-all",
                 showArchived
                   ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
                   : "text-muted-foreground hover:text-foreground"
               )}
+              title={showArchived ? t('session.sessionsView') : t('session.archiveView')}
             >
               <Archive className="w-3.5 h-3.5" />
-              {showArchived ? t('session.sessionsView') : t('session.archiveView')}
             </Button>
             <Button
               variant={selectionMode ? "secondary" : "ghost"}
@@ -322,12 +326,12 @@ export function SessionList() {
           </div>
         </div>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
           <Input
             placeholder={t('session.search')}
             defaultValue={searchQuery}
             onChange={(e) => debouncedSetSearch(e.target.value)}
-            className="pl-10 bg-muted/30 border-border/50"
+            className="pl-10 bg-muted/20 border-border/40 hover:border-border/80 focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:border-primary/40 rounded-xl transition-all"
           />
         </div>
       </div>
@@ -497,8 +501,8 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
       className={cn(
         "group relative cursor-pointer rounded-2xl border transition-all duration-300 select-none overflow-hidden p-4",
         highlightAsSelection
-          ? "bg-gradient-to-r from-primary/8 via-primary/3 to-transparent border-primary/25 shadow-md shadow-primary/4 pl-[18px]"
-          : "border-border/40 bg-gradient-to-r from-muted/20 to-transparent hover:border-border/80 hover:bg-white/4 pl-[18px]"
+          ? "bg-gradient-to-br from-primary/8 via-primary/2 to-card border-primary/30 shadow-md shadow-primary/5 pl-[18px] backdrop-blur-md"
+          : "border-border/30 bg-card/45 hover:border-border/60 hover:bg-card/85 pl-[18px]"
       )}
     >
       {/* Accent Gradient Capsule Bar */}
@@ -532,41 +536,46 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
           </div>
         </div>
       )}
-      <div className={cn("flex items-start justify-between gap-2 mb-2 min-w-0", selectionMode && "pr-8")}>
+      <div className={cn("flex items-center justify-between gap-2 mb-2 min-w-0", selectionMode && "pr-8")}>
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <span className={cn(
-            "w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-md",
+            "w-7 h-7 rounded-xl flex items-center justify-center text-white font-black text-xs flex-shrink-0 shadow-lg shadow-black/10 border border-white/10 select-none",
             platformColors[platform as keyof typeof platformColors] || platformColors.claude
           )}>
-            {platform[0].toUpperCase()}
+            {platform === 'kiro-ide' ? 'K' : platform === 'opencode' ? 'O' : platform[0].toUpperCase()}
           </span>
-          <h3 className={cn("font-bold text-sm truncate min-w-0 transition-colors duration-200", highlightAsSelection ? "text-primary" : "text-foreground group-hover:text-foreground")}>
+          <h3 className={cn("font-bold text-sm truncate min-w-0 transition-colors duration-200 flex-1", highlightAsSelection ? "text-primary" : "text-foreground group-hover:text-foreground")}>
             {session.displayTitle || session.sessionId || untitledLabel}
           </h3>
         </div>
         {!selectionMode && (
-          <div className="flex items-center gap-0.5 flex-shrink-0">
-            <button
-              type="button"
-              onClick={onToggleFavorite}
-              className={cn(
-                "p-1 rounded-md transition-colors",
-                session.favorite
-                  ? "text-amber-400 hover:text-amber-300"
-                  : "text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-amber-400"
-              )}
-            >
-              <Star className={cn("w-3.5 h-3.5", session.favorite && "fill-current")} />
-            </button>
-            <button
-              type="button"
-              onClick={onToggleArchive}
-              className="p-1 rounded-md text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-foreground transition-colors"
-              title={archiveLabel}
-            >
-              {showArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-            </button>
-            <span className="text-[10px] text-muted-foreground/60 bg-white/5 border border-border/20 px-2 py-0.5 rounded-md ml-1">
+          <div className="relative flex items-center gap-1 flex-shrink-0 h-6">
+            {/* Action buttons shown on hover, using absolute position to NOT occupy layout width in normal state */}
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute right-0 bg-gradient-to-l from-card via-card to-transparent pl-4 py-0.5 pointer-events-none group-hover:pointer-events-auto z-10">
+              <button
+                type="button"
+                onClick={onToggleFavorite}
+                className={cn(
+                  "p-1 rounded-md transition-colors",
+                  session.favorite
+                    ? "text-amber-400 hover:text-amber-300"
+                    : "text-muted-foreground/40 hover:text-amber-400"
+                )}
+              >
+                <Star className={cn("w-3.5 h-3.5", session.favorite && "fill-current")} />
+              </button>
+              <button
+                type="button"
+                onClick={onToggleArchive}
+                className="p-1 rounded-md text-muted-foreground/40 hover:text-foreground transition-colors"
+                title={archiveLabel}
+              >
+                {showArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            {/* Relative timestamp badge shown normally, fades out on hover */}
+            <span className="text-[10px] text-muted-foreground/60 bg-muted/40 border border-border/30 px-2 py-0.5 rounded-lg transition-opacity duration-200 group-hover:opacity-0 select-none flex-shrink-0">
               {formatTime(session.updatedAt, justNowLabel)}
             </span>
           </div>
