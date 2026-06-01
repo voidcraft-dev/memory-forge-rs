@@ -39,7 +39,7 @@ export default function ShellLayout() {
   const { snapshot, notice, error, t } = useDesktop();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [hasUpdate, setHasUpdate] = useState(false);
 
   useEffect(() => {
@@ -93,8 +93,8 @@ export default function ShellLayout() {
         className={cn(
           "relative grid h-full gap-2.5 p-2.5 pt-[4.5rem] lg:pt-2.5 transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
           sidebarCollapsed
-            ? "lg:grid-cols-[72px_minmax(0,1fr)]"
-            : "lg:grid-cols-[290px_minmax(0,1fr)]"
+            ? "lg:grid-cols-[68px_minmax(0,1fr)]"
+            : "lg:grid-cols-[280px_minmax(0,1fr)]"
         )}
       >
         {/* Sidebar */}
@@ -161,43 +161,50 @@ export default function ShellLayout() {
               })}
             </nav>
 
-            {/* Collapse Toggle (desktop only) */}
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="mt-auto hidden lg:flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-quiet hover:bg-white/5 hover:text-foreground transition"
-              title={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
-            >
-              {sidebarCollapsed ? (
-                <ChevronRight className="size-4" />
-              ) : (
-                <>
-                  <ChevronLeft className="size-4" />
-                  <span className="text-fine">{t("sidebar.collapse")}</span>
-                </>
-              )}
-            </button>
-
-            {/* Version */}
+            {/* Collapse Toggle and Version badge in a single, premium row */}
             {!sidebarCollapsed ? (
-              <button
-                onClick={() => { if (hasUpdate) { navigate("/about"); setMobileMenuOpen(false); } }}
-                className={cn(
-                  "mt-3 flex items-center justify-center gap-1.5 text-fine",
-                  hasUpdate ? "cursor-pointer text-amber-400 hover:text-amber-300 transition-colors" : "text-quiet cursor-default"
-                )}
-              >
-                <span>v{snapshot?.version ?? "3.0.0"}</span>
-                {hasUpdate && <span className="size-2 rounded-full bg-amber-400 animate-pulse" />}
-              </button>
-            ) : hasUpdate ? (
-              <button
-                onClick={() => { navigate("/about"); setMobileMenuOpen(false); }}
-                className="mt-3 flex justify-center"
-                title={t("updateAvailable")}
-              >
-                <span className="size-2.5 rounded-full bg-amber-400 animate-pulse" />
-              </button>
-            ) : null}
+              <div className="mt-auto pt-4 border-t border-border/20 flex items-center justify-between gap-2">
+                {/* Version badge on the left */}
+                <button
+                  onClick={() => { if (hasUpdate) { navigate("/about"); setMobileMenuOpen(false); } }}
+                  className={cn(
+                    "flex items-center gap-1.5 text-[11px] font-mono select-none px-2.5 py-1 rounded-xl border transition-all duration-300",
+                    hasUpdate
+                      ? "bg-amber-500/10 text-amber-400 border-amber-500/25 hover:bg-amber-500/15"
+                      : "bg-muted/20 text-muted-foreground/50 border-border/10 cursor-default"
+                  )}
+                  title={hasUpdate ? t("updateAvailable") || "发现新版本！点击查看" : undefined}
+                >
+                  <span>v{snapshot?.version ?? "3.0.0"}</span>
+                  {hasUpdate && <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />}
+                </button>
+
+                {/* Collapse button on the right */}
+                <button
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="h-7 w-7 rounded-lg flex items-center justify-center text-quiet hover:bg-white/5 hover:text-foreground border border-transparent hover:border-border/30 transition-all"
+                  title={t("sidebar.collapse") || "收起菜单"}
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="mt-auto flex flex-col items-center gap-3 pt-4 border-t border-border/20">
+                <button
+                  onClick={() => setSidebarCollapsed(false)}
+                  className="relative h-8 w-8 rounded-xl flex items-center justify-center text-quiet hover:bg-white/5 hover:text-foreground border border-border/20 hover:border-border/50 transition-all"
+                  title={t("sidebar.expand") || "展开菜单"}
+                >
+                  <ChevronRight className="size-4" />
+                  {hasUpdate && (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </aside>
 
