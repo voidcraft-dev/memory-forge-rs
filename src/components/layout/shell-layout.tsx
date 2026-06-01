@@ -110,8 +110,13 @@ export default function ShellLayout() {
           <div className="relative flex h-full min-h-0 flex-col">
             {/* Logo */}
             <div className={cn("flex items-center", sidebarCollapsed ? "justify-center" : "gap-3")}>
-              <div className="flex size-12 items-center justify-center rounded-2xl ring-soft overflow-hidden transition-all duration-300">
-                <AppLogo className="size-12" />
+              <div className={cn(
+                "flex items-center justify-center overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] select-none border border-white/5 bg-[#1C1917]",
+                sidebarCollapsed
+                  ? "size-10 rounded-[12px] shadow-md shadow-black/25"
+                  : "size-12 rounded-[14px] shadow-lg shadow-black/20"
+              )}>
+                <AppLogo className={cn("transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]", sidebarCollapsed ? "size-10" : "size-12")} />
               </div>
               {!sidebarCollapsed && (
                 <div className="animate-in fade-in slide-in-from-left-2 duration-300">
