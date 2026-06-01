@@ -6,6 +6,8 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
+use crate::database::{CachedSessionSummary, SessionSummaryCache};
+
 use super::{
     build_commands, tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
     SessionListResult, TimelineBlock, ToolCallBlock,
@@ -114,6 +116,39 @@ impl CodexPlatform {
             cwd,
             preview,
         }
+    }
+
+    fn cached_scan_summary(
+        &self,
+        path: &Path,
+        session_key: &str,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> SummaryData {
+        let Some(cache) = cache else {
+            return self.scan_summary(path);
+        };
+        let Some(fingerprint) = SessionSummaryCache::fingerprint(path) else {
+            return self.scan_summary(path);
+        };
+
+        if let Some(cached) = cache.get("codex", session_key, &fingerprint) {
+            return SummaryData {
+                session_id: cached.session_id,
+                cwd: cached.cwd,
+                preview: cached.preview,
+            };
+        }
+
+        let summary = self.scan_summary(path);
+        let cached = CachedSessionSummary {
+            session_id: summary.session_id.clone(),
+            title: String::new(),
+            preview: summary.preview.clone(),
+            updated_at: modified_nanos(path).to_string(),
+            cwd: summary.cwd.clone(),
+        };
+        let _ = cache.upsert("codex", session_key, &fingerprint, &cached);
+        summary
     }
 
     fn thread_id(&self, lines: &[Value], path: &Path) -> String {
@@ -431,7 +466,7 @@ impl PlatformAdapter for CodexPlatform {
 
             let items = page
                 .iter()
-                .map(|path| self.session_item(path, alias_map))
+                .map(|path| self.session_item(path, alias_map, None))
                 .collect();
             return SessionListResult { total, items };
         }
@@ -439,7 +474,59 @@ impl PlatformAdapter for CodexPlatform {
         let items: Vec<SessionListItem> = entries
             .iter()
             .filter_map(|path| {
-                let item = self.session_item(path, alias_map);
+                let item = self.session_item(path, alias_map, None);
+                if self.includes_project_cwd(&item.cwd) {
+                    Some(item)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let total = items.len();
+        let items = items
+            .into_iter()
+            .skip(offset)
+            .take(limit.unwrap_or(usize::MAX))
+            .collect();
+
+        SessionListResult { total, items }
+    }
+
+    fn list_sessions_with_cache(
+        &self,
+        alias_map: &HashMap<String, String>,
+        limit: Option<usize>,
+        offset: usize,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> SessionListResult {
+        if !self.sessions_root.exists() {
+            return SessionListResult { total: 0, items: Vec::new() };
+        }
+
+        let mut entries = Vec::new();
+        collect_jsonl_recursive(&self.sessions_root, &mut entries);
+        entries.sort_by(|a, b| modified_nanos(b).cmp(&modified_nanos(a)));
+
+        if self.project_root.is_none() {
+            let total = entries.len();
+            let page = if offset < total {
+                let end = limit.map(|l| (offset + l).min(total)).unwrap_or(total);
+                &entries[offset..end]
+            } else {
+                &[]
+            };
+
+            let items = page
+                .iter()
+                .map(|path| self.session_item(path, alias_map, cache))
+                .collect();
+            return SessionListResult { total, items };
+        }
+
+        let items: Vec<SessionListItem> = entries
+            .iter()
+            .filter_map(|path| {
+                let item = self.session_item(path, alias_map, cache);
                 if self.includes_project_cwd(&item.cwd) {
                     Some(item)
                 } else {
@@ -902,9 +989,14 @@ fn collect_jsonl_recursive(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 impl CodexPlatform {
-    fn session_item(&self, path: &Path, alias_map: &HashMap<String, String>) -> SessionListItem {
+    fn session_item(
+        &self,
+        path: &Path,
+        alias_map: &HashMap<String, String>,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> SessionListItem {
         let session_key = encode_path_key(path);
-        let summary = self.scan_summary(path);
+        let summary = self.cached_scan_summary(path, &session_key, cache);
         let alias = alias_map.get(&session_key).cloned().unwrap_or_default();
 
         SessionListItem {

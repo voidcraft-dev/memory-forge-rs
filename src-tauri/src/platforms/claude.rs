@@ -6,6 +6,8 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
+use crate::database::{CachedSessionSummary, SessionSummaryCache};
+
 use super::{
     build_commands, tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
     SessionListResult, TimelineBlock, ToolCallBlock,
@@ -112,6 +114,91 @@ impl ClaudePlatform {
         }
 
         ScanSummary { session_id, cwd, preview }
+    }
+
+    fn cached_scan_summary(
+        &self,
+        path: &Path,
+        session_key: &str,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> ScanSummary {
+        let Some(cache) = cache else {
+            return self.scan_summary(path);
+        };
+        let Some(fingerprint) = SessionSummaryCache::fingerprint(path) else {
+            return self.scan_summary(path);
+        };
+
+        if let Some(cached) = cache.get("claude", session_key, &fingerprint) {
+            return ScanSummary {
+                session_id: cached.session_id,
+                cwd: cached.cwd,
+                preview: cached.preview,
+            };
+        }
+
+        let summary = self.scan_summary(path);
+        let cached = CachedSessionSummary {
+            session_id: summary.session_id.clone(),
+            title: String::new(),
+            preview: summary.preview.clone(),
+            updated_at: modified_nanos(path).to_string(),
+            cwd: summary.cwd.clone(),
+        };
+        let _ = cache.upsert("claude", session_key, &fingerprint, &cached);
+        summary
+    }
+
+    fn list_sessions_inner(
+        &self,
+        alias_map: &HashMap<String, String>,
+        limit: Option<usize>,
+        offset: usize,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> SessionListResult {
+        if !self.projects_root.exists() {
+            return SessionListResult { total: 0, items: Vec::new() };
+        }
+
+        let mut entries = Vec::new();
+        collect_jsonl_recursive(&self.projects_root, &mut entries);
+        entries.sort_by(|a, b| modified_nanos(b).cmp(&modified_nanos(a)));
+
+        let total = entries.len();
+        let page = if offset < total {
+            let end = limit.map(|l| (offset + l).min(total)).unwrap_or(total);
+            &entries[offset..end]
+        } else {
+            &[]
+        };
+
+        let mut items = Vec::new();
+        for path in page {
+            let session_key = encode_path_key(path);
+            let summary = self.cached_scan_summary(path, &session_key, cache);
+            let alias = alias_map.get(&session_key).cloned().unwrap_or_default();
+
+            items.push(SessionListItem {
+                platform: "claude".to_string(),
+                session_key,
+                session_id: summary.session_id.clone(),
+                display_title: if alias.is_empty() {
+                    summary.session_id
+                } else {
+                    alias.clone()
+                },
+                alias_title: alias,
+                preview: summary.preview,
+                updated_at: modified_nanos(path).to_string(),
+                cwd: summary.cwd,
+                editable: true,
+                content_matches: vec![],
+                total_content_matches: 0,
+                favorite: false,
+            });
+        }
+
+        SessionListResult { total, items }
     }
 
     fn session_id(&self, lines: &[Value], path: &Path) -> String {
@@ -516,49 +603,17 @@ fn claude_tool_result_content(item: &Value) -> Option<String> {
 
 impl PlatformAdapter for ClaudePlatform {
     fn list_sessions(&self, alias_map: &HashMap<String, String>, limit: Option<usize>, offset: usize) -> SessionListResult {
-        if !self.projects_root.exists() {
-            return SessionListResult { total: 0, items: Vec::new() };
-        }
+        self.list_sessions_inner(alias_map, limit, offset, None)
+    }
 
-        let mut entries = Vec::new();
-        collect_jsonl_recursive(&self.projects_root, &mut entries);
-        entries.sort_by(|a, b| modified_nanos(b).cmp(&modified_nanos(a)));
-
-        let total = entries.len();
-        let page = if offset < total {
-            let end = limit.map(|l| (offset + l).min(total)).unwrap_or(total);
-            &entries[offset..end]
-        } else {
-            &[]
-        };
-
-        let mut items = Vec::new();
-        for path in page {
-            let session_key = encode_path_key(path);
-            let summary = self.scan_summary(path);
-            let alias = alias_map.get(&session_key).cloned().unwrap_or_default();
-
-            items.push(SessionListItem {
-                platform: "claude".to_string(),
-                session_key,
-                session_id: summary.session_id.clone(),
-                display_title: if alias.is_empty() {
-                    summary.session_id
-                } else {
-                    alias.clone()
-                },
-                alias_title: alias,
-                preview: summary.preview,
-                updated_at: modified_nanos(path).to_string(),
-                cwd: summary.cwd,
-                editable: true,
-                content_matches: vec![],
-                total_content_matches: 0,
-                favorite: false,
-            });
-        }
-
-        SessionListResult { total, items }
+    fn list_sessions_with_cache(
+        &self,
+        alias_map: &HashMap<String, String>,
+        limit: Option<usize>,
+        offset: usize,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> SessionListResult {
+        self.list_sessions_inner(alias_map, limit, offset, cache)
     }
 
     fn get_session_detail(

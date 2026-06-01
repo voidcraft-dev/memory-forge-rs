@@ -7,6 +7,8 @@ use std::time::UNIX_EPOCH;
 use chrono::DateTime;
 use serde_json::{json, Value};
 
+use crate::database::{CachedSessionSummary, SessionSummaryCache};
+
 use super::{
     build_commands, extract_snippet, tool_text_from_str, tool_text_from_value, ContentMatch,
     PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
@@ -121,6 +123,40 @@ impl PiPlatform {
         if scan.updated_at.is_empty() {
             scan.updated_at = file_modified_millis(path).unwrap_or_default();
         }
+        Some(scan)
+    }
+
+    fn cached_quick_scan(
+        path: &Path,
+        session_key: &str,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> Option<QuickScan> {
+        let Some(cache) = cache else {
+            return Self::quick_scan(path);
+        };
+        let Some(fingerprint) = SessionSummaryCache::fingerprint(path) else {
+            return Self::quick_scan(path);
+        };
+
+        if let Some(cached) = cache.get("pi", session_key, &fingerprint) {
+            return Some(QuickScan {
+                session_id: cached.session_id,
+                cwd: cached.cwd,
+                preview: cached.preview,
+                title: cached.title,
+                updated_at: cached.updated_at,
+            });
+        }
+
+        let scan = Self::quick_scan(path)?;
+        let cached = CachedSessionSummary {
+            session_id: scan.session_id.clone(),
+            title: scan.title.clone(),
+            preview: scan.preview.clone(),
+            updated_at: scan.updated_at.clone(),
+            cwd: scan.cwd.clone(),
+        };
+        let _ = cache.upsert("pi", session_key, &fingerprint, &cached);
         Some(scan)
     }
 
@@ -271,6 +307,50 @@ impl PlatformAdapter for PiPlatform {
             .filter_map(|path| {
                 let session_key = Self::key_for_path(&path)?;
                 let scan = Self::quick_scan(&path)?;
+                let alias_title = alias_map.get(&session_key).cloned().unwrap_or_default();
+                let display_title = Self::session_title(&session_key, &scan, &alias_title);
+                Some(SessionListItem {
+                    platform: "pi".to_string(),
+                    session_key,
+                    session_id: scan.session_id,
+                    display_title,
+                    alias_title,
+                    preview: scan.preview,
+                    updated_at: scan.updated_at,
+                    cwd: scan.cwd,
+                    editable: true,
+                    content_matches: vec![],
+                    total_content_matches: 0,
+                    favorite: false,
+                })
+            })
+            .collect();
+
+        items.sort_by_key(|item| std::cmp::Reverse(timestamp_sort_key(&item.updated_at)));
+
+        let total = items.len();
+        let items = items
+            .into_iter()
+            .skip(offset)
+            .take(limit.unwrap_or(usize::MAX))
+            .collect();
+
+        SessionListResult { total, items }
+    }
+
+    fn list_sessions_with_cache(
+        &self,
+        alias_map: &HashMap<String, String>,
+        limit: Option<usize>,
+        offset: usize,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> SessionListResult {
+        let mut items: Vec<SessionListItem> = self
+            .collect_session_files()
+            .into_iter()
+            .filter_map(|path| {
+                let session_key = Self::key_for_path(&path)?;
+                let scan = Self::cached_quick_scan(&path, &session_key, cache)?;
                 let alias_title = alias_map.get(&session_key).cloned().unwrap_or_default();
                 let display_title = Self::session_title(&session_key, &scan, &alias_title);
                 Some(SessionListItem {

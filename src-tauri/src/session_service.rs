@@ -45,7 +45,8 @@ pub fn dashboard_summary(db: &DbState, settings: &AppSettings) -> Result<Dashboa
         let aliases = database::get_alias_map(&db.conn, platform_name)?;
         let archived = database::get_flagged_keys(&db.conn, platform_name, "archived").unwrap_or_default();
         let favorites = database::get_flagged_keys(&db.conn, platform_name, "favorite").unwrap_or_default();
-        let result = adapter.list_sessions(&aliases, Some(50), 0);
+        let summary_cache = database::SessionSummaryCache::new(&db.conn);
+        let result = adapter.list_sessions_with_cache(&aliases, Some(50), 0, Some(&summary_cache));
         // Filter out archived, annotate favorites, take top 20
         let items: Vec<SessionListItem> = result.items.into_iter()
             .filter(|item| !archived.contains(&item.session_key))
@@ -130,7 +131,8 @@ pub fn session_list(
 
     if has_query {
         let t1 = Instant::now();
-        let result = adapter.list_sessions(&aliases, None, 0);
+        let summary_cache = database::SessionSummaryCache::new(&db.conn);
+        let result = adapter.list_sessions_with_cache(&aliases, None, 0, Some(&summary_cache));
         eprintln!("[perf] session_list({platform}) list_all {} sessions: {:?}", result.items.len(), t1.elapsed());
 
         let needle = query.unwrap().trim().to_lowercase();
@@ -176,7 +178,8 @@ pub fn session_list(
     } else {
         let t1 = Instant::now();
         // For non-search: load enough to fill the page after filtering
-        let result = adapter.list_sessions(&aliases, None, 0);
+        let summary_cache = database::SessionSummaryCache::new(&db.conn);
+        let result = adapter.list_sessions_with_cache(&aliases, None, 0, Some(&summary_cache));
         let mut items = apply_flags(result.items, &archived, &favorites, show_archived);
         // Sort: favorites first
         items.sort_by(|a, b| b.favorite.cmp(&a.favorite));

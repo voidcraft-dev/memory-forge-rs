@@ -1,6 +1,8 @@
 use rusqlite::{params, Connection, Result as SqlResult};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::sync::Mutex;
+use std::time::SystemTime;
 
 const BUILTIN_PROMPT_FENJUE_CTF_NAME: &str = "焚诀·CTF 比赛";
 const BUILTIN_PROMPT_FENJUE_CTF_TAGS: &str = "代码,分析,CTF,焚诀";
@@ -43,6 +45,119 @@ impl DbState {
         Ok(Self {
             conn: Mutex::new(conn),
         })
+    }
+}
+
+// ─── Session Summary Cache ───
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionSummaryFingerprint {
+    pub file_size: i64,
+    pub modified_at: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CachedSessionSummary {
+    pub session_id: String,
+    pub title: String,
+    pub preview: String,
+    pub updated_at: String,
+    pub cwd: String,
+}
+
+pub struct SessionSummaryCache<'a> {
+    conn: &'a Mutex<Connection>,
+}
+
+impl<'a> SessionSummaryCache<'a> {
+    pub fn new(conn: &'a Mutex<Connection>) -> Self {
+        Self { conn }
+    }
+
+    pub fn fingerprint(path: &Path) -> Option<SessionSummaryFingerprint> {
+        let metadata = std::fs::metadata(path).ok()?;
+        let modified_at = metadata
+            .modified()
+            .ok()?
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .ok()?
+            .as_nanos()
+            .to_string();
+        let file_size = i64::try_from(metadata.len()).ok()?;
+        Some(SessionSummaryFingerprint {
+            file_size,
+            modified_at,
+        })
+    }
+
+    pub fn get(
+        &self,
+        platform: &str,
+        session_key: &str,
+        fingerprint: &SessionSummaryFingerprint,
+    ) -> Option<CachedSessionSummary> {
+        let conn = self.conn.lock().ok()?;
+        conn.query_row(
+            "SELECT session_id, title, preview, updated_at, cwd
+             FROM session_summary_cache
+             WHERE platform = ?1
+               AND session_key = ?2
+               AND file_size = ?3
+               AND modified_at = ?4",
+            params![
+                platform,
+                session_key,
+                fingerprint.file_size,
+                fingerprint.modified_at
+            ],
+            |row| {
+                Ok(CachedSessionSummary {
+                    session_id: row.get(0)?,
+                    title: row.get(1)?,
+                    preview: row.get(2)?,
+                    updated_at: row.get(3)?,
+                    cwd: row.get(4)?,
+                })
+            },
+        )
+        .ok()
+    }
+
+    pub fn upsert(
+        &self,
+        platform: &str,
+        session_key: &str,
+        fingerprint: &SessionSummaryFingerprint,
+        summary: &CachedSessionSummary,
+    ) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+        conn.execute(
+            "INSERT INTO session_summary_cache
+                (platform, session_key, file_size, modified_at, session_id, title, preview, updated_at, cwd, cached_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now'))
+             ON CONFLICT(platform, session_key) DO UPDATE SET
+                file_size = excluded.file_size,
+                modified_at = excluded.modified_at,
+                session_id = excluded.session_id,
+                title = excluded.title,
+                preview = excluded.preview,
+                updated_at = excluded.updated_at,
+                cwd = excluded.cwd,
+                cached_at = datetime('now')",
+            params![
+                platform,
+                session_key,
+                fingerprint.file_size,
+                fingerprint.modified_at,
+                &summary.session_id,
+                &summary.title,
+                &summary.preview,
+                &summary.updated_at,
+                &summary.cwd
+            ],
+        )
+        .map_err(|e| format!("Upsert session summary cache error: {e}"))?;
+        Ok(())
     }
 }
 
@@ -244,6 +359,24 @@ pub fn init_tables(conn: &Connection) -> SqlResult<()> {
 
         CREATE INDEX IF NOT EXISTS idx_session_flags_lookup
             ON session_flags(platform, flag);
+
+        CREATE TABLE IF NOT EXISTS session_summary_cache (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform     TEXT    NOT NULL,
+            session_key  TEXT    NOT NULL,
+            file_size    INTEGER NOT NULL,
+            modified_at  TEXT    NOT NULL,
+            session_id   TEXT    NOT NULL DEFAULT '',
+            title        TEXT    NOT NULL DEFAULT '',
+            preview      TEXT    NOT NULL DEFAULT '',
+            updated_at   TEXT    NOT NULL DEFAULT '',
+            cwd          TEXT    NOT NULL DEFAULT '',
+            cached_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(platform, session_key)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_session_summary_cache_lookup
+            ON session_summary_cache(platform, session_key, file_size, modified_at);
         "
     )?;
     ensure_builtin_prompts(conn)?;
@@ -602,4 +735,44 @@ pub fn import_prompts(conn: &Mutex<Connection>, prompts: &[PromptCreate]) -> Res
         count += 1;
     }
     Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_summary_cache_requires_matching_fingerprint() {
+        let conn = Connection::open_in_memory().expect("sqlite memory");
+        init_tables(&conn).expect("init tables");
+        let conn = Mutex::new(conn);
+        let cache = SessionSummaryCache::new(&conn);
+
+        let fingerprint = SessionSummaryFingerprint {
+            file_size: 42,
+            modified_at: "100".to_string(),
+        };
+        let summary = CachedSessionSummary {
+            session_id: "s1".to_string(),
+            title: "title".to_string(),
+            preview: "preview".to_string(),
+            updated_at: "100".to_string(),
+            cwd: "F:\\workspace".to_string(),
+        };
+
+        cache
+            .upsert("codex", "session.jsonl", &fingerprint, &summary)
+            .expect("upsert cache");
+
+        let cached = cache
+            .get("codex", "session.jsonl", &fingerprint)
+            .expect("cache hit");
+        assert_eq!(cached, summary);
+
+        let changed = SessionSummaryFingerprint {
+            file_size: 43,
+            modified_at: "100".to_string(),
+        };
+        assert!(cache.get("codex", "session.jsonl", &changed).is_none());
+    }
 }

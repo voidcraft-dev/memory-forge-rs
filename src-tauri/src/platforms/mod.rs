@@ -11,6 +11,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::database::SessionSummaryCache;
 use crate::settings::AppSettings;
 
 #[derive(Debug, Clone, Serialize)]
@@ -91,6 +92,15 @@ pub struct SessionListResult {
 
 pub trait PlatformAdapter: Send + Sync {
     fn list_sessions(&self, alias_map: &HashMap<String, String>, limit: Option<usize>, offset: usize) -> SessionListResult;
+    fn list_sessions_with_cache(
+        &self,
+        alias_map: &HashMap<String, String>,
+        limit: Option<usize>,
+        offset: usize,
+        _cache: Option<&SessionSummaryCache<'_>>,
+    ) -> SessionListResult {
+        self.list_sessions(alias_map, limit, offset)
+    }
     fn get_session_detail(&self, session_key: &str, alias_map: &HashMap<String, String>) -> Result<SessionDetail, String>;
     fn update_message(&self, edit_target: &str, new_content: &str) -> Result<String, String>;
     fn matches_query(&self, session_key: &str, query: &str) -> bool;
