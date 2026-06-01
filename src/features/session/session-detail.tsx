@@ -50,7 +50,6 @@ export function SessionDetail() {
   const globalSearchQuery = state.searchQuery
 
   const [aliasTitle, setAliasTitle] = useState('')
-  const [savingAlias, setSavingAlias] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [openingKey, setOpeningKey] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -62,9 +61,34 @@ export function SessionDetail() {
   const [loadingExecutionTargets, setLoadingExecutionTargets] = useState<Set<string>>(new Set())
   const [loadingAllExecutionOutputs, setLoadingAllExecutionOutputs] = useState(false)
   const [includeToolCallsInExport, setIncludeToolCallsInExport] = useState(false)
+
+  // New visual states for dropdowns and inline alias editing
+  const [terminalMenuOpen, setTerminalMenuOpen] = useState(false)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [isEditingAlias, setIsEditingAlias] = useState(false)
+  const [tempAlias, setTempAlias] = useState('')
+
   const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const activeSessionKeyRef = useRef<string | null>(null)
+  const terminalMenuRef = useRef<HTMLDivElement>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog()
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (terminalMenuRef.current && !terminalMenuRef.current.contains(event.target as Node)) {
+        setTerminalMenuOpen(false)
+      }
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setExportMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   useEffect(() => {
     activeSessionKeyRef.current = sessionDetail?.sessionKey ?? null
@@ -153,22 +177,21 @@ export function SessionDetail() {
     )
   }
 
-  const handleSaveAlias = async () => {
-    setSavingAlias(true)
+  const handleSaveAlias = async (newVal?: string) => {
+    const valueToSave = typeof newVal === 'string' ? newVal : aliasTitle
     dispatch({ type: 'setSessionStatus', payload: null })
 
     try {
-      await api.setAlias(currentPlatform, sessionDetail.sessionKey, aliasTitle)
-      const newTitle = aliasTitle || sessionDetail.sessionId
-      dispatch({ type: 'setSessionDetail', payload: { ...sessionDetail, aliasTitle, title: newTitle } })
-      dispatch({ type: 'updateSession', payload: { sessionKey: sessionDetail.sessionKey, updates: { displayTitle: newTitle, aliasTitle } } })
+      await api.setAlias(currentPlatform, sessionDetail.sessionKey, valueToSave)
+      const newTitle = valueToSave || sessionDetail.sessionId
+      dispatch({ type: 'setSessionDetail', payload: { ...sessionDetail, aliasTitle: valueToSave, title: newTitle } })
+      dispatch({ type: 'updateSession', payload: { sessionKey: sessionDetail.sessionKey, updates: { displayTitle: newTitle, aliasTitle: valueToSave } } })
       dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.aliasSaved') } })
+      setAliasTitle(valueToSave)
     } catch (err) {
       console.error('Failed to save alias:', err)
       dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.aliasSaveFailed') } })
     }
-
-    setSavingAlias(false)
   }
 
   const handleEditBlock = (block: typeof sessionDetail.blocks[0]) => {
@@ -417,9 +440,69 @@ export function SessionDetail() {
       <header className="border-b bg-card/50 px-5 py-4 backdrop-blur-xl md:px-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex items-center gap-3">
-            <h2 className="truncate text-xl font-bold text-foreground">
-              {sessionDetail.title || sessionDetail.sessionId}
-            </h2>
+            {isEditingAlias ? (
+              <div className="flex items-center gap-1.5 min-w-[200px]">
+                <Input
+                  value={tempAlias}
+                  onChange={(e) => setTempAlias(e.target.value)}
+                  className="h-8 px-2 text-sm font-bold bg-background/80 border-primary/40 focus-visible:ring-1 focus-visible:ring-primary rounded-lg max-w-[240px] md:max-w-[360px]"
+                  placeholder={t('session.setAlias') || "设置别名"}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSaveAlias(tempAlias)
+                      setIsEditingAlias(false)
+                    } else if (e.key === 'Escape') {
+                      setIsEditingAlias(false)
+                    }
+                  }}
+                  onBlur={() => {
+                    handleSaveAlias(tempAlias)
+                    setIsEditingAlias(false)
+                  }}
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-green-500 hover:bg-green-500/10 hover:text-green-400 shrink-0"
+                  onClick={() => {
+                    handleSaveAlias(tempAlias)
+                    setIsEditingAlias(false)
+                  }}
+                >
+                  <Check className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-muted-foreground hover:bg-muted/10 shrink-0"
+                  onClick={() => setIsEditingAlias(false)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col min-w-0">
+                <div
+                  onClick={() => {
+                    setTempAlias(sessionDetail.aliasTitle || '')
+                    setIsEditingAlias(true)
+                  }}
+                  className="group flex items-center gap-2 cursor-pointer rounded-lg hover:bg-muted/30 px-2 py-0.5 -ml-2 transition-all min-w-0"
+                  title="双击或点击编辑别名"
+                >
+                  <span className="text-lg font-bold text-foreground truncate max-w-[240px] md:max-w-[360px]">
+                    {sessionDetail.aliasTitle || sessionDetail.title || sessionDetail.sessionId}
+                  </span>
+                  <Pencil className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 transition-opacity text-muted-foreground shrink-0" />
+                </div>
+                {sessionDetail.aliasTitle && (
+                  <span className="text-[10px] text-muted-foreground/60 font-mono select-all block mt-0.5 truncate max-w-[240px] md:max-w-[360px] pl-0.5">
+                    ID: {sessionDetail.sessionId}
+                  </span>
+                )}
+              </div>
+            )}
             <button
               type="button"
               onClick={async () => {
@@ -436,9 +519,6 @@ export function SessionDetail() {
             >
               <Star className={cn("w-5 h-5", sessions.find(s => s.sessionKey === sessionDetail.sessionKey)?.favorite && "fill-current")} />
             </button>
-            {sessionDetail.aliasTitle && (
-              <Badge variant="outline" className="text-xs">{sessionDetail.aliasTitle}</Badge>
-            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="ghost" size="sm" className={cn("gap-2", refreshDone ? "bg-green-500/10 text-green-400" : "hover:bg-blue-500/10")} onClick={handleRefresh} disabled={refreshing}>
@@ -459,55 +539,125 @@ export function SessionDetail() {
                 </span>
               </Button>
             )}
-            {['resume', 'fork'].filter(label => sessionDetail.commands?.[label]).map(label => {
-              const command = sessionDetail.commands[label]
+
+            {/* Geek Terminal Dropdown Button */}
+            {(() => {
+              const availableCommands = ['resume', 'fork'].filter(label => sessionDetail.commands?.[label])
+              if (availableCommands.length === 0) return null
               return (
-                <div key={label} className="flex items-center gap-1">
-                  <Button variant={copiedKey === label ? "secondary" : "ghost"} size="sm"
-                    className={cn("gap-1.5 font-mono text-xs", copiedKey === label ? "border border-green-500/30 bg-green-500/20 text-green-400" : "text-muted-foreground hover:bg-blue-500/10 hover:text-foreground")}
-                    onClick={() => handleCopyCommand(label, command)}>
-                    <Terminal className="w-3.5 h-3.5" />
-                    {copiedKey === label ? <><Check className="w-3.5 h-3.5" /> {t('session.copied')}</> : label}
-                  </Button>
+                <div className="relative" ref={terminalMenuRef}>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400"
-                    disabled={openingKey === label}
-                    onClick={() => handleOpenCommand(label, command)}
-                    aria-label={t('session.openTerminal')}
-                    title={t('session.openTerminal')}
-                  >
-                    {openingKey === label ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Play className="w-3.5 h-3.5" />
+                    size="sm"
+                    className={cn(
+                      "gap-2 hover:bg-emerald-500/10 rounded-xl border border-border/30 px-3.5 shadow-sm",
+                      terminalMenuOpen && "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
                     )}
+                    onClick={() => setTerminalMenuOpen(!terminalMenuOpen)}
+                  >
+                    <Terminal className="w-4 h-4 text-emerald-400" />
+                    <span className="hidden sm:inline">终端指令 (Terminal)</span>
+                    <ChevronDown className="w-3 h-3 opacity-60" />
                   </Button>
+                  {terminalMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1.5 z-50 w-56 rounded-2xl border border-border/60 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                      {availableCommands.map((label, idx, arr) => {
+                        const command = sessionDetail.commands[label]
+                        return (
+                          <div key={label} className="p-1 space-y-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTerminalMenuOpen(false)
+                                handleOpenCommand(label, command)
+                              }}
+                              disabled={openingKey === label}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors disabled:opacity-50"
+                            >
+                              {openingKey === label ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Play className="w-3.5 h-3.5 shrink-0" />
+                              )}
+                              <span className="font-semibold text-foreground">
+                                {label === 'resume' ? '恢复会话 (Resume)' : '分支会话 (Fork)'}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTerminalMenuOpen(false)
+                                handleCopyCommand(label, command)
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+                            >
+                              <Copy className="w-3 h-3 shrink-0" />
+                              <span>
+                                {copiedKey === label ? '已复制命令' : `复制 ${label} 命令`}
+                              </span>
+                            </button>
+                            {idx < arr.length - 1 && <div className="border-t border-border/20 my-1" />}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
-            })}
-            <Button variant="ghost" size="sm"
-              className={cn("gap-2", exportDone ? "bg-green-500/10 text-green-400" : "hover:bg-blue-500/10")}
-              onClick={handleExportMarkdown}>
-              {exportDone ? <CheckCircle className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-              <span className="hidden sm:inline">{exportDone ? t('session.exported') : t('session.export')}</span>
-            </Button>
-            <label
-              className={cn(
-                "flex h-9 items-center gap-2 rounded-md border border-border/50 bg-background/40 px-3 text-xs text-muted-foreground",
-                hasExportableToolCalls ? "cursor-pointer hover:bg-muted/40 hover:text-foreground" : "cursor-not-allowed opacity-50"
+            })()}
+
+            {/* Geek Export Popover Button */}
+            <div className="relative" ref={exportMenuRef}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "gap-2 hover:bg-blue-500/10 rounded-xl border border-border/30 px-3.5 shadow-sm",
+                  exportMenuOpen && "bg-blue-500/10 text-blue-400 border-blue-500/30",
+                  exportDone && "bg-green-500/10 text-green-400 border-green-500/30"
+                )}
+                onClick={() => setExportMenuOpen(!exportMenuOpen)}
+              >
+                {exportDone ? <CheckCircle className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+                <span>{exportDone ? t('session.exported') : t('session.export')}</span>
+                <ChevronDown className="w-3 h-3 opacity-60" />
+              </Button>
+              {exportMenuOpen && (
+                <div className="absolute right-0 top-full mt-1.5 z-50 w-64 rounded-2xl border border-border/60 bg-card/95 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200 select-none">
+                  <h4 className="text-xs font-bold text-foreground mb-3">配置导出选项</h4>
+                  <label
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-xl border border-border/40 bg-muted/20 px-3 py-2 text-xs text-muted-foreground mb-3 transition-colors",
+                      hasExportableToolCalls ? "cursor-pointer hover:bg-muted/40 hover:text-foreground" : "cursor-not-allowed opacity-50"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="size-3.5 accent-primary shrink-0"
+                      checked={includeToolCallsInExport}
+                      disabled={!hasExportableToolCalls}
+                      onChange={(event) => setIncludeToolCallsInExport(event.target.checked)}
+                    />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-foreground text-[11px] leading-tight">包含工具调用历史</p>
+                      <p className="text-[10px] text-quiet mt-0.5 leading-none">导出各个工具在后台的执行输出</p>
+                    </div>
+                  </label>
+                  <Button
+                    size="sm"
+                    className="w-full gap-2 rounded-xl bg-primary text-primary-foreground font-semibold shadow-sm hover:shadow"
+                    onClick={() => {
+                      setExportMenuOpen(false)
+                      handleExportMarkdown()
+                    }}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>确认下载 Markdown (.md)</span>
+                  </Button>
+                </div>
               )}
-            >
-              <input
-                type="checkbox"
-                className="size-3.5 accent-primary"
-                checked={includeToolCallsInExport}
-                disabled={!hasExportableToolCalls}
-                onChange={(event) => setIncludeToolCallsInExport(event.target.checked)}
-              />
-              <span className="hidden lg:inline">{t('session.includeToolCalls')}</span>
-            </label>
+            </div>
+
             <Button variant="ghost" size="sm"
               className="gap-2 hover:bg-amber-500/10 hover:text-amber-400"
               onClick={async () => {
@@ -555,17 +705,6 @@ export function SessionDetail() {
           )}
         </div>
       </header>
-
-      <div className="flex flex-wrap items-center gap-3 border-b bg-card/30 px-5 py-3 md:px-6">
-        <span className="text-xs text-muted-foreground font-medium">{t('session.alias')}:</span>
-        <Input value={aliasTitle} onChange={(e) => setAliasTitle(e.target.value)}
-          className="max-w-md flex-1 bg-background/50" placeholder={t('session.setAlias')}
-          onKeyDown={(e) => e.key === 'Enter' && handleSaveAlias()} />
-        <Button size="sm" onClick={handleSaveAlias} disabled={savingAlias} className="gap-1">
-          {savingAlias ? <Clock className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-          {t('session.save')}
-        </Button>
-      </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b bg-card/30 px-5 py-3 md:px-6">
         {(['all', 'user', 'assistant', 'thinking'] as const).map((filter) => {
