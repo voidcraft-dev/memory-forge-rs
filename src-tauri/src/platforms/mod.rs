@@ -167,6 +167,7 @@ pub fn get_adapter(platform: &str, settings: &AppSettings) -> Result<Box<dyn Pla
         "codex" => {
             let path = settings.codex_home.as_ref()
                 .map(PathBuf::from)
+                .or_else(|| std::env::var_os("CODEX_HOME").map(PathBuf::from))
                 .unwrap_or_else(|| home.join(".codex"));
             let project_root = settings.codex_project_root.as_ref().map(PathBuf::from);
             Ok(Box::new(codex::CodexPlatform::new(path, project_root)))

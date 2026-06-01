@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles } from "lucide-react";
+import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useDesktop } from "@/features/desktop/provider";
@@ -26,6 +26,16 @@ const platformMeta = [
     border: "border-emerald-500/20 hover:border-emerald-500/40",
     iconBg: "bg-emerald-500/15 text-emerald-400 group-hover:scale-110",
     hoverGlow: "hover:shadow-[0_8px_30px_rgba(16,185,129,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "cursor",
+    label: "Cursor",
+    icon: MousePointer2,
+    to: "/cursor",
+    gradient: "from-sky-500/10 to-sky-600/5",
+    border: "border-sky-500/20 hover:border-sky-500/40",
+    iconBg: "bg-sky-500/15 text-sky-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(14,165,233,0.12)] hover:-translate-y-1"
   },
   {
     key: "opencode",
@@ -57,6 +67,16 @@ const platformMeta = [
     iconBg: "bg-fuchsia-500/15 text-fuchsia-400 group-hover:scale-110",
     hoverGlow: "hover:shadow-[0_8px_30px_rgba(217,70,239,0.12)] hover:-translate-y-1"
   },
+  {
+    key: "gemini",
+    label: "Gemini CLI",
+    icon: Gem,
+    to: "/gemini",
+    gradient: "from-blue-500/10 to-indigo-600/5",
+    border: "border-blue-500/20 hover:border-indigo-500/40",
+    iconBg: "bg-blue-500/15 text-blue-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] hover:-translate-y-1"
+  },
 ] as const;
 
 export default function DashboardPage() {
@@ -69,6 +89,8 @@ export default function DashboardPage() {
   }, [dispatch]);
 
   const platforms = state.dashboard?.platforms ?? [];
+  const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode"];
+  const displayPlatforms = platformMeta.filter((pm) => visiblePlatforms.includes(pm.key));
 
   return (
     <div className="flex h-full flex-col overflow-y-auto pr-2 pb-6">
@@ -104,8 +126,15 @@ export default function DashboardPage() {
       </section>
 
       {/* Platform Session Cards */}
-      <section className="mt-5 grid gap-4 grid-cols-2 xl:grid-cols-5">
-        {platformMeta.map((pm) => {
+      <section className={cn(
+        "mt-5 grid gap-4 grid-cols-2",
+        displayPlatforms.length === 1 && "xl:grid-cols-1 max-w-sm",
+        displayPlatforms.length === 2 && "xl:grid-cols-2 max-w-2xl",
+        displayPlatforms.length === 3 && "xl:grid-cols-3 max-w-4xl",
+        displayPlatforms.length === 4 && "xl:grid-cols-4",
+        displayPlatforms.length >= 5 && "xl:grid-cols-5"
+      )}>
+        {displayPlatforms.map((pm) => {
           const Icon = pm.icon;
           const summary = platforms.find((p) => p.platform === pm.key);
           const count = summary?.count ?? 0;

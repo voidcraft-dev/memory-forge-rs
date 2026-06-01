@@ -52,6 +52,21 @@ export default function ShellLayout() {
     <div className="bg-shell h-screen overflow-hidden text-foreground">
       <div className="subtle-grid pointer-events-none fixed inset-0" />
 
+      {/* Global Toast Notification for Notices */}
+      {notice && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 dark:bg-emerald-950/20 px-5 py-3 text-sm font-semibold text-emerald-600 dark:text-emerald-300 shadow-xl backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-300 select-none">
+          <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>{notice}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 rounded-2xl border border-destructive/20 bg-destructive/10 dark:bg-destructive-950/20 px-5 py-3 text-sm font-semibold text-destructive dark:text-red-300 shadow-xl backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-300 select-none">
+          <span className="size-2 rounded-full bg-destructive animate-pulse" />
+          <span>{t("saveError")}: {error}</span>
+        </div>
+      )}
+
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-card/90 backdrop-blur-xl border-b border-border/50 flex items-center px-4 gap-3">
         <button
@@ -145,22 +160,6 @@ export default function ShellLayout() {
                 );
               })}
             </nav>
-
-            {/* Notices */}
-            {!sidebarCollapsed && (
-              <div className="mt-6 space-y-3">
-                {notice && (
-                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
-                    {notice}
-                  </div>
-                )}
-                {error && (
-                  <div className="rounded-2xl border border-destructive/30 bg-destructive/12 px-4 py-3 text-sm text-red-100">
-                    {t("saveError")}: {error}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Collapse Toggle (desktop only) */}
             <button

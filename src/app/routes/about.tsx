@@ -59,12 +59,12 @@ export default function AboutPage() {
   };
 
   const features = [
-    { icon: <Brain className="size-5" />, title: t("editMemory"), desc: t("memoryManipulationDesc") },
-    { icon: <Shield className="size-5" />, title: t("localFirst"), desc: "100% 本地运行，零云端依赖。你的数据不会离开你的电脑。" },
-    { icon: <Globe className="size-5" />, title: t("multiPlatform"), desc: "Claude Code / Codex CLI / OpenCode 统一管理。" },
-    { icon: <Eye className="size-5" />, title: t("auditLog"), desc: "只读审计日志，支持 diff 对比，每一步修改可追溯。" },
-    { icon: <Monitor className="size-5" />, title: t("sessionAlias"), desc: "给会话起一个容易记的名字，快速定位。" },
-    { icon: <Flame className="size-5" />, title: t("darkLightTheme"), desc: "石墨夜色、亚麻纸感、素白云雾、海湾青蓝、余烬铜红、暮光星紫 — 六套主题。" },
+    { icon: <Brain className="size-5" />, title: t("editMemory"), desc: t("memoryManipulationDesc"), color: "from-violet-500/20 to-violet-600/10 text-violet-400 bg-violet-500/10" },
+    { icon: <Shield className="size-5" />, title: t("localFirst"), desc: "100% 本地运行，零云端依赖。你的数据不会离开你的电脑。", color: "from-emerald-500/20 to-emerald-600/10 text-emerald-400 bg-emerald-500/10" },
+    { icon: <Globe className="size-5" />, title: t("multiPlatform"), desc: "Claude Code / Codex CLI / OpenCode 统一管理。", color: "from-sky-500/20 to-sky-600/10 text-sky-400 bg-sky-500/10" },
+    { icon: <Eye className="size-5" />, title: t("auditLog"), desc: "只读审计日志，支持 diff 对比，每一步修改可追溯。", color: "from-amber-500/20 to-amber-600/10 text-amber-400 bg-amber-500/10" },
+    { icon: <Monitor className="size-5" />, title: t("sessionAlias"), desc: "给会话起一个容易记的名字，快速定位。", color: "from-blue-500/20 to-blue-600/10 text-blue-400 bg-blue-500/10" },
+    { icon: <Flame className="size-5" />, title: t("darkLightTheme"), desc: "石墨夜色、亚麻纸感、素白云雾、海湾青蓝、余烬铜红、暮光星紫 — 六套主题。", color: "from-rose-500/20 to-rose-600/10 text-rose-400 bg-rose-500/10" },
   ];
 
   return (
@@ -82,7 +82,7 @@ export default function AboutPage() {
           </div>
           <div className="min-w-0">
             <p className="text-fine uppercase tracking-[0.28em] text-primary font-bold">Memory Forge</p>
-            <h2 className="mt-1 text-2xl font-extrabold md:text-3xl bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">VoidCraft</h2>
+            <h2 className="mt-1 text-2xl font-extrabold md:text-3xl bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">记忆制造</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 onClick={() => openUrl("https://github.com/voidcraft-dev")}
@@ -175,7 +175,7 @@ export default function AboutPage() {
         {features.map((f) => (
           <article key={f.title} className="setting-card rounded-[24px] p-5 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
             <div className="space-y-3">
-              <div className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-sm transition-transform duration-300 hover:rotate-6">
+              <div className={cn("inline-flex size-11 items-center justify-center rounded-2xl shadow-sm transition-transform duration-300 hover:rotate-6", f.color)}>
                 {f.icon}
               </div>
               <div>
@@ -190,14 +190,26 @@ export default function AboutPage() {
       {/* Tech Stack */}
       <section className="mt-5 setting-card rounded-[24px] p-5 bg-gradient-to-r from-card/50 via-card/25 to-transparent border border-border/40">
         <p className="text-fine uppercase tracking-[0.24em] text-primary font-bold">Tech Stack</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {["Tauri v2", "Rust", "React 19", "TypeScript", "Tailwind CSS 4", "SQLite", "Vite"].map(
-            (tech) => (
-              <span key={tech} className="rounded-xl border border-border/70 bg-white/4 hover:bg-white/8 hover:text-foreground px-3.5 py-2 text-xs font-semibold text-foreground/86 transition duration-200 hover:-translate-y-0.5 shadow-xs">
-                {tech}
-              </span>
-            )
-          )}
+        <div className="mt-4 flex flex-wrap gap-2.5">
+          {[
+            { name: "Tauri v2", color: "text-sky-400 border-sky-400/20 bg-sky-500/5 hover:bg-sky-500/10" },
+            { name: "Rust", color: "text-amber-500 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10" },
+            { name: "React 19", color: "text-blue-400 border-blue-400/20 bg-blue-500/5 hover:bg-blue-500/10" },
+            { name: "TypeScript", color: "text-blue-500 border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10" },
+            { name: "Tailwind CSS 4", color: "text-cyan-400 border-cyan-400/20 bg-cyan-500/5 hover:bg-cyan-500/10" },
+            { name: "SQLite", color: "text-indigo-400 border-indigo-400/20 bg-indigo-500/5 hover:bg-indigo-500/10" },
+            { name: "Vite", color: "text-purple-400 border-purple-400/20 bg-purple-500/5 hover:bg-purple-500/10" },
+          ].map((tech) => (
+            <span
+              key={tech.name}
+              className={cn(
+                "rounded-xl border px-3.5 py-2 text-xs font-mono font-semibold transition duration-300 hover:-translate-y-0.5 shadow-sm backdrop-blur-md select-none",
+                tech.color
+              )}
+            >
+              {tech.name}
+            </span>
+          ))}
         </div>
       </section>
 

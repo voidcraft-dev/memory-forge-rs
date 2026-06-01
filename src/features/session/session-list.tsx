@@ -50,6 +50,8 @@ const platformColors = {
   opencode: 'bg-gradient-to-br from-green-500 to-emerald-600',
   kiro: 'bg-gradient-to-br from-purple-500 to-violet-600',
   'kiro-ide': 'bg-gradient-to-br from-fuchsia-500 to-purple-600',
+  cursor: 'bg-gradient-to-br from-sky-400 to-blue-600',
+  gemini: 'bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600',
 }
 
 
@@ -512,7 +514,8 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
                 platform === 'opencode' && "bg-gradient-to-b from-green-400 to-emerald-500",
                 platform === 'kiro' && "bg-gradient-to-b from-purple-400 to-violet-500",
                 platform === 'kiro-ide' && "bg-gradient-to-b from-fuchsia-400 to-purple-500",
-                platform === 'gemini' && "bg-gradient-to-b from-blue-400 to-indigo-500"
+                platform === 'gemini' && "bg-gradient-to-b from-blue-400 to-indigo-500",
+                platform === 'cursor' && "bg-gradient-to-b from-sky-400 to-blue-500"
               )
         )}
       />

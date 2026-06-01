@@ -44,19 +44,26 @@ fn default_visible_platforms() -> Vec<String> {
     vec![
         "claude".to_string(),
         "codex".to_string(),
-        "cursor".to_string(),
         "opencode".to_string(),
     ]
 }
 
 fn migrate_settings(mut settings: AppSettings) -> AppSettings {
-    let old_default = vec![
+    let legacy_default_without_cursor = vec![
         "claude".to_string(),
         "codex".to_string(),
         "opencode".to_string(),
     ];
+    let legacy_default_with_cursor = vec![
+        "claude".to_string(),
+        "codex".to_string(),
+        "cursor".to_string(),
+        "opencode".to_string(),
+    ];
 
-    if settings.visible_platforms == old_default {
+    if settings.visible_platforms == legacy_default_without_cursor
+        || settings.visible_platforms == legacy_default_with_cursor
+    {
         settings.visible_platforms = default_visible_platforms();
     }
 

@@ -95,7 +95,6 @@ export default function SettingsPage() {
   const visiblePlatforms = snapshot.settings.visiblePlatforms ?? [
     "claude",
     "codex",
-    "cursor",
     "opencode",
   ];
 
@@ -414,7 +413,7 @@ function ThemeCard({
   return (
     <button
       className={cn(
-        "flex min-h-[128px] cursor-pointer flex-col justify-between rounded-[22px] border px-4 py-4 text-left transition-all duration-300 hover:scale-[1.01]",
+        "flex min-h-[128px] cursor-pointer flex-col justify-between rounded-[22px] border px-4 py-4 text-left transition-all duration-300 hover:scale-[1.01] relative overflow-hidden",
         active
           ? "border-primary bg-gradient-to-br from-primary/14 via-primary/4 to-transparent shadow-md shadow-primary/4"
           : "border-border/60 bg-white/4 hover:border-border/80 hover:bg-white/7"
@@ -422,6 +421,11 @@ function ThemeCard({
       onClick={() => void onSelect(themeId)}
       type="button"
     >
+      {active && (
+        <div className="absolute top-0 right-0 w-10 h-10 bg-primary/15 rounded-bl-2xl pointer-events-none flex items-center justify-center">
+          <Check className="size-3.5 text-primary stroke-[3]" />
+        </div>
+      )}
       <div className="flex w-full items-start justify-between gap-3">
         <div className="space-y-3.5">
           <div className="inline-flex items-center gap-1.5 rounded-full border border-border/30 bg-white/5 px-2 py-1 shadow-inner">
@@ -440,9 +444,6 @@ function ThemeCard({
             </p>
           </div>
         </div>
-        {active && (
-          <Check className="fade-in zoom-in mt-1 size-4 shrink-0 animate-in text-primary duration-200" />
-        )}
       </div>
     </button>
   );
