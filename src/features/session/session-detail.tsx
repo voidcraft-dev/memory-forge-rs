@@ -918,6 +918,11 @@ function parseContentWithCodeBlocks(text: string, searchHighlight?: string) {
   return parts.length > 0 ? parts : text;
 }
 
+function cleanAnsiCodes(text: string): string {
+  if (!text) return ''
+  return text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').replace(/\[[0-9;]+m/g, '')
+}
+
 function ToolCallsConsole({ toolCalls }: {
   toolCalls: Array<any>;
 }) {
@@ -957,23 +962,23 @@ function ToolCallsConsole({ toolCalls }: {
               </div>
 
               {isExpanded && (
-                <div className="border-t border-border/20 bg-[#06080c] p-3 space-y-3 font-mono animate-in fade-in duration-200">
+                <div className="border-t border-border/20 bg-[#07090e] p-3.5 space-y-3.5 font-mono animate-in fade-in duration-200">
                   {tc.input && (
                     <div className="space-y-1">
-                      <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold select-none">Arguments</div>
-                      <pre className="p-3 rounded-lg bg-background/50 border border-border/30 overflow-x-auto text-[11px] leading-relaxed text-[#8cb8c5]">{tc.input}</pre>
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold select-none">Arguments</div>
+                      <pre className="p-3 rounded-xl bg-[#0d1017] border border-zinc-800/80 overflow-x-auto text-[11px] leading-relaxed text-cyan-400 select-all font-mono">{tc.input}</pre>
                     </div>
                   )}
                   {tc.output && (
                     <div className="space-y-1">
-                      <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold select-none">Stdout/Output</div>
-                      <pre className="p-3 rounded-lg bg-background/40 border border-border/30 overflow-x-auto text-[11px] leading-relaxed text-foreground/85 whitespace-pre-wrap break-all max-h-[260px] overflow-y-auto">{tc.output}</pre>
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold select-none">Stdout/Output</div>
+                      <pre className="p-3 rounded-xl bg-[#0d1017] border border-zinc-800/80 overflow-x-auto text-[11px] leading-relaxed text-zinc-200 select-all font-mono whitespace-pre-wrap break-all max-h-[280px] overflow-y-auto">{cleanAnsiCodes(tc.output)}</pre>
                     </div>
                   )}
                   {tc.error && (
                     <div className="space-y-1">
-                      <div className="text-[10px] text-rose-400/80 uppercase tracking-wider font-semibold select-none">Stderr/Error</div>
-                      <pre className="p-3 rounded-lg bg-rose-950/20 border border-rose-500/20 overflow-x-auto text-[11px] leading-relaxed text-rose-400 whitespace-pre-wrap break-all">{tc.error}</pre>
+                      <div className="text-[10px] text-rose-500/80 uppercase tracking-wider font-bold select-none">Stderr/Error</div>
+                      <pre className="p-3 rounded-xl bg-rose-950/20 border border-rose-500/30 overflow-x-auto text-[11px] leading-relaxed text-rose-300 font-mono whitespace-pre-wrap break-all">{tc.error}</pre>
                     </div>
                   )}
                 </div>
