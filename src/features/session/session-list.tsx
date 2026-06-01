@@ -279,6 +279,23 @@ export function SessionList() {
           </h2>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <Button
+              variant={selectionMode ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => selectionMode ? exitSelectionMode() : setSelectionMode(true)}
+              className={cn(
+                "h-8 w-8 transition-all",
+                selectionMode
+                  ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              title={selectionMode ? t('session.exitSelect') : t('session.selectMode')}
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={refreshing} className={cn("h-8 w-8 transition-all duration-300", refreshDone && "text-green-400")}>
+              {refreshDone ? <CheckCircle className="w-4 h-4" /> : <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />}
+            </Button>
+            <Button
               variant={favoritesOnly ? "secondary" : "ghost"}
               size="icon"
               onClick={() => { setFavoritesOnly(!favoritesOnly) }}
@@ -305,23 +322,6 @@ export function SessionList() {
               title={showArchived ? t('session.sessionsView') : t('session.archiveView')}
             >
               <Archive className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              variant={selectionMode ? "secondary" : "ghost"}
-              size="icon"
-              onClick={() => selectionMode ? exitSelectionMode() : setSelectionMode(true)}
-              className={cn(
-                "h-8 w-8 transition-all",
-                selectionMode
-                  ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              title={selectionMode ? t('session.exitSelect') : t('session.selectMode')}
-            >
-              <CheckSquare className="w-3.5 h-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={refreshing} className={cn("h-8 w-8 transition-all duration-300", refreshDone && "text-green-400")}>
-              {refreshDone ? <CheckCircle className="w-4 h-4" /> : <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />}
             </Button>
           </div>
         </div>
