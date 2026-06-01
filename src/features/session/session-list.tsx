@@ -267,7 +267,7 @@ export function SessionList() {
   }
 
   return (
-    <aside className="flex h-full w-[280px] flex-shrink-0 flex-col border-r border-border/50 bg-gradient-to-b from-card to-card/55 backdrop-blur-xl xl:w-[320px]">
+    <aside className="flex h-full w-[250px] flex-shrink-0 flex-col border-r border-border/50 bg-gradient-to-b from-card to-card/55 backdrop-blur-xl xl:w-[280px]">
       <div className="border-b border-border/50 p-4 md:p-5">
         <div className="mb-4 flex items-center justify-between gap-2">
           <h2 className="font-semibold text-foreground text-lg truncate flex-1 min-w-0 pr-1">

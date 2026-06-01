@@ -91,7 +91,7 @@ export default function ShellLayout() {
 
       <div
         className={cn(
-          "relative grid h-full gap-4 p-4 pt-[4.5rem] lg:pt-4 transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          "relative grid h-full gap-2.5 p-2.5 pt-[4.5rem] lg:pt-2.5 transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
           sidebarCollapsed
             ? "lg:grid-cols-[72px_minmax(0,1fr)]"
             : "lg:grid-cols-[290px_minmax(0,1fr)]"
@@ -100,7 +100,7 @@ export default function ShellLayout() {
         {/* Sidebar */}
         <aside
           className={cn(
-            "panel-surface fixed inset-y-4 left-4 z-50 flex h-[calc(100vh-2rem)] w-[280px] flex-col overflow-hidden rounded-[32px] p-5 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:static lg:h-full lg:translate-x-0",
+            "panel-surface fixed inset-y-2.5 left-2.5 z-50 flex h-[calc(100vh-1.25rem)] w-[280px] flex-col overflow-hidden rounded-[24px] p-5 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:static lg:h-full lg:translate-x-0",
             sidebarCollapsed ? "lg:w-auto lg:p-3" : "lg:w-auto lg:p-6",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           )}
@@ -202,7 +202,7 @@ export default function ShellLayout() {
         </aside>
 
         {/* Main Content */}
-        <main className="panel-surface relative min-h-0 min-w-0 overflow-hidden rounded-[32px] p-5 lg:p-7">
+        <main className="panel-surface relative min-h-0 min-w-0 overflow-hidden rounded-[24px] p-2 md:p-3">
           <Outlet />
         </main>
       </div>

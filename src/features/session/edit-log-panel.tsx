@@ -88,7 +88,7 @@ export function EditLogPanel() {
   if (!showEditLog) return null
 
   return (
-    <aside className="hidden h-full w-[360px] flex-shrink-0 flex-col border-l border-border/50 bg-gradient-to-b from-card to-card/60 backdrop-blur-xl xl:flex">
+    <aside className="hidden h-full w-[280px] flex-shrink-0 flex-col border-l border-border/50 bg-gradient-to-b from-card to-card/60 backdrop-blur-xl xl:w-[320px] xl:flex">
       <div className="border-b border-border/50 p-5">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
