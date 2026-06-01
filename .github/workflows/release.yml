@@ -67,11 +67,11 @@ jobs:
 
             ### 更新 / Changes
 
-            - Cursor: 新增会话适配器，读取 Cursor 本地 composer 历史。
-            - Cursor: 顶层列表隐藏归档、草稿、空壳和 subagent 子会话。
-            - Claude Code: 顶层列表跳过 `subagents` sidechain 会话文件。
-            - OpenCode: 顶层列表隐藏 `parent_id` 子会话。
-            - 测试: 增加 Cursor 子会话与空壳会话过滤回归用例。
+            - Pi: 新增 Inflection Pi 会话适配器，默认启用首页会话统计。
+            - 性能: 增加本地 session summary 与全文索引缓存，减少启动和搜索时重复扫描大文件。
+            - 工作区: 会话详情支持用 Cursor、VS Code、Zed、Explorer/Finder/File Manager 打开项目目录。
+            - 终端: 新增从会话目录打开终端，Windows 下避免残留黑色命令行窗口。
+            - UI: 优化侧边栏、会话详情、工具调用输出、收藏/归档操作和折叠状态布局。
 
             ### 下载 / Download
 
