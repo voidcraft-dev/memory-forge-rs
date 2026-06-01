@@ -788,7 +788,7 @@ export function SessionDetail() {
       </ScrollArea>
 
       {/* Floating TOC */}
-      <div className="absolute bottom-5 right-5 z-20">
+      <div className="absolute bottom-5 right-5 z-20 flex flex-col items-end">
         {tocOpen && (
           <div className="mb-2 max-h-80 w-72 overflow-y-auto rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl">
             <div className="sticky top-0 border-b border-border/50 bg-card/95 px-4 py-2.5">
