@@ -6,11 +6,12 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-use crate::database::{CachedSessionSummary, SessionSummaryCache};
+use crate::database::{CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 
 use super::{
-    build_commands, tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
-    SessionListResult, TimelineBlock, ToolCallBlock,
+    build_commands, content_entries_to_matches, tool_text_from_str, tool_text_from_value,
+    ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult,
+    TimelineBlock, ToolCallBlock,
 };
 
 pub struct ClaudePlatform {
@@ -343,6 +344,73 @@ impl ClaudePlatform {
         }
 
         blocks
+    }
+
+    fn searchable_content_entries(&self, session_key: &str) -> Vec<SessionContentEntry> {
+        let lines = self.read_jsonl(Path::new(session_key));
+        let mut entries = Vec::new();
+        let mut msg_index = 0usize;
+
+        for line in &lines {
+            let Some(message) = line.get("message") else {
+                continue;
+            };
+            let role = message.get("role").and_then(Value::as_str).unwrap_or("");
+            if role != "user" && role != "assistant" {
+                continue;
+            }
+
+            let mut texts = Vec::new();
+            if let Some(text) = message.get("content").and_then(Value::as_str) {
+                texts.push(text.to_string());
+            }
+            if let Some(items) = message.get("content").and_then(Value::as_array) {
+                for item in items {
+                    let item_type = item.get("type").and_then(Value::as_str).unwrap_or("");
+                    match item_type {
+                        "text" => {
+                            if let Some(text) = item.get("text").and_then(Value::as_str) {
+                                texts.push(text.to_string());
+                            }
+                        }
+                        "thinking" | "reasoning" => {
+                            let text = item
+                                .get("thinking")
+                                .or_else(|| item.get("text"))
+                                .and_then(Value::as_str)
+                                .unwrap_or("");
+                            texts.push(text.to_string());
+                        }
+                        "tool_use" => {
+                            if let Some(name) = item.get("name").and_then(Value::as_str) {
+                                texts.push(name.to_string());
+                            }
+                            if let Some(input) = item.get("input") {
+                                texts.push(input.to_string());
+                            }
+                        }
+                        "tool_result" => {
+                            if let Some(content) = item.get("content").and_then(Value::as_str) {
+                                texts.push(content.to_string());
+                            }
+                            if let Some(items) = item.get("content").and_then(Value::as_array) {
+                                for sub in items {
+                                    if let Some(text) = sub.get("text").and_then(Value::as_str) {
+                                        texts.push(text.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            entries.push(SessionContentEntry::any_text(msg_index, role, texts));
+            msg_index += 1;
+        }
+
+        entries
     }
 }
 
@@ -712,74 +780,35 @@ impl PlatformAdapter for ClaudePlatform {
             return vec![];
         }
 
-        let lines = self.read_jsonl(Path::new(session_key));
-        let mut matches = Vec::new();
-        let mut msg_index = 0usize;
+        content_entries_to_matches(self.searchable_content_entries(session_key), &needle)
+    }
 
-        for line in &lines {
-            let Some(message) = line.get("message") else { continue };
-            let role = message.get("role").and_then(Value::as_str).unwrap_or("");
-            if role != "user" && role != "assistant" {
-                continue;
-            }
-
-            // Collect all searchable text from this message
-            let mut texts = Vec::new();
-            if let Some(text) = message.get("content").and_then(Value::as_str) {
-                texts.push(text.to_string());
-            }
-            if let Some(items) = message.get("content").and_then(Value::as_array) {
-                for item in items {
-                    let item_type = item.get("type").and_then(Value::as_str).unwrap_or("");
-                    match item_type {
-                        "text" => {
-                            if let Some(t) = item.get("text").and_then(Value::as_str) {
-                                texts.push(t.to_string());
-                            }
-                        }
-                        "thinking" | "reasoning" => {
-                            let t = item.get("thinking").or_else(|| item.get("text")).and_then(Value::as_str).unwrap_or("");
-                            texts.push(t.to_string());
-                        }
-                        "tool_use" => {
-                            if let Some(name) = item.get("name").and_then(Value::as_str) {
-                                texts.push(name.to_string());
-                            }
-                            if let Some(input) = item.get("input") {
-                                texts.push(input.to_string());
-                            }
-                        }
-                        "tool_result" => {
-                            if let Some(content) = item.get("content").and_then(Value::as_str) {
-                                texts.push(content.to_string());
-                            }
-                            if let Some(arr) = item.get("content").and_then(Value::as_array) {
-                                for sub in arr {
-                                    if let Some(t) = sub.get("text").and_then(Value::as_str) {
-                                        texts.push(t.to_string());
-                                    }
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            for text in &texts {
-                if text.to_lowercase().contains(&needle) {
-                    matches.push(ContentMatch {
-                        snippet: super::extract_snippet(text, &needle),
-                        match_index: msg_index,
-                        role: role.to_string(),
-                    });
-                    break; // one match per message
-                }
-            }
-
-            msg_index += 1;
+    fn content_search_with_index(
+        &self,
+        session_key: &str,
+        query: &str,
+        index: Option<&SessionContentIndex<'_>>,
+    ) -> Vec<ContentMatch> {
+        let needle = query.trim().to_lowercase();
+        if needle.is_empty() {
+            return vec![];
         }
 
+        let Some(index) = index else {
+            return self.content_search(session_key, &needle);
+        };
+        let path = Path::new(session_key);
+        let Some(fingerprint) = SessionSummaryCache::fingerprint(path) else {
+            return self.content_search(session_key, &needle);
+        };
+
+        if let Some(entries) = index.get_matches("claude", session_key, &fingerprint, &needle) {
+            return content_entries_to_matches(entries, &needle);
+        }
+
+        let entries = self.searchable_content_entries(session_key);
+        let matches = content_entries_to_matches(entries.clone(), &needle);
+        let _ = index.replace("claude", session_key, &fingerprint, &entries);
         matches
     }
 }

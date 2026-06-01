@@ -7,12 +7,12 @@ use std::time::UNIX_EPOCH;
 use chrono::DateTime;
 use serde_json::{json, Value};
 
-use crate::database::{CachedSessionSummary, SessionSummaryCache};
+use crate::database::{CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 
 use super::{
-    build_commands, extract_snippet, tool_text_from_str, tool_text_from_value, ContentMatch,
-    PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
-    ToolCallBlock,
+    build_commands, content_entries_to_matches, tool_text_from_str, tool_text_from_value,
+    ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult,
+    TimelineBlock, ToolCallBlock,
 };
 
 pub struct PiPlatform {
@@ -277,6 +277,43 @@ impl PiPlatform {
         blocks
     }
 
+    fn searchable_content_entries(&self, session_key: &str) -> Vec<SessionContentEntry> {
+        let Some(path) = self.path_for_key(session_key) else {
+            return Vec::new();
+        };
+        let Ok(entries) = Self::read_jsonl(&path) else {
+            return Vec::new();
+        };
+        let chain = Self::current_chain_indices(&entries);
+        let blocks = Self::blocks_for_entries(&entries, &chain, session_key);
+        let mut entries = Vec::new();
+
+        for (idx, block) in blocks.iter().enumerate() {
+            if !block.content.trim().is_empty() {
+                entries.push(SessionContentEntry::any_text(
+                    idx,
+                    block.role.clone(),
+                    vec![block.content.clone()],
+                ));
+            }
+
+            for tool_call in block.tool_calls.iter() {
+                for text in [&tool_call.input, &tool_call.output, &tool_call.error]
+                    .into_iter()
+                    .flatten()
+                {
+                    entries.push(SessionContentEntry::any_text(
+                        idx,
+                        "assistant",
+                        vec![text.clone()],
+                    ));
+                }
+            }
+        }
+
+        entries
+    }
+
     fn session_title(session_key: &str, scan: &QuickScan, alias: &str) -> String {
         if !alias.is_empty() {
             return alias.to_string();
@@ -509,35 +546,37 @@ impl PlatformAdapter for PiPlatform {
             return vec![];
         }
 
-        let Ok(detail) = self.get_session_detail(session_key, &HashMap::new()) else {
+        content_entries_to_matches(self.searchable_content_entries(session_key), &needle)
+    }
+
+    fn content_search_with_index(
+        &self,
+        session_key: &str,
+        query: &str,
+        index: Option<&SessionContentIndex<'_>>,
+    ) -> Vec<ContentMatch> {
+        let needle = query.to_lowercase();
+        if needle.trim().is_empty() {
             return vec![];
+        }
+
+        let Some(index) = index else {
+            return self.content_search(session_key, &needle);
+        };
+        let Some(path) = self.path_for_key(session_key) else {
+            return self.content_search(session_key, &needle);
+        };
+        let Some(fingerprint) = SessionSummaryCache::fingerprint(&path) else {
+            return self.content_search(session_key, &needle);
         };
 
-        let mut matches = Vec::new();
-        for (idx, block) in detail.blocks.iter().enumerate() {
-            if block.content.to_lowercase().contains(&needle) {
-                matches.push(ContentMatch {
-                    snippet: extract_snippet(&block.content, &needle),
-                    match_index: idx,
-                    role: block.role.clone(),
-                });
-            }
-
-            for tool_call in block.tool_calls.iter() {
-                for text in [&tool_call.input, &tool_call.output, &tool_call.error]
-                    .into_iter()
-                    .flatten()
-                {
-                    if text.to_lowercase().contains(&needle) {
-                        matches.push(ContentMatch {
-                            snippet: extract_snippet(text, &needle),
-                            match_index: idx,
-                            role: "assistant".to_string(),
-                        });
-                    }
-                }
-            }
+        if let Some(entries) = index.get_matches("pi", session_key, &fingerprint, &needle) {
+            return content_entries_to_matches(entries, &needle);
         }
+
+        let entries = self.searchable_content_entries(session_key);
+        let matches = content_entries_to_matches(entries.clone(), &needle);
+        let _ = index.replace("pi", session_key, &fingerprint, &entries);
         matches
     }
 }

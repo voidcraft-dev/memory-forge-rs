@@ -11,7 +11,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::database::SessionSummaryCache;
+use crate::database::{SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 use crate::settings::AppSettings;
 
 #[derive(Debug, Clone, Serialize)]
@@ -105,6 +105,14 @@ pub trait PlatformAdapter: Send + Sync {
     fn update_message(&self, edit_target: &str, new_content: &str) -> Result<String, String>;
     fn matches_query(&self, session_key: &str, query: &str) -> bool;
     fn content_search(&self, session_key: &str, query: &str) -> Vec<ContentMatch>;
+    fn content_search_with_index(
+        &self,
+        session_key: &str,
+        query: &str,
+        _index: Option<&SessionContentIndex<'_>>,
+    ) -> Vec<ContentMatch> {
+        self.content_search(session_key, query)
+    }
     fn resolve_execution_output(&self, _session_key: &str, _edit_target: &str) -> Result<String, String> {
         Err("Execution output loading is not supported for this platform".to_string())
     }
@@ -137,6 +145,31 @@ pub fn extract_snippet(text: &str, needle: &str) -> String {
         snippet.push_str("...");
     }
     snippet
+}
+
+pub fn content_entries_to_matches(entries: Vec<SessionContentEntry>, needle: &str) -> Vec<ContentMatch> {
+    entries
+        .into_iter()
+        .filter_map(|entry| {
+            if !entry.search_text_lower.contains(needle) {
+                return None;
+            }
+            let best_text = entry
+                .texts
+                .iter()
+                .find(|text| text.to_lowercase().contains(needle))
+                .cloned()
+                .unwrap_or_else(|| entry.texts.join(" "));
+            if best_text.is_empty() {
+                return None;
+            }
+            Some(ContentMatch {
+                snippet: extract_snippet(&best_text, needle),
+                match_index: entry.match_index,
+                role: entry.role,
+            })
+        })
+        .collect()
 }
 
 pub fn tool_text_from_value(value: &serde_json::Value, max_chars: usize) -> Option<String> {

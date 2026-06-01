@@ -6,11 +6,12 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-use crate::database::{CachedSessionSummary, SessionSummaryCache};
+use crate::database::{CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 
 use super::{
-    build_commands, tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
-    SessionListResult, TimelineBlock, ToolCallBlock,
+    build_commands, content_entries_to_matches, tool_text_from_str, tool_text_from_value,
+    ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult,
+    TimelineBlock, ToolCallBlock,
 };
 
 pub struct CodexPlatform {
@@ -293,6 +294,78 @@ impl CodexPlatform {
             return true;
         };
         path_is_within_root(cwd, project_root)
+    }
+
+    fn searchable_content_entries(&self, session_key: &str) -> Vec<SessionContentEntry> {
+        let lines = self.read_jsonl(Path::new(session_key));
+        let mut entries = Vec::new();
+        let mut msg_index = 0usize;
+        let response_message_signatures = collect_response_message_signatures(&lines);
+
+        for line in &lines {
+            let Some(payload) = line.get("payload") else {
+                continue;
+            };
+            let msg_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
+            let role = match msg_type {
+                "message" => match codex_message_role(payload) {
+                    Some(role) => role,
+                    None => continue,
+                },
+                "reasoning" => "thinking",
+                "user_message" => "user",
+                "agent_message" => "assistant",
+                "function_call"
+                | "function_call_output"
+                | "custom_tool_call"
+                | "custom_tool_call_output"
+                | "web_search_call"
+                | "web_search_end"
+                | "patch_apply_end" => "assistant",
+                _ => continue,
+            };
+            let mut texts = Vec::new();
+
+            if msg_type == "message" {
+                for part in codex_message_text_parts(payload) {
+                    if should_include_response_message(role, &part.text) {
+                        texts.push(part.text);
+                    }
+                }
+            } else if msg_type == "reasoning" {
+                if let Some(text) = codex_reasoning_text(payload) {
+                    texts.push(text);
+                }
+            } else if let Some(text) = payload.get("message").and_then(Value::as_str) {
+                let signature = (role.to_string(), text.to_string());
+                if !response_message_signatures.contains(&signature) {
+                    texts.push(text.to_string());
+                }
+            }
+            if let Some(name) = payload.get("name").and_then(Value::as_str) {
+                texts.push(name.to_string());
+            }
+            if let Some(output) = payload.get("output").and_then(Value::as_str) {
+                texts.push(output.to_string());
+            }
+            if let Some(stdout) = payload.get("stdout").and_then(Value::as_str) {
+                texts.push(stdout.to_string());
+            }
+            if let Some(stderr) = payload.get("stderr").and_then(Value::as_str) {
+                texts.push(stderr.to_string());
+            }
+            if let Some(args) = payload.get("arguments") {
+                texts.push(args.to_string());
+            }
+            if let Some(input) = payload.get("input") {
+                texts.push(input.to_string());
+            }
+
+            entries.push(SessionContentEntry::joined_text(msg_index, role, texts));
+            msg_index += 1;
+        }
+
+        entries
     }
 }
 
@@ -676,73 +749,35 @@ impl PlatformAdapter for CodexPlatform {
             return vec![];
         }
 
-        let lines = self.read_jsonl(Path::new(session_key));
-        let mut matches = Vec::new();
-        let mut msg_index = 0usize;
-        let response_message_signatures = collect_response_message_signatures(&lines);
+        content_entries_to_matches(self.searchable_content_entries(session_key), &needle)
+    }
 
-        for line in &lines {
-            let Some(payload) = line.get("payload") else { continue };
-            let msg_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
-            let role = match msg_type {
-                "message" => match codex_message_role(payload) {
-                    Some(role) => role,
-                    None => continue,
-                },
-                "reasoning" => "thinking",
-                "user_message" => "user",
-                "agent_message" => "assistant",
-                "function_call" | "function_call_output" | "custom_tool_call" | "custom_tool_call_output" | "web_search_call" | "web_search_end" | "patch_apply_end" => "assistant",
-                _ => continue,
-            };
-            let mut texts = Vec::new();
-
-            if msg_type == "message" {
-                for part in codex_message_text_parts(payload) {
-                    if should_include_response_message(role, &part.text) {
-                        texts.push(part.text);
-                    }
-                }
-            } else if msg_type == "reasoning" {
-                if let Some(text) = codex_reasoning_text(payload) {
-                    texts.push(text);
-                }
-            } else if let Some(text) = payload.get("message").and_then(Value::as_str) {
-                let signature = (role.to_string(), text.to_string());
-                if !response_message_signatures.contains(&signature) {
-                    texts.push(text.to_string());
-                }
-            }
-            if let Some(name) = payload.get("name").and_then(Value::as_str) {
-                texts.push(name.to_string());
-            }
-            if let Some(output) = payload.get("output").and_then(Value::as_str) {
-                texts.push(output.to_string());
-            }
-            if let Some(stdout) = payload.get("stdout").and_then(Value::as_str) {
-                texts.push(stdout.to_string());
-            }
-            if let Some(stderr) = payload.get("stderr").and_then(Value::as_str) {
-                texts.push(stderr.to_string());
-            }
-            if let Some(args) = payload.get("arguments") {
-                texts.push(args.to_string());
-            }
-            if let Some(input) = payload.get("input") {
-                texts.push(input.to_string());
-            }
-            let combined = texts.join(" ").to_lowercase();
-            if combined.contains(&needle) {
-                let best_text = texts.iter().find(|t| t.to_lowercase().contains(&needle)).cloned().unwrap_or_default();
-                matches.push(ContentMatch {
-                    snippet: super::extract_snippet(&best_text, &needle),
-                    match_index: msg_index,
-                    role: role.into(),
-                });
-            }
-            msg_index += 1;
+    fn content_search_with_index(
+        &self,
+        session_key: &str,
+        query: &str,
+        index: Option<&SessionContentIndex<'_>>,
+    ) -> Vec<ContentMatch> {
+        let needle = query.trim().to_lowercase();
+        if needle.is_empty() {
+            return vec![];
         }
 
+        let Some(index) = index else {
+            return self.content_search(session_key, &needle);
+        };
+        let path = Path::new(session_key);
+        let Some(fingerprint) = SessionSummaryCache::fingerprint(path) else {
+            return self.content_search(session_key, &needle);
+        };
+
+        if let Some(entries) = index.get_matches("codex", session_key, &fingerprint, &needle) {
+            return content_entries_to_matches(entries, &needle);
+        }
+
+        let entries = self.searchable_content_entries(session_key);
+        let matches = content_entries_to_matches(entries.clone(), &needle);
+        let _ = index.replace("codex", session_key, &fingerprint, &entries);
         matches
     }
 }

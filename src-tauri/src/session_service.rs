@@ -132,13 +132,14 @@ pub fn session_list(
     if has_query {
         let t1 = Instant::now();
         let summary_cache = database::SessionSummaryCache::new(&db.conn);
+        let content_index = database::SessionContentIndex::new(&db.conn);
         let result = adapter.list_sessions_with_cache(&aliases, None, 0, Some(&summary_cache));
         eprintln!("[perf] session_list({platform}) list_all {} sessions: {:?}", result.items.len(), t1.elapsed());
 
         let needle = query.unwrap().trim().to_lowercase();
         let t2 = Instant::now();
         let mut search_count = 0usize;
-        let mut filtered: Vec<SessionListItem> = result.items.into_iter().filter_map(|item| {
+        let filtered: Vec<SessionListItem> = result.items.into_iter().filter_map(|item| {
             let title_match = [
                 item.display_title.as_str(),
                 item.preview.as_str(),
@@ -154,7 +155,8 @@ pub fn session_list(
                 Some(item)
             } else {
                 search_count += 1;
-                let content_matches = adapter.content_search(&item.session_key, &needle);
+                let content_matches =
+                    adapter.content_search_with_index(&item.session_key, &needle, Some(&content_index));
                 if !content_matches.is_empty() {
                     let mut item = item;
                     item.total_content_matches = content_matches.len();

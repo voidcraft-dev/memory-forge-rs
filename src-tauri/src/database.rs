@@ -48,7 +48,7 @@ impl DbState {
     }
 }
 
-// ─── Session Summary Cache ───
+// ─── File-Backed Session Caches ───
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionSummaryFingerprint {
@@ -157,6 +157,177 @@ impl<'a> SessionSummaryCache<'a> {
             ],
         )
         .map_err(|e| format!("Upsert session summary cache error: {e}"))?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SessionContentEntry {
+    pub match_index: usize,
+    pub role: String,
+    pub texts: Vec<String>,
+    pub search_text_lower: String,
+}
+
+impl SessionContentEntry {
+    pub fn any_text(match_index: usize, role: impl Into<String>, texts: Vec<String>) -> Self {
+        let search_text_lower = texts
+            .iter()
+            .map(|text| text.to_lowercase())
+            .collect::<Vec<_>>()
+            .join("\u{1f}");
+        Self {
+            match_index,
+            role: role.into(),
+            texts,
+            search_text_lower,
+        }
+    }
+
+    pub fn joined_text(match_index: usize, role: impl Into<String>, texts: Vec<String>) -> Self {
+        let search_text_lower = texts.join(" ").to_lowercase();
+        Self {
+            match_index,
+            role: role.into(),
+            texts,
+            search_text_lower,
+        }
+    }
+}
+
+pub struct SessionContentIndex<'a> {
+    conn: &'a Mutex<Connection>,
+}
+
+impl<'a> SessionContentIndex<'a> {
+    pub fn new(conn: &'a Mutex<Connection>) -> Self {
+        Self { conn }
+    }
+
+    pub fn get_matches(
+        &self,
+        platform: &str,
+        session_key: &str,
+        fingerprint: &SessionSummaryFingerprint,
+        query: &str,
+    ) -> Option<Vec<SessionContentEntry>> {
+        let needle = query.trim().to_lowercase();
+        if needle.is_empty() {
+            return Some(Vec::new());
+        }
+
+        let conn = self.conn.lock().ok()?;
+        let exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*)
+                 FROM session_content_index_meta
+                 WHERE platform = ?1
+                   AND session_key = ?2
+                   AND file_size = ?3
+                   AND modified_at = ?4",
+                params![
+                    platform,
+                    session_key,
+                    fingerprint.file_size,
+                    fingerprint.modified_at
+                ],
+                |row| row.get(0),
+            )
+            .ok()?;
+        if exists == 0 {
+            return None;
+        }
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT match_index, role, texts_json, search_text_lower
+                 FROM session_content_index
+                 WHERE platform = ?1 AND session_key = ?2
+                   AND instr(search_text_lower, ?3) > 0
+                 ORDER BY id",
+            )
+            .ok()?;
+        let rows = stmt
+            .query_map(params![platform, session_key, needle], |row| {
+                let raw_index: i64 = row.get(0)?;
+                let texts_json: String = row.get(2)?;
+                let texts = serde_json::from_str::<Vec<String>>(&texts_json)
+                    .unwrap_or_else(|_| vec![texts_json]);
+                Ok(SessionContentEntry {
+                    match_index: usize::try_from(raw_index).unwrap_or_default(),
+                    role: row.get(1)?,
+                    texts,
+                    search_text_lower: row.get(3)?,
+                })
+            })
+            .ok()?;
+
+        Some(rows.flatten().collect())
+    }
+
+    pub fn replace(
+        &self,
+        platform: &str,
+        session_key: &str,
+        fingerprint: &SessionSummaryFingerprint,
+        entries: &[SessionContentEntry],
+    ) -> Result<(), String> {
+        let mut conn = self.conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+        let tx = conn
+            .transaction()
+            .map_err(|e| format!("Begin content index transaction error: {e}"))?;
+
+        tx.execute(
+            "DELETE FROM session_content_index WHERE platform = ?1 AND session_key = ?2",
+            params![platform, session_key],
+        )
+        .map_err(|e| format!("Clear session content index error: {e}"))?;
+
+        {
+            let mut stmt = tx
+                .prepare(
+                    "INSERT INTO session_content_index
+                        (platform, session_key, match_index, role, texts_json, search_text_lower)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                )
+                .map_err(|e| format!("Prepare session content index insert error: {e}"))?;
+
+            for entry in entries {
+                let match_index = i64::try_from(entry.match_index)
+                    .map_err(|_| "Session content match index is too large".to_string())?;
+                let texts_json = serde_json::to_string(&entry.texts)
+                    .map_err(|e| format!("Serialize session content index error: {e}"))?;
+                stmt.execute(params![
+                    platform,
+                    session_key,
+                    match_index,
+                    &entry.role,
+                    &texts_json,
+                    &entry.search_text_lower
+                ])
+                .map_err(|e| format!("Insert session content index error: {e}"))?;
+            }
+        }
+
+        tx.execute(
+            "INSERT INTO session_content_index_meta
+                (platform, session_key, file_size, modified_at, indexed_at)
+             VALUES (?1, ?2, ?3, ?4, datetime('now'))
+             ON CONFLICT(platform, session_key) DO UPDATE SET
+                file_size = excluded.file_size,
+                modified_at = excluded.modified_at,
+                indexed_at = datetime('now')",
+            params![
+                platform,
+                session_key,
+                fingerprint.file_size,
+                fingerprint.modified_at
+            ],
+        )
+        .map_err(|e| format!("Upsert session content index metadata error: {e}"))?;
+
+        tx.commit()
+            .map_err(|e| format!("Commit content index transaction error: {e}"))?;
         Ok(())
     }
 }
@@ -377,6 +548,32 @@ pub fn init_tables(conn: &Connection) -> SqlResult<()> {
 
         CREATE INDEX IF NOT EXISTS idx_session_summary_cache_lookup
             ON session_summary_cache(platform, session_key, file_size, modified_at);
+
+        CREATE TABLE IF NOT EXISTS session_content_index_meta (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform     TEXT    NOT NULL,
+            session_key  TEXT    NOT NULL,
+            file_size    INTEGER NOT NULL,
+            modified_at  TEXT    NOT NULL,
+            indexed_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(platform, session_key)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_session_content_index_meta_lookup
+            ON session_content_index_meta(platform, session_key, file_size, modified_at);
+
+        CREATE TABLE IF NOT EXISTS session_content_index (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform     TEXT    NOT NULL,
+            session_key  TEXT    NOT NULL,
+            match_index  INTEGER NOT NULL,
+            role         TEXT    NOT NULL DEFAULT '',
+            texts_json   TEXT    NOT NULL DEFAULT '[]',
+            search_text_lower TEXT NOT NULL DEFAULT ''
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_session_content_index_lookup
+            ON session_content_index(platform, session_key);
         "
     )?;
     ensure_builtin_prompts(conn)?;
@@ -774,5 +971,78 @@ mod tests {
             modified_at: "100".to_string(),
         };
         assert!(cache.get("codex", "session.jsonl", &changed).is_none());
+    }
+
+    #[test]
+    fn session_content_index_matches_only_valid_fingerprint() {
+        let conn = Connection::open_in_memory().expect("sqlite memory");
+        init_tables(&conn).expect("init tables");
+        let conn = Mutex::new(conn);
+        let index = SessionContentIndex::new(&conn);
+
+        let fingerprint = SessionSummaryFingerprint {
+            file_size: 42,
+            modified_at: "100".to_string(),
+        };
+        index
+            .replace(
+                "claude",
+                "session.jsonl",
+                &fingerprint,
+                &[
+                    SessionContentEntry::any_text(
+                        1,
+                        "user",
+                        vec!["hello SEARCH target".to_string()],
+                    ),
+                    SessionContentEntry::any_text(
+                        2,
+                        "assistant",
+                        vec!["unrelated".to_string()],
+                    ),
+                ],
+            )
+            .expect("replace content index");
+
+        let matches = index
+            .get_matches("claude", "session.jsonl", &fingerprint, "search")
+            .expect("index hit");
+        assert_eq!(
+            matches,
+            vec![SessionContentEntry::any_text(
+                1,
+                "user",
+                vec!["hello SEARCH target".to_string()],
+            )]
+        );
+
+        let changed = SessionSummaryFingerprint {
+            file_size: 43,
+            modified_at: "100".to_string(),
+        };
+        assert!(index
+            .get_matches("claude", "session.jsonl", &changed, "search")
+            .is_none());
+    }
+
+    #[test]
+    fn session_content_index_preserves_empty_valid_index() {
+        let conn = Connection::open_in_memory().expect("sqlite memory");
+        init_tables(&conn).expect("init tables");
+        let conn = Mutex::new(conn);
+        let index = SessionContentIndex::new(&conn);
+
+        let fingerprint = SessionSummaryFingerprint {
+            file_size: 1,
+            modified_at: "200".to_string(),
+        };
+        index
+            .replace("pi", "empty.jsonl", &fingerprint, &[])
+            .expect("replace empty content index");
+
+        let matches = index
+            .get_matches("pi", "empty.jsonl", &fingerprint, "anything")
+            .expect("valid empty index");
+        assert!(matches.is_empty());
     }
 }
