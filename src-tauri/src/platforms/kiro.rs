@@ -134,10 +134,7 @@ impl KiroPlatform {
                 continue;
             }
 
-            let message_id = data
-                .get("message_id")
-                .and_then(Value::as_str)
-                .unwrap_or("");
+            let message_id = data.get("message_id").and_then(Value::as_str).unwrap_or("");
 
             blocks.push(TimelineBlock {
                 id: format!("{line_index}:{role}"),
@@ -230,8 +227,8 @@ impl PlatformAdapter for KiroPlatform {
         let meta_path = self.sessions_dir.join(format!("{session_key}.json"));
         let jsonl_path = self.sessions_dir.join(format!("{session_key}.jsonl"));
 
-        let raw = fs::read_to_string(&meta_path)
-            .map_err(|e| format!("Failed to read kiro meta: {e}"))?;
+        let raw =
+            fs::read_to_string(&meta_path).map_err(|e| format!("Failed to read kiro meta: {e}"))?;
         let meta: Value =
             serde_json::from_str(&raw).map_err(|e| format!("Failed to parse kiro meta: {e}"))?;
 

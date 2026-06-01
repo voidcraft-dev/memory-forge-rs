@@ -32,18 +32,20 @@ const BUILTIN_PROMPT_FENJUE_CTF_CONTENT: &str = r#"核心原则：
 
 pub struct DbState {
     pub conn: Mutex<Connection>,
+    pub db_path: String,
 }
 
 impl DbState {
     pub fn new(db_path: &str) -> Result<Self, String> {
-        let conn = Connection::open(db_path)
-            .map_err(|e| format!("Failed to open database: {e}"))?;
+        let conn =
+            Connection::open(db_path).map_err(|e| format!("Failed to open database: {e}"))?;
 
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
             .map_err(|e| format!("Failed to set pragmas: {e}"))?;
 
         Ok(Self {
             conn: Mutex::new(conn),
+            db_path: db_path.to_string(),
         })
     }
 }
@@ -130,7 +132,10 @@ impl<'a> SessionSummaryCache<'a> {
         fingerprint: &SessionSummaryFingerprint,
         summary: &CachedSessionSummary,
     ) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| format!("DB lock error: {e}"))?;
         conn.execute(
             "INSERT INTO session_summary_cache
                 (platform, session_key, file_size, modified_at, session_id, title, preview, updated_at, cwd, cached_at)
@@ -204,6 +209,34 @@ impl<'a> SessionContentIndex<'a> {
         Self { conn }
     }
 
+    pub fn is_current(
+        &self,
+        platform: &str,
+        session_key: &str,
+        fingerprint: &SessionSummaryFingerprint,
+    ) -> bool {
+        let Ok(conn) = self.conn.lock() else {
+            return false;
+        };
+        conn.query_row(
+            "SELECT COUNT(*)
+             FROM session_content_index_meta
+             WHERE platform = ?1
+               AND session_key = ?2
+               AND file_size = ?3
+               AND modified_at = ?4",
+            params![
+                platform,
+                session_key,
+                fingerprint.file_size,
+                fingerprint.modified_at
+            ],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|count| count > 0)
+        .unwrap_or(false)
+    }
+
     pub fn get_matches(
         &self,
         platform: &str,
@@ -272,7 +305,10 @@ impl<'a> SessionContentIndex<'a> {
         fingerprint: &SessionSummaryFingerprint,
         entries: &[SessionContentEntry],
     ) -> Result<(), String> {
-        let mut conn = self.conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|e| format!("DB lock error: {e}"))?;
         let tx = conn
             .transaction()
             .map_err(|e| format!("Begin content index transaction error: {e}"))?;
@@ -423,7 +459,9 @@ pub fn batch_set_session_flag(
         return Ok(0);
     }
     let mut conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
-    let tx = conn.transaction().map_err(|e| format!("Begin tx error: {e}"))?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("Begin tx error: {e}"))?;
     let mut affected = 0usize;
     for key in session_keys {
         let n = if set {
@@ -460,7 +498,10 @@ pub fn get_flagged_keys(
         .map_err(|e| format!("Query error: {e}"))?;
     let mut set = std::collections::HashSet::new();
     while let Some(row) = rows.next().map_err(|e| format!("Row error: {e}"))? {
-        set.insert(row.get::<_, String>(0).map_err(|e| format!("Row column error: {e}"))?);
+        set.insert(
+            row.get::<_, String>(0)
+                .map_err(|e| format!("Row column error: {e}"))?,
+        );
     }
     Ok(set)
 }
@@ -574,7 +615,7 @@ pub fn init_tables(conn: &Connection) -> SqlResult<()> {
 
         CREATE INDEX IF NOT EXISTS idx_session_content_index_lookup
             ON session_content_index(platform, session_key);
-        "
+        ",
     )?;
     ensure_builtin_prompts(conn)?;
     Ok(())
@@ -609,7 +650,11 @@ fn ensure_builtin_prompt(
     legacy_names: &[&str],
 ) -> SqlResult<()> {
     let mut target_id = conn
-        .query_row("SELECT id FROM prompts WHERE name = ?1", params![name], |row| row.get::<_, i64>(0))
+        .query_row(
+            "SELECT id FROM prompts WHERE name = ?1",
+            params![name],
+            |row| row.get::<_, i64>(0),
+        )
         .ok();
 
     if target_id.is_none() {
@@ -644,12 +689,17 @@ fn ensure_builtin_prompt(
 
 // ─── Alias CRUD ───
 
-pub fn get_alias_map(conn: &Mutex<Connection>, platform: &str) -> Result<std::collections::HashMap<String, String>, String> {
+pub fn get_alias_map(
+    conn: &Mutex<Connection>,
+    platform: &str,
+) -> Result<std::collections::HashMap<String, String>, String> {
     let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
     let mut stmt = conn
         .prepare("SELECT session_key, title FROM session_aliases WHERE platform = ?1")
         .map_err(|e| format!("Prepare error: {e}"))?;
-    let mut rows = stmt.query(params![platform]).map_err(|e| format!("Query error: {e}"))?;
+    let mut rows = stmt
+        .query(params![platform])
+        .map_err(|e| format!("Query error: {e}"))?;
     let mut map = std::collections::HashMap::new();
     while let Some(row) = rows.next().map_err(|e| format!("Row error: {e}"))? {
         let key: String = row.get(0).map_err(|e| format!("Row column error: {e}"))?;
@@ -659,7 +709,12 @@ pub fn get_alias_map(conn: &Mutex<Connection>, platform: &str) -> Result<std::co
     Ok(map)
 }
 
-pub fn save_alias(conn: &Mutex<Connection>, platform: &str, session_key: &str, title: &str) -> Result<SessionAlias, String> {
+pub fn save_alias(
+    conn: &Mutex<Connection>,
+    platform: &str,
+    session_key: &str,
+    title: &str,
+) -> Result<SessionAlias, String> {
     let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
     conn.execute(
         "INSERT INTO session_aliases (platform, session_key, title) VALUES (?1, ?2, ?3)
@@ -704,12 +759,18 @@ pub fn insert_edit_log(
     Ok(())
 }
 
-pub fn get_edit_log(conn: &Mutex<Connection>, platform: &str, session_key: &str) -> Result<Vec<EditLog>, String> {
+pub fn get_edit_log(
+    conn: &Mutex<Connection>,
+    platform: &str,
+    session_key: &str,
+) -> Result<Vec<EditLog>, String> {
     let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
     let mut stmt = conn
         .prepare("SELECT id, platform, session_key, edit_target, old_content, new_content, created_at FROM edit_log WHERE platform = ?1 AND session_key = ?2 ORDER BY id DESC")
         .map_err(|e| format!("Prepare error: {e}"))?;
-    let mut rows = stmt.query(params![platform, session_key]).map_err(|e| format!("Query error: {e}"))?;
+    let mut rows = stmt
+        .query(params![platform, session_key])
+        .map_err(|e| format!("Query error: {e}"))?;
     let mut logs = Vec::new();
     while let Some(row) = rows.next().map_err(|e| format!("Row error: {e}"))? {
         logs.push(EditLog {
@@ -747,9 +808,15 @@ pub fn get_edit_log_by_id(conn: &Mutex<Connection>, id: i64) -> Result<EditLog, 
 
 // ─── Prompt CRUD ───
 
-pub fn list_prompts(conn: &Mutex<Connection>, search: Option<&str>, tag: Option<&str>) -> Result<Vec<Prompt>, String> {
+pub fn list_prompts(
+    conn: &Mutex<Connection>,
+    search: Option<&str>,
+    tag: Option<&str>,
+) -> Result<Vec<Prompt>, String> {
     let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
-    let mut sql = String::from("SELECT id, name, content, tags, use_count, created_at, updated_at FROM prompts WHERE 1=1");
+    let mut sql = String::from(
+        "SELECT id, name, content, tags, use_count, created_at, updated_at FROM prompts WHERE 1=1",
+    );
 
     if search.is_some() {
         sql.push_str(" AND (name LIKE ?1 OR content LIKE ?1)");
@@ -760,7 +827,9 @@ pub fn list_prompts(conn: &Mutex<Connection>, search: Option<&str>, tag: Option<
     }
     sql.push_str(" ORDER BY updated_at DESC");
 
-    let mut stmt = conn.prepare(&sql).map_err(|e| format!("Prepare error: {e}"))?;
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| format!("Prepare error: {e}"))?;
 
     let mut rows = if let (Some(s), Some(t)) = (search, tag) {
         let search_pat = format!("%{s}%");
@@ -823,7 +892,11 @@ pub fn create_prompt(conn: &Mutex<Connection>, input: &PromptCreate) -> Result<P
     Ok(prompt)
 }
 
-pub fn update_prompt(conn: &Mutex<Connection>, id: i64, input: &PromptUpdate) -> Result<Prompt, String> {
+pub fn update_prompt(
+    conn: &Mutex<Connection>,
+    id: i64,
+    input: &PromptUpdate,
+) -> Result<Prompt, String> {
     let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
 
     let mut sets = Vec::new();
@@ -852,10 +925,14 @@ pub fn update_prompt(conn: &Mutex<Connection>, id: i64, input: &PromptUpdate) ->
 
     sets.push(format!("updated_at = datetime('now')"));
 
-    let sql = format!("UPDATE prompts SET {} WHERE id = ?{param_idx}", sets.join(", "));
+    let sql = format!(
+        "UPDATE prompts SET {} WHERE id = ?{param_idx}",
+        sets.join(", ")
+    );
     param_values.push(Box::new(id));
 
-    let params_refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+        param_values.iter().map(|p| p.as_ref()).collect();
     conn.execute(&sql, params_refs.as_slice())
         .map_err(|e| format!("Update error: {e}"))?;
 
@@ -995,11 +1072,7 @@ mod tests {
                         "user",
                         vec!["hello SEARCH target".to_string()],
                     ),
-                    SessionContentEntry::any_text(
-                        2,
-                        "assistant",
-                        vec!["unrelated".to_string()],
-                    ),
+                    SessionContentEntry::any_text(2, "assistant", vec!["unrelated".to_string()]),
                 ],
             )
             .expect("replace content index");

@@ -36,10 +36,8 @@ pub fn launch_session_terminal(
 fn write_shell_launcher(command: &str, cwd: Option<&str>) -> Result<std::path::PathBuf, String> {
     use std::os::unix::fs::PermissionsExt;
 
-    let script_file = std::env::temp_dir().join(format!(
-        "memory_forge_session_{}.sh",
-        launcher_suffix()
-    ));
+    let script_file =
+        std::env::temp_dir().join(format!("memory_forge_session_{}.sh", launcher_suffix()));
     let cd_command = build_shell_cd_command(cwd);
     let script_content = format!(
         r#"#!/usr/bin/env bash
@@ -94,7 +92,10 @@ fn launch_macos_terminal(
 fn launch_macos_terminal_app(script_file: &Path) -> Result<(), String> {
     use std::process::Command;
 
-    let invocation = format!("bash {}", shell_single_quote(&script_file.to_string_lossy()));
+    let invocation = format!(
+        "bash {}",
+        shell_single_quote(&script_file.to_string_lossy())
+    );
     let script = format!(
         r#"tell application "Terminal"
     activate
@@ -120,7 +121,10 @@ end tell"#,
 fn launch_macos_iterm2(script_file: &Path) -> Result<(), String> {
     use std::process::Command;
 
-    let invocation = format!("bash {}", shell_single_quote(&script_file.to_string_lossy()));
+    let invocation = format!(
+        "bash {}",
+        shell_single_quote(&script_file.to_string_lossy())
+    );
     let script = format!(
         r#"set launcher_script to "{}"
 set was_running to application "iTerm" is running
@@ -306,10 +310,7 @@ fn launch_windows_terminal(
     preferred_terminal: Option<&str>,
 ) -> Result<(), String> {
     let temp_dir = std::env::temp_dir();
-    let bat_file = temp_dir.join(format!(
-        "memory_forge_session_{}.bat",
-        launcher_suffix()
-    ));
+    let bat_file = temp_dir.join(format!("memory_forge_session_{}.bat", launcher_suffix()));
     let cwd_command = cwd.map(build_windows_cwd_command_str).unwrap_or_default();
     let script_content = format!(
         "@echo off\r\n{cwd_command}{command}\r\ndel \"%~f0\" >nul 2>&1\r\n",

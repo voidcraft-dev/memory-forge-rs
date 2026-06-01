@@ -6,11 +6,13 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-use crate::database::{CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache};
+use crate::database::{
+    CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache,
+};
 
 use super::{
     build_commands, content_entries_to_matches, tool_text_from_str, tool_text_from_value,
-    ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult,
+    ContentMatch, PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult,
     TimelineBlock, ToolCallBlock,
 };
 
@@ -53,15 +55,23 @@ impl ClaudePlatform {
         let mut preview = String::new();
 
         let Ok(file) = File::open(path) else {
-            return ScanSummary { session_id: default_id, cwd, preview };
+            return ScanSummary {
+                session_id: default_id,
+                cwd,
+                preview,
+            };
         };
         let reader = BufReader::new(file);
 
         for line in reader.lines() {
             let Ok(line) = line else { continue };
             let trimmed = line.trim();
-            if trimmed.is_empty() { continue; }
-            let Ok(parsed) = serde_json::from_str::<Value>(trimmed) else { continue };
+            if trimmed.is_empty() {
+                continue;
+            }
+            let Ok(parsed) = serde_json::from_str::<Value>(trimmed) else {
+                continue;
+            };
 
             if session_id.is_empty() {
                 if let Some(id) = parsed.get("sessionId").and_then(Value::as_str) {
@@ -91,7 +101,8 @@ impl ClaudePlatform {
                             if let Some(items) = message.get("content").and_then(Value::as_array) {
                                 for item in items {
                                     if item.get("type").and_then(Value::as_str) == Some("text") {
-                                        let text = item.get("text").and_then(Value::as_str).unwrap_or("");
+                                        let text =
+                                            item.get("text").and_then(Value::as_str).unwrap_or("");
                                         let cleaned = clean_preview_text(text);
                                         if !cleaned.is_empty() {
                                             preview = truncate(&cleaned, 120);
@@ -114,7 +125,11 @@ impl ClaudePlatform {
             session_id = default_id;
         }
 
-        ScanSummary { session_id, cwd, preview }
+        ScanSummary {
+            session_id,
+            cwd,
+            preview,
+        }
     }
 
     fn cached_scan_summary(
@@ -158,7 +173,10 @@ impl ClaudePlatform {
         cache: Option<&SessionSummaryCache<'_>>,
     ) -> SessionListResult {
         if !self.projects_root.exists() {
-            return SessionListResult { total: 0, items: Vec::new() };
+            return SessionListResult {
+                total: 0,
+                items: Vec::new(),
+            };
         }
 
         let mut entries = Vec::new();
@@ -331,7 +349,8 @@ impl ClaudePlatform {
                         push_claude_tool_call(&mut blocks, &mut pending_tool_calls, tool_call);
                     }
                     (_, "tool_result") => {
-                        let tool_call = claude_tool_result_to_block(item, line_index, content_index);
+                        let tool_call =
+                            claude_tool_result_to_block(item, line_index, content_index);
                         push_claude_tool_result(&mut blocks, &mut pending_tool_calls, tool_call);
                     }
                     _ => {}
@@ -454,7 +473,11 @@ fn push_claude_tool_result(
 }
 
 fn merge_tool_call_in_blocks(blocks: &mut [TimelineBlock], tool_call: &ToolCallBlock) -> bool {
-    for block in blocks.iter_mut().rev().filter(|block| block.role == "assistant") {
+    for block in blocks
+        .iter_mut()
+        .rev()
+        .filter(|block| block.role == "assistant")
+    {
         if let Some(existing) = block
             .tool_calls
             .iter_mut()
@@ -471,10 +494,7 @@ fn source_line_index(source_meta: &Value) -> Option<u64> {
     source_meta.get("lineIndex").and_then(Value::as_u64)
 }
 
-fn flush_claude_tool_calls(
-    blocks: &mut Vec<TimelineBlock>,
-    pending: &mut Vec<ToolCallBlock>,
-) {
+fn flush_claude_tool_calls(blocks: &mut Vec<TimelineBlock>, pending: &mut Vec<ToolCallBlock>) {
     if pending.is_empty() {
         return;
     }
@@ -535,7 +555,10 @@ fn append_or_merge_tool_calls(target: &mut Vec<ToolCallBlock>, pending: &mut Vec
 }
 
 fn push_or_merge_tool_call(target: &mut Vec<ToolCallBlock>, tool_call: ToolCallBlock) {
-    if let Some(existing) = target.iter_mut().find(|existing| existing.id == tool_call.id) {
+    if let Some(existing) = target
+        .iter_mut()
+        .find(|existing| existing.id == tool_call.id)
+    {
         merge_tool_call(existing, tool_call);
     } else {
         target.push(tool_call);
@@ -601,7 +624,11 @@ fn merge_tool_source_meta(left: &Value, right: &Value) -> Value {
     })
 }
 
-fn claude_tool_use_to_block(item: &Value, line_index: usize, content_index: usize) -> ToolCallBlock {
+fn claude_tool_use_to_block(
+    item: &Value,
+    line_index: usize,
+    content_index: usize,
+) -> ToolCallBlock {
     let name = item
         .get("name")
         .and_then(Value::as_str)
@@ -616,7 +643,9 @@ fn claude_tool_use_to_block(item: &Value, line_index: usize, content_index: usiz
         name,
         kind: "tool_use".to_string(),
         status: "requested".to_string(),
-        input: item.get("input").and_then(|value| tool_text_from_value(value, 8192)),
+        input: item
+            .get("input")
+            .and_then(|value| tool_text_from_value(value, 8192)),
         output: None,
         error: None,
         started_at: None,
@@ -629,7 +658,11 @@ fn claude_tool_use_to_block(item: &Value, line_index: usize, content_index: usiz
     }
 }
 
-fn claude_tool_result_to_block(item: &Value, line_index: usize, content_index: usize) -> ToolCallBlock {
+fn claude_tool_result_to_block(
+    item: &Value,
+    line_index: usize,
+    content_index: usize,
+) -> ToolCallBlock {
     ToolCallBlock {
         id: item
             .get("tool_use_id")
@@ -643,7 +676,11 @@ fn claude_tool_result_to_block(item: &Value, line_index: usize, content_index: u
             .unwrap_or("tool_result")
             .to_string(),
         kind: "tool_result".to_string(),
-        status: if item.get("is_error").and_then(Value::as_bool).unwrap_or(false) {
+        status: if item
+            .get("is_error")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
             "error".to_string()
         } else {
             "completed".to_string()
@@ -670,7 +707,12 @@ fn claude_tool_result_content(item: &Value) -> Option<String> {
 }
 
 impl PlatformAdapter for ClaudePlatform {
-    fn list_sessions(&self, alias_map: &HashMap<String, String>, limit: Option<usize>, offset: usize) -> SessionListResult {
+    fn list_sessions(
+        &self,
+        alias_map: &HashMap<String, String>,
+        limit: Option<usize>,
+        offset: usize,
+    ) -> SessionListResult {
         self.list_sessions_inner(alias_map, limit, offset, None)
     }
 
@@ -682,6 +724,56 @@ impl PlatformAdapter for ClaudePlatform {
         cache: Option<&SessionSummaryCache<'_>>,
     ) -> SessionListResult {
         self.list_sessions_inner(alias_map, limit, offset, cache)
+    }
+
+    fn list_session_keys(&self) -> Option<Vec<SessionKey>> {
+        if !self.projects_root.exists() {
+            return None;
+        }
+
+        let mut entries = Vec::new();
+        collect_jsonl_recursive(&self.projects_root, &mut entries);
+        Some(
+            entries
+                .into_iter()
+                .map(|path| SessionKey {
+                    key: encode_path_key(&path),
+                    sort_key: modified_nanos(&path) as i128,
+                })
+                .collect(),
+        )
+    }
+
+    fn session_list_item(
+        &self,
+        session_key: &str,
+        alias_map: &HashMap<String, String>,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> Option<SessionListItem> {
+        let path = Path::new(session_key);
+        if !path.exists() {
+            return None;
+        }
+        let summary = self.cached_scan_summary(path, session_key, cache);
+        let alias = alias_map.get(session_key).cloned().unwrap_or_default();
+        Some(SessionListItem {
+            platform: "claude".to_string(),
+            session_key: session_key.to_string(),
+            session_id: summary.session_id.clone(),
+            display_title: if alias.is_empty() {
+                summary.session_id
+            } else {
+                alias.clone()
+            },
+            alias_title: alias,
+            preview: summary.preview,
+            updated_at: modified_nanos(path).to_string(),
+            cwd: summary.cwd,
+            editable: true,
+            content_matches: vec![],
+            total_content_matches: 0,
+            favorite: false,
+        })
     }
 
     fn get_session_detail(
@@ -772,6 +864,27 @@ impl PlatformAdapter for ClaudePlatform {
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {
         !self.content_search(session_key, query).is_empty()
+    }
+
+    fn warm_content_index(
+        &self,
+        session_key: &str,
+        index: Option<&SessionContentIndex<'_>>,
+    ) -> bool {
+        let Some(index) = index else {
+            return false;
+        };
+        let path = Path::new(session_key);
+        let Some(fingerprint) = SessionSummaryCache::fingerprint(path) else {
+            return false;
+        };
+        if index.is_current("claude", session_key, &fingerprint) {
+            return true;
+        }
+        let entries = self.searchable_content_entries(session_key);
+        index
+            .replace("claude", session_key, &fingerprint, &entries)
+            .is_ok()
     }
 
     fn content_search(&self, session_key: &str, query: &str) -> Vec<ContentMatch> {
@@ -907,8 +1020,14 @@ mod tests {
         assert_eq!(blocks[0].tool_calls[0].name, "Read");
         assert_eq!(blocks[0].tool_calls[0].kind, "tool_use");
         assert_eq!(blocks[0].tool_calls[0].status, "completed");
-        assert_eq!(blocks[0].tool_calls[0].input.as_deref(), Some("{\n  \"file_path\": \"src/main.rs\"\n}"));
-        assert_eq!(blocks[0].tool_calls[0].output.as_deref(), Some("file contents"));
+        assert_eq!(
+            blocks[0].tool_calls[0].input.as_deref(),
+            Some("{\n  \"file_path\": \"src/main.rs\"\n}")
+        );
+        assert_eq!(
+            blocks[0].tool_calls[0].output.as_deref(),
+            Some("file contents")
+        );
         assert!(blocks[1].tool_calls.is_empty());
     }
 
@@ -943,8 +1062,14 @@ mod tests {
         assert_eq!(blocks[0].tool_calls.len(), 1);
         assert_eq!(blocks[0].tool_calls[0].name, "Grep");
         assert_eq!(blocks[0].tool_calls[0].status, "completed");
-        assert_eq!(blocks[0].tool_calls[0].input.as_deref(), Some("{\n  \"pattern\": \"TODO\"\n}"));
-        assert_eq!(blocks[0].tool_calls[0].output.as_deref(), Some("src/main.rs: TODO"));
+        assert_eq!(
+            blocks[0].tool_calls[0].input.as_deref(),
+            Some("{\n  \"pattern\": \"TODO\"\n}")
+        );
+        assert_eq!(
+            blocks[0].tool_calls[0].output.as_deref(),
+            Some("src/main.rs: TODO")
+        );
         assert_eq!(blocks[1].role, "user");
         assert!(blocks[1].tool_calls.is_empty());
     }
@@ -1004,7 +1129,10 @@ mod tests {
         assert_eq!(blocks[1].tool_calls.len(), 1);
         assert_eq!(blocks[1].tool_calls[0].name, "Read");
         assert_eq!(blocks[1].tool_calls[0].status, "completed");
-        assert_eq!(blocks[1].tool_calls[0].output.as_deref(), Some("doc contents"));
+        assert_eq!(
+            blocks[1].tool_calls[0].output.as_deref(),
+            Some("doc contents")
+        );
         assert_eq!(blocks[2].role, "user");
         assert_eq!(blocks[2].content, "[Request interrupted by user]");
         assert!(blocks[2].tool_calls.is_empty());

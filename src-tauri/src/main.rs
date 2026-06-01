@@ -53,7 +53,10 @@ fn dashboard_summary(
     db: tauri::State<'_, DbState>,
     settings_state: tauri::State<'_, SharedSettingsState>,
 ) -> Result<DashboardSummary, String> {
-    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?;
     session_service::dashboard_summary(&db, &settings)
 }
 
@@ -67,8 +70,19 @@ fn session_list(
     offset: Option<usize>,
     show_archived: Option<bool>,
 ) -> Result<platforms::SessionListResult, String> {
-    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
-    session_service::session_list(&db, &settings, &platform, query.as_deref(), limit, offset.unwrap_or(0), show_archived.unwrap_or(false))
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?;
+    session_service::session_list(
+        &db,
+        &settings,
+        &platform,
+        query.as_deref(),
+        limit,
+        offset.unwrap_or(0),
+        show_archived.unwrap_or(false),
+    )
 }
 
 #[tauri::command]
@@ -78,7 +92,10 @@ fn session_detail(
     platform: String,
     session_key: String,
 ) -> Result<platforms::SessionDetail, String> {
-    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?;
     session_service::session_detail(&db, &settings, &platform, &session_key)
 }
 
@@ -89,7 +106,11 @@ async fn session_execution_output(
     session_key: String,
     edit_target: String,
 ) -> Result<String, String> {
-    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?.clone();
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?
+        .clone();
     tauri::async_runtime::spawn_blocking(move || {
         session_service::session_execution_output(&settings, &platform, &session_key, &edit_target)
     })
@@ -104,9 +125,18 @@ async fn session_execution_outputs(
     session_key: String,
     edit_targets: Vec<String>,
 ) -> Result<std::collections::HashMap<String, String>, String> {
-    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?.clone();
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?
+        .clone();
     tauri::async_runtime::spawn_blocking(move || {
-        session_service::session_execution_outputs(&settings, &platform, &session_key, &edit_targets)
+        session_service::session_execution_outputs(
+            &settings,
+            &platform,
+            &session_key,
+            &edit_targets,
+        )
     })
     .await
     .map_err(|e| format!("Task error: {e}"))?
@@ -126,11 +156,7 @@ async fn launch_session_terminal(
         .clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        terminal::launch_session_terminal(
-            &command,
-            cwd.as_deref(),
-            preferred_terminal.as_deref(),
-        )
+        terminal::launch_session_terminal(&command, cwd.as_deref(), preferred_terminal.as_deref())
     })
     .await
     .map_err(|e| format!("Task error: {e}"))??;
@@ -194,8 +220,18 @@ fn session_edit_message(
     content: String,
     session_key: String,
 ) -> Result<(), String> {
-    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
-    session_service::session_edit_message(&db, &settings, &platform, &message_id, &content, &session_key)
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?;
+    session_service::session_edit_message(
+        &db,
+        &settings,
+        &platform,
+        &message_id,
+        &content,
+        &session_key,
+    )
 }
 
 #[tauri::command]
@@ -215,7 +251,10 @@ fn session_restore_message(
     edit_log_id: i64,
     session_key: String,
 ) -> Result<(), String> {
-    let settings = settings_state.settings.lock().map_err(|_| "lock error".to_string())?;
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?;
     session_service::session_restore_message(&db, &settings, &platform, edit_log_id, &session_key)
 }
 

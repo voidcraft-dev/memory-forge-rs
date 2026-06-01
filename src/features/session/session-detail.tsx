@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo, forwardRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
-import type { EditorTarget } from '@/features/desktop/types'
+import type { EditorTarget, TimelineBlock } from '@/features/desktop/types'
 import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play, FolderOpen, MousePointer2, Code, Sparkles } from 'lucide-react'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -17,6 +17,19 @@ const PAGE_SIZE = 50
 const TOOL_INPUT_EXPORT_LIMIT = 8192
 const TOOL_OUTPUT_EXPORT_LIMIT = 32768
 const PREFERRED_EDITOR_STORAGE_KEY = 'memory-forge.preferred-editor'
+const LONG_BLOCK_COLLAPSE_THRESHOLD = 3000
+const LONG_BLOCK_PREVIEW_CHARS = 1500
+
+function estimateMessageBlockSize(block?: TimelineBlock) {
+  if (!block) return 180
+  const contentChars = block.content.length
+  const visibleChars = Math.min(contentChars, LONG_BLOCK_PREVIEW_CHARS)
+  const textRows = Math.ceil(visibleChars / 90)
+  const codeFenceCount = (block.content.slice(0, LONG_BLOCK_PREVIEW_CHARS).match(/```/g) ?? []).length
+  const toolRows = (block.toolCalls?.length ?? 0) * 48
+  const base = block.role === 'thinking' ? 150 : 190
+  return Math.min(760, base + textRows * 22 + codeFenceCount * 28 + toolRows)
+}
 
 function truncateExportText(value: string, maxChars: number) {
   const chars = Array.from(value)
@@ -82,7 +95,7 @@ export function SessionDetail() {
   const [isEditingAlias, setIsEditingAlias] = useState(false)
   const [tempAlias, setTempAlias] = useState('')
 
-  const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const messageScrollRef = useRef<HTMLDivElement>(null)
   const activeSessionKeyRef = useRef<string | null>(null)
   const editorMenuRef = useRef<HTMLDivElement>(null)
   const terminalMenuRef = useRef<HTMLDivElement>(null)
@@ -180,6 +193,28 @@ export function SessionDetail() {
   const filteredBlocks = roleFilter === 'all'
     ? blocks
     : blocks.filter(b => b.role === roleFilter)
+  const blockIndexById = useMemo(() => {
+    const index = new Map<string, number>()
+    filteredBlocks.forEach((block, idx) => index.set(block.id, idx))
+    return index
+  }, [filteredBlocks])
+  const estimateVirtualItemSize = useCallback((index: number) => {
+    return estimateMessageBlockSize(filteredBlocks[index])
+  }, [filteredBlocks])
+  const getVirtualItemKey = useCallback((index: number) => {
+    return filteredBlocks[index]?.id ?? index
+  }, [filteredBlocks])
+  const messageVirtualizer = useVirtualizer({
+    count: filteredBlocks.length,
+    getScrollElement: () => messageScrollRef.current,
+    estimateSize: estimateVirtualItemSize,
+    getItemKey: getVirtualItemKey,
+    overscan: 8,
+    gap: 16,
+    paddingStart: 16,
+    paddingEnd: 24,
+  })
+  const virtualItems = messageVirtualizer.getVirtualItems()
 
   const searchNeedle = inlineSearch.trim().toLowerCase()
   const matchingBlockIds = useMemo(() => {
@@ -189,12 +224,18 @@ export function SessionDetail() {
       .map(b => b.id)
   }, [filteredBlocks, searchNeedle])
 
+  const scrollToBlockIndex = useCallback((index: number) => {
+    if (index < 0 || index >= filteredBlocks.length) return
+    messageVirtualizer.scrollToIndex(index, { align: 'center', behavior: 'smooth' })
+  }, [filteredBlocks.length, messageVirtualizer])
+
   const scrollToMatch = useCallback((idx: number) => {
     const id = matchingBlockIds[idx]
     if (!id) return
-    const el = blockRefs.current.get(id)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [matchingBlockIds])
+    const blockIndex = blockIndexById.get(id)
+    if (blockIndex === undefined) return
+    scrollToBlockIndex(blockIndex)
+  }, [matchingBlockIds, blockIndexById, scrollToBlockIndex])
 
   const handleSearchNav = useCallback((dir: 'next' | 'prev') => {
     if (matchingBlockIds.length === 0) return
@@ -211,6 +252,10 @@ export function SessionDetail() {
       scrollToMatch(0)
     }
   }, [matchingBlockIds])
+
+  useEffect(() => {
+    messageScrollRef.current?.scrollTo({ top: 0 })
+  }, [sessionDetail?.sessionKey, roleFilter])
 
   if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings' || !sessionDetail) {
     return (
@@ -904,29 +949,40 @@ export function SessionDetail() {
         )}
       </div>
 
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="flex w-full flex-col gap-4 p-4 md:p-6">
-          {filteredBlocks.map((block, index) => (
-            <MessageBlock
-              key={block.id}
-              block={block}
-              index={index}
-              onEdit={() => handleEditBlock(block)}
-              onErase={() => handleEraseBlock(block)}
-              onLoadExecutionOutput={() => handleLoadExecutionOutput(block)}
-              loadingExecutionOutput={Boolean(block.editTarget && loadingExecutionTargets.has(block.editTarget))}
-              t={t}
-              searchHighlight={searchNeedle}
-              isSearchMatch={matchingBlockIds.includes(block.id)}
-              isCurrentMatch={matchingBlockIds[currentMatchIdx] === block.id}
-              ref={(el: HTMLDivElement | null) => {
-                if (el) blockRefs.current.set(block.id, el)
-                else blockRefs.current.delete(block.id)
-              }}
-            />
-          ))}
+      <div ref={messageScrollRef} className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          className="relative w-full"
+          style={{ height: `${messageVirtualizer.getTotalSize()}px` }}
+        >
+          {virtualItems.map((virtualItem) => {
+            const block = filteredBlocks[virtualItem.index]
+            if (!block) return null
+
+            return (
+              <div
+                key={virtualItem.key}
+                data-index={virtualItem.index}
+                ref={messageVirtualizer.measureElement}
+                className="absolute left-0 top-0 w-full px-4 md:px-6"
+                style={{ transform: `translateY(${virtualItem.start}px)` }}
+              >
+                <MessageBlock
+                  block={block}
+                  index={virtualItem.index}
+                  onEdit={() => handleEditBlock(block)}
+                  onErase={() => handleEraseBlock(block)}
+                  onLoadExecutionOutput={() => handleLoadExecutionOutput(block)}
+                  loadingExecutionOutput={Boolean(block.editTarget && loadingExecutionTargets.has(block.editTarget))}
+                  t={t}
+                  searchHighlight={searchNeedle}
+                  isSearchMatch={matchingBlockIds.includes(block.id)}
+                  isCurrentMatch={matchingBlockIds[currentMatchIdx] === block.id}
+                />
+              </div>
+            )
+          })}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Floating TOC */}
       <div className="absolute bottom-5 right-5 z-20 flex flex-col items-end">
@@ -943,8 +999,7 @@ export function SessionDetail() {
                     key={block.id}
                     type="button"
                     onClick={() => {
-                      const el = blockRefs.current.get(block.id)
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      scrollToBlockIndex(index)
                       setTocOpen(false)
                     }}
                     className="w-full text-left rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors truncate"
@@ -1152,6 +1207,7 @@ const MessageBlock = forwardRef<HTMLDivElement, {
   isCurrentMatch?: boolean
 }>(function MessageBlock({ block, index, onEdit, onErase, onLoadExecutionOutput, loadingExecutionOutput, t, searchHighlight, isCurrentMatch }, ref) {
   const [thinkingExpanded, setThinkingExpanded] = useState(false)
+  const [longContentExpanded, setLongContentExpanded] = useState(false)
 
   const roleConfig = {
     user: {
@@ -1187,6 +1243,12 @@ const MessageBlock = forwardRef<HTMLDivElement, {
 
   const isThinking = block.role === 'thinking'
   const hasContent = block.content.trim().length > 0
+  const isLongContent = !isThinking && block.content.length > LONG_BLOCK_COLLAPSE_THRESHOLD
+  const isSearchHit = Boolean(searchHighlight && block.content.toLowerCase().includes(searchHighlight.toLowerCase()))
+  const showFullLongContent = longContentExpanded || isSearchHit
+  const displayContent = isLongContent && !showFullLongContent
+    ? `${block.content.slice(0, LONG_BLOCK_PREVIEW_CHARS)}\n\n...`
+    : block.content
 
   return (
     <div
@@ -1196,7 +1258,7 @@ const MessageBlock = forwardRef<HTMLDivElement, {
         `rounded-r-2xl border-l-4 ${config.borderColor}`,
         isCurrentMatch && "ring-2 ring-amber-400/50 rounded-2xl"
       )}
-      style={{ animationDelay: `${index * 40}ms` }}
+      style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
     >
       <div className={cn("ml-0 rounded-2xl rounded-l-none border border-border/40 p-4 backdrop-blur-sm", `bg-gradient-to-b ${config.bgGradient}`)}>
         <div className="flex items-start gap-3">
@@ -1224,16 +1286,28 @@ const MessageBlock = forwardRef<HTMLDivElement, {
             {/* Collapsible content log wrapper for Thinking Logs */}
             {hasContent && (
               (!isThinking || thinkingExpanded) ? (
-                <div className={cn(
-                  "overflow-hidden rounded-xl p-4 bg-background/55 border border-border/30",
-                  isThinking && "bg-amber-500/3 border-dashed border-amber-500/20"
-                )}>
+                <div className="space-y-2">
                   <div className={cn(
-                    "text-sm font-sans leading-relaxed text-foreground whitespace-pre-wrap break-words",
-                    isThinking && "font-mono text-xs text-quiet"
+                    "overflow-hidden rounded-xl p-4 bg-background/55 border border-border/30",
+                    isThinking && "bg-amber-500/3 border-dashed border-amber-500/20"
                   )}>
-                    {parseContentWithCodeBlocks(block.content, searchHighlight)}
+                    <div className={cn(
+                      "text-sm font-sans leading-relaxed text-foreground whitespace-pre-wrap break-words",
+                      isThinking && "font-mono text-xs text-quiet"
+                    )}>
+                      {parseContentWithCodeBlocks(displayContent, searchHighlight)}
+                    </div>
                   </div>
+                  {isLongContent && !isSearchHit && (
+                    <button
+                      type="button"
+                      onClick={() => setLongContentExpanded(value => !value)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border/40 bg-background/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
+                    >
+                      {longContentExpanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+                      {longContentExpanded ? '收起长内容' : `展开完整内容 (${Math.round(block.content.length / 1000)}k)`}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div

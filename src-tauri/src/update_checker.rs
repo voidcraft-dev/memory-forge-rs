@@ -26,11 +26,8 @@ struct GitHubRelease {
 /// Compare two semver-ish version strings (e.g. "3.0.8" vs "3.1.0").
 /// Returns true if `latest` is newer than `current`.
 fn is_newer(current: &str, latest: &str) -> bool {
-    let parse = |v: &str| -> Vec<u64> {
-        v.split('.')
-            .filter_map(|s| s.parse::<u64>().ok())
-            .collect()
-    };
+    let parse =
+        |v: &str| -> Vec<u64> { v.split('.').filter_map(|s| s.parse::<u64>().ok()).collect() };
     let cur = parse(current);
     let lat = parse(latest);
     for i in 0..cur.len().max(lat.len()) {

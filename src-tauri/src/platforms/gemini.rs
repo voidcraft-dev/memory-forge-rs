@@ -20,7 +20,8 @@ impl GeminiPlatform {
     }
 
     fn read_project_root(&self, source: &str, project_name: &str) -> Option<String> {
-        let root = self.gemini_home
+        let root = self
+            .gemini_home
             .join(source)
             .join(project_name)
             .join(".project_root");
@@ -35,7 +36,9 @@ impl GeminiPlatform {
             if !source_dir.exists() {
                 continue;
             }
-            let Ok(entries) = fs::read_dir(&source_dir) else { continue };
+            let Ok(entries) = fs::read_dir(&source_dir) else {
+                continue;
+            };
             for entry in entries.flatten() {
                 let project_dir = entry.path();
                 if !project_dir.is_dir() {
@@ -49,7 +52,9 @@ impl GeminiPlatform {
                 if !chats_dir.exists() {
                     continue;
                 }
-                let Ok(chats) = fs::read_dir(&chats_dir) else { continue };
+                let Ok(chats) = fs::read_dir(&chats_dir) else {
+                    continue;
+                };
                 for chat in chats.flatten() {
                     let p = chat.path();
                     let ext = p.extension().and_then(|e| e.to_str());
@@ -77,7 +82,8 @@ impl GeminiPlatform {
 
     fn key_to_path(&self, session_key: &str) -> Option<PathBuf> {
         let (project, source, stem) = Self::parse_key(session_key)?;
-        let p = self.gemini_home
+        let p = self
+            .gemini_home
             .join(source)
             .join(project)
             .join("chats")
@@ -86,12 +92,17 @@ impl GeminiPlatform {
             return Some(p);
         }
 
-        let p = self.gemini_home
+        let p = self
+            .gemini_home
             .join(source)
             .join(project)
             .join("chats")
             .join(format!("{stem}.jsonl"));
-        if p.exists() { Some(p) } else { None }
+        if p.exists() {
+            Some(p)
+        } else {
+            None
+        }
     }
 
     fn quick_scan(path: &Path) -> Option<QuickScan> {
@@ -106,8 +117,7 @@ impl GeminiPlatform {
     }
 
     fn read_session_file(path: &Path) -> Result<GeminiSessionFile, String> {
-        let raw = fs::read_to_string(path)
-            .map_err(|e| format!("cannot read session file: {e}"))?;
+        let raw = fs::read_to_string(path).map_err(|e| format!("cannot read session file: {e}"))?;
 
         if path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
             read_jsonl_session(&raw)
@@ -133,19 +143,23 @@ mod tests {
         assert_eq!(session.messages.len(), 1);
         assert_eq!(session.messages[0].id, "m1");
         assert_eq!(message_text(&session.messages[0]), "done");
-        assert_eq!(session.last_updated.as_deref(), Some("2026-05-02T09:31:03.717Z"));
+        assert_eq!(
+            session.last_updated.as_deref(),
+            Some("2026-05-02T09:31:03.717Z")
+        );
     }
 
     #[test]
     fn get_session_detail_skips_empty_gemini_content_blocks() {
-        let root = std::env::temp_dir().join(format!(
-            "memory-forge-gemini-test-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("memory-forge-gemini-test-{}", std::process::id()));
         let chats_dir = root.join("tmp").join("project").join("chats");
         fs::create_dir_all(&chats_dir).expect("create chats dir");
-        fs::write(root.join("tmp").join("project").join(".project_root"), "F:\\workspacevk")
-            .expect("write project root");
+        fs::write(
+            root.join("tmp").join("project").join(".project_root"),
+            "F:\\workspacevk",
+        )
+        .expect("write project root");
         fs::write(
             chats_dir.join("session-test.jsonl"),
             r#"{"sessionId":"s1","startTime":"2026-05-02T09:31:02.698Z","lastUpdated":"2026-05-02T09:31:02.698Z"}
@@ -178,14 +192,20 @@ fn extract_message_text(msg: &GeminiMessage) -> Option<String> {
     match &msg.content {
         serde_json::Value::String(s) => {
             let t = s.trim();
-            if t.is_empty() { None } else { Some(t.chars().take(200).collect()) }
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.chars().take(200).collect())
+            }
         }
-        serde_json::Value::Array(arr) => {
-            arr.iter().find_map(|item| {
-                let text = item.get("text")?.as_str()?.trim();
-                if text.is_empty() { None } else { Some(text.chars().take(200).collect()) }
-            })
-        }
+        serde_json::Value::Array(arr) => arr.iter().find_map(|item| {
+            let text = item.get("text")?.as_str()?.trim();
+            if text.is_empty() {
+                None
+            } else {
+                Some(text.chars().take(200).collect())
+            }
+        }),
         _ => None,
     }
 }
@@ -193,7 +213,6 @@ fn extract_message_text(msg: &GeminiMessage) -> Option<String> {
 fn message_text(msg: &GeminiMessage) -> String {
     extract_message_text(msg).unwrap_or_default()
 }
-
 
 #[derive(Deserialize)]
 struct GeminiSessionFile {
@@ -231,8 +250,8 @@ fn read_jsonl_session(raw: &str) -> Result<GeminiSessionFile, String> {
     let mut messages: Vec<GeminiMessage> = Vec::new();
 
     for line in raw.lines().filter(|line| !line.trim().is_empty()) {
-        let value: Value = serde_json::from_str(line)
-            .map_err(|e| format!("cannot parse jsonl line: {e}"))?;
+        let value: Value =
+            serde_json::from_str(line).map_err(|e| format!("cannot parse jsonl line: {e}"))?;
 
         if let Some(set) = value.get("$set") {
             if let Some(updated) = set.get("lastUpdated").and_then(Value::as_str) {
@@ -243,15 +262,24 @@ fn read_jsonl_session(raw: &str) -> Result<GeminiSessionFile, String> {
 
         if let Some(id) = value.get("sessionId").and_then(Value::as_str) {
             session_id = id.to_string();
-            start_time = value.get("startTime").and_then(Value::as_str).map(ToString::to_string);
-            last_updated = value.get("lastUpdated").and_then(Value::as_str).map(ToString::to_string);
+            start_time = value
+                .get("startTime")
+                .and_then(Value::as_str)
+                .map(ToString::to_string);
+            last_updated = value
+                .get("lastUpdated")
+                .and_then(Value::as_str)
+                .map(ToString::to_string);
             continue;
         }
 
         if value.get("id").is_some() && value.get("type").is_some() {
-            let message: GeminiMessage = serde_json::from_value(value)
-                .map_err(|e| format!("cannot parse message: {e}"))?;
-            if let Some(existing) = messages.iter_mut().find(|existing| existing.id == message.id) {
+            let message: GeminiMessage =
+                serde_json::from_value(value).map_err(|e| format!("cannot parse message: {e}"))?;
+            if let Some(existing) = messages
+                .iter_mut()
+                .find(|existing| existing.id == message.id)
+            {
                 *existing = message;
             } else {
                 messages.push(message);
@@ -271,9 +299,13 @@ fn read_jsonl_session(raw: &str) -> Result<GeminiSessionFile, String> {
     })
 }
 
-fn update_jsonl_message(path: &Path, message_id: &str, field: &str, new_content: &str) -> Result<String, String> {
-    let raw = fs::read_to_string(path)
-        .map_err(|e| format!("cannot read session file: {e}"))?;
+fn update_jsonl_message(
+    path: &Path,
+    message_id: &str,
+    field: &str,
+    new_content: &str,
+) -> Result<String, String> {
+    let raw = fs::read_to_string(path).map_err(|e| format!("cannot read session file: {e}"))?;
     let mut updated_lines = Vec::new();
     let mut old_content = None;
 
@@ -282,8 +314,8 @@ fn update_jsonl_message(path: &Path, message_id: &str, field: &str, new_content:
             continue;
         }
 
-        let mut value: Value = serde_json::from_str(line)
-            .map_err(|e| format!("cannot parse jsonl line: {e}"))?;
+        let mut value: Value =
+            serde_json::from_str(line).map_err(|e| format!("cannot parse jsonl line: {e}"))?;
 
         if value.get("id").and_then(Value::as_str) == Some(message_id) {
             let old = match field {
@@ -312,18 +344,24 @@ fn update_jsonl_message(path: &Path, message_id: &str, field: &str, new_content:
             old_content = Some(old);
         }
 
-        updated_lines.push(serde_json::to_string(&value).map_err(|e| format!("cannot serialize jsonl line: {e}"))?);
+        updated_lines.push(
+            serde_json::to_string(&value)
+                .map_err(|e| format!("cannot serialize jsonl line: {e}"))?,
+        );
     }
 
     let Some(old_content) = old_content else {
         return Err(format!("message {message_id} not found"));
     };
 
-    updated_lines.push(serde_json::to_string(&serde_json::json!({
-        "$set": {
-            "lastUpdated": chrono::Utc::now().to_rfc3339()
-        }
-    })).map_err(|e| format!("cannot serialize update marker: {e}"))?);
+    updated_lines.push(
+        serde_json::to_string(&serde_json::json!({
+            "$set": {
+                "lastUpdated": chrono::Utc::now().to_rfc3339()
+            }
+        }))
+        .map_err(|e| format!("cannot serialize update marker: {e}"))?,
+    );
 
     fs::write(path, format!("{}\n", updated_lines.join("\n")))
         .map_err(|e| format!("cannot write session file: {e}"))?;
@@ -350,7 +388,10 @@ impl PlatformAdapter for GeminiPlatform {
                 let scan = Self::quick_scan(&path)?;
                 let alias_title = alias_map.get(&session_key).cloned().unwrap_or_default();
                 let display_title = if alias_title.is_empty() {
-                    let date = scan.start_time.get(..10).unwrap_or(scan.start_time.as_str());
+                    let date = scan
+                        .start_time
+                        .get(..10)
+                        .unwrap_or(scan.start_time.as_str());
                     format!("{project_name} · {date}")
                 } else {
                     alias_title.clone()
@@ -392,7 +433,8 @@ impl PlatformAdapter for GeminiPlatform {
         let (project_name, source, stem) = Self::parse_key(session_key)
             .ok_or_else(|| format!("invalid session key: {session_key}"))?;
 
-        let path = self.gemini_home
+        let path = self
+            .gemini_home
             .join(source)
             .join(project_name)
             .join("chats")
@@ -414,7 +456,9 @@ impl PlatformAdapter for GeminiPlatform {
             .unwrap_or_else(|| project_name.to_string());
 
         let alias_title = alias_map.get(session_key).cloned().unwrap_or_default();
-        let date = session.start_time.as_deref()
+        let date = session
+            .start_time
+            .as_deref()
             .and_then(|s| s.get(..10))
             .unwrap_or(project_name);
         let title = if alias_title.is_empty() {
@@ -518,7 +562,8 @@ impl PlatformAdapter for GeminiPlatform {
         let (project_name, source, stem, message_id, field) =
             (parts[0], parts[1], parts[2], parts[3], parts[4]);
 
-        let path = self.gemini_home
+        let path = self
+            .gemini_home
             .join(source)
             .join(project_name)
             .join("chats")
@@ -537,10 +582,10 @@ impl PlatformAdapter for GeminiPlatform {
             return update_jsonl_message(&path, message_id, field, new_content);
         }
 
-        let raw = fs::read_to_string(&path)
-            .map_err(|e| format!("cannot read session file: {e}"))?;
-        let mut json: Value = serde_json::from_str(&raw)
-            .map_err(|e| format!("cannot parse session: {e}"))?;
+        let raw =
+            fs::read_to_string(&path).map_err(|e| format!("cannot read session file: {e}"))?;
+        let mut json: Value =
+            serde_json::from_str(&raw).map_err(|e| format!("cannot parse session: {e}"))?;
 
         let messages = json["messages"]
             .as_array_mut()
@@ -577,13 +622,11 @@ impl PlatformAdapter for GeminiPlatform {
             _ => return Err(format!("unknown field: {field}")),
         };
 
-        json["lastUpdated"] =
-            Value::String(chrono::Utc::now().to_rfc3339());
+        json["lastUpdated"] = Value::String(chrono::Utc::now().to_rfc3339());
 
         let updated = serde_json::to_string_pretty(&json)
             .map_err(|e| format!("cannot serialize session: {e}"))?;
-        fs::write(&path, updated)
-            .map_err(|e| format!("cannot write session file: {e}"))?;
+        fs::write(&path, updated).map_err(|e| format!("cannot write session file: {e}"))?;
 
         Ok(old_content)
     }
@@ -593,14 +636,22 @@ impl PlatformAdapter for GeminiPlatform {
         if session_key.to_lowercase().contains(&lower) {
             return true;
         }
-        let Some(path) = self.key_to_path(session_key) else { return false };
-        let Ok(raw) = fs::read_to_string(&path) else { return false };
+        let Some(path) = self.key_to_path(session_key) else {
+            return false;
+        };
+        let Ok(raw) = fs::read_to_string(&path) else {
+            return false;
+        };
         raw.to_lowercase().contains(&lower)
     }
 
     fn content_search(&self, session_key: &str, query: &str) -> Vec<ContentMatch> {
-        let Some(path) = self.key_to_path(session_key) else { return vec![] };
-        let Ok(session) = Self::read_session_file(&path) else { return vec![] };
+        let Some(path) = self.key_to_path(session_key) else {
+            return vec![];
+        };
+        let Ok(session) = Self::read_session_file(&path) else {
+            return vec![];
+        };
 
         let lower = query.to_lowercase();
         session

@@ -5,8 +5,8 @@ use rusqlite::params;
 use serde_json::{json, Value};
 
 use super::{
-    build_commands, tool_text_from_value, ContentMatch, SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
-    ToolCallBlock,
+    build_commands, tool_text_from_value, ContentMatch, SessionDetail, SessionKey, SessionListItem,
+    SessionListResult, TimelineBlock, ToolCallBlock,
 };
 
 pub struct OpenCodePlatform {
@@ -26,22 +26,37 @@ impl OpenCodePlatform {
 }
 
 impl super::PlatformAdapter for OpenCodePlatform {
-    fn list_sessions(&self, alias_map: &HashMap<String, String>, limit: Option<usize>, offset: usize) -> SessionListResult {
+    fn list_sessions(
+        &self,
+        alias_map: &HashMap<String, String>,
+        limit: Option<usize>,
+        offset: usize,
+    ) -> SessionListResult {
         if !self.db_path.exists() {
-            return SessionListResult { total: 0, items: Vec::new() };
+            return SessionListResult {
+                total: 0,
+                items: Vec::new(),
+            };
         }
 
         let conn = match self.connect() {
             Ok(c) => c,
-            Err(_) => return SessionListResult { total: 0, items: Vec::new() },
+            Err(_) => {
+                return SessionListResult {
+                    total: 0,
+                    items: Vec::new(),
+                }
+            }
         };
 
         // Get total count
-        let total: usize = conn.query_row(
-            "SELECT COUNT(*) FROM session WHERE parent_id IS NULL OR parent_id = ''",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(0);
+        let total: usize = conn
+            .query_row(
+                "SELECT COUNT(*) FROM session WHERE parent_id IS NULL OR parent_id = ''",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
 
         let sql = match limit {
             Some(l) => format!(
@@ -56,12 +71,22 @@ impl super::PlatformAdapter for OpenCodePlatform {
 
         let mut stmt = match conn.prepare(&sql) {
             Ok(s) => s,
-            Err(_) => return SessionListResult { total, items: Vec::new() },
+            Err(_) => {
+                return SessionListResult {
+                    total,
+                    items: Vec::new(),
+                }
+            }
         };
 
         let mut rows = match stmt.query([]) {
             Ok(r) => r,
-            Err(_) => return SessionListResult { total, items: Vec::new() },
+            Err(_) => {
+                return SessionListResult {
+                    total,
+                    items: Vec::new(),
+                }
+            }
         };
 
         let mut items = Vec::new();
@@ -73,7 +98,11 @@ impl super::PlatformAdapter for OpenCodePlatform {
 
             let alias = alias_map.get(&id).cloned().unwrap_or_default();
             let display_title = if alias.is_empty() {
-                if title.is_empty() { id.clone() } else { title.clone() }
+                if title.is_empty() {
+                    id.clone()
+                } else {
+                    title.clone()
+                }
             } else {
                 alias.clone()
             };
@@ -84,7 +113,11 @@ impl super::PlatformAdapter for OpenCodePlatform {
                 session_id: id,
                 display_title,
                 alias_title: alias,
-                preview: if title.is_empty() { String::new() } else { title },
+                preview: if title.is_empty() {
+                    String::new()
+                } else {
+                    title
+                },
                 updated_at: time_updated.to_string(),
                 cwd: directory,
                 editable: true,
@@ -96,14 +129,90 @@ impl super::PlatformAdapter for OpenCodePlatform {
         SessionListResult { total, items }
     }
 
-    fn get_session_detail(&self, session_key: &str, alias_map: &HashMap<String, String>) -> Result<SessionDetail, String> {
+    fn list_session_keys(&self) -> Option<Vec<SessionKey>> {
+        if !self.db_path.exists() {
+            return None;
+        }
+        let conn = self.connect().ok()?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, time_updated
+                 FROM session
+                 WHERE parent_id IS NULL OR parent_id = ''
+                 ORDER BY time_updated DESC",
+            )
+            .ok()?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(SessionKey {
+                    key: row.get(0)?,
+                    sort_key: row.get::<_, i64>(1)? as i128,
+                })
+            })
+            .ok()?;
+
+        Some(rows.flatten().collect())
+    }
+
+    fn session_list_item(
+        &self,
+        session_key: &str,
+        alias_map: &HashMap<String, String>,
+        _cache: Option<&crate::database::SessionSummaryCache<'_>>,
+    ) -> Option<SessionListItem> {
+        let conn = self.connect().ok()?;
+        let (title, directory, time_updated): (String, String, i64) = conn
+            .query_row(
+                "SELECT title, directory, time_updated FROM session WHERE id = ?1",
+                params![session_key],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .ok()?;
+        let alias = alias_map.get(session_key).cloned().unwrap_or_default();
+        let display_title = if alias.is_empty() {
+            if title.is_empty() {
+                session_key.to_string()
+            } else {
+                title.clone()
+            }
+        } else {
+            alias.clone()
+        };
+
+        Some(SessionListItem {
+            platform: "opencode".into(),
+            session_key: session_key.to_string(),
+            session_id: session_key.to_string(),
+            display_title,
+            alias_title: alias,
+            preview: if title.is_empty() {
+                String::new()
+            } else {
+                title
+            },
+            updated_at: time_updated.to_string(),
+            cwd: directory,
+            editable: true,
+            content_matches: vec![],
+            total_content_matches: 0,
+            favorite: false,
+        })
+    }
+
+    fn get_session_detail(
+        &self,
+        session_key: &str,
+        alias_map: &HashMap<String, String>,
+    ) -> Result<SessionDetail, String> {
         let conn = self.connect()?;
 
-        let session_row: Option<(String, String)> = conn.query_row(
-            "SELECT title, directory FROM session WHERE id = ?1",
-            params![session_key],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).ok();
+        let session_row: Option<(String, String)> = conn
+            .query_row(
+                "SELECT title, directory FROM session WHERE id = ?1",
+                params![session_key],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .ok();
 
         let (session_title, session_cwd) = session_row.unwrap_or_default();
 
@@ -111,7 +220,9 @@ impl super::PlatformAdapter for OpenCodePlatform {
             "SELECT part.id, part.data, message.data as message_data FROM part JOIN message ON message.id = part.message_id WHERE part.session_id = ?1 ORDER BY part.time_created ASC, part.id ASC"
         ).map_err(|e| format!("Prepare error: {e}"))?;
 
-        let mut rows = stmt.query(params![session_key]).map_err(|e| format!("Query error: {e}"))?;
+        let mut rows = stmt
+            .query(params![session_key])
+            .map_err(|e| format!("Query error: {e}"))?;
 
         let mut blocks: Vec<TimelineBlock> = Vec::new();
         let mut pending_tool_calls = Vec::new();
@@ -143,7 +254,11 @@ impl super::PlatformAdapter for OpenCodePlatform {
 
         let alias = alias_map.get(session_key).cloned().unwrap_or_default();
         let title = if alias.is_empty() {
-            if session_title.is_empty() { session_key.to_string() } else { session_title }
+            if session_title.is_empty() {
+                session_key.to_string()
+            } else {
+                session_title
+            }
         } else {
             alias.clone()
         };
@@ -163,23 +278,31 @@ impl super::PlatformAdapter for OpenCodePlatform {
     fn update_message(&self, edit_target: &str, new_content: &str) -> Result<String, String> {
         let conn = self.connect()?;
 
-        let data_str: String = conn.query_row(
-            "SELECT data FROM part WHERE id = ?1",
-            params![edit_target],
-            |row| row.get(0),
-        ).map_err(|e| format!("Part not found: {e}"))?;
+        let data_str: String = conn
+            .query_row(
+                "SELECT data FROM part WHERE id = ?1",
+                params![edit_target],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Part not found: {e}"))?;
 
-        let mut payload: Value = serde_json::from_str(&data_str).map_err(|e| format!("Parse error: {e}"))?;
+        let mut payload: Value =
+            serde_json::from_str(&data_str).map_err(|e| format!("Parse error: {e}"))?;
 
         let kind = payload.get("type").and_then(|v| v.as_str()).unwrap_or("");
         let old_content = match kind {
             "text" | "reasoning" => {
-                let old = payload.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let old = payload
+                    .get("text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 payload["text"] = Value::String(new_content.to_string());
                 old
             }
             "tool" => {
-                let old = payload.get("state")
+                let old = payload
+                    .get("state")
                     .and_then(|s| s.get("output"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
@@ -193,11 +316,13 @@ impl super::PlatformAdapter for OpenCodePlatform {
             _ => String::new(),
         };
 
-        let new_data = serde_json::to_string(&payload).map_err(|e| format!("Serialize error: {e}"))?;
+        let new_data =
+            serde_json::to_string(&payload).map_err(|e| format!("Serialize error: {e}"))?;
         conn.execute(
             "UPDATE part SET data = ?1 WHERE id = ?2",
             params![new_data, edit_target],
-        ).map_err(|e| format!("Update error: {e}"))?;
+        )
+        .map_err(|e| format!("Update error: {e}"))?;
 
         Ok(old_content)
     }
@@ -216,7 +341,12 @@ impl super::PlatformAdapter for OpenCodePlatform {
         if let Ok(row) = conn.query_row(
             "SELECT title, directory FROM session WHERE id = ?1",
             params![session_key],
-            |row| Ok((row.get::<_, String>(0).unwrap_or_default(), row.get::<_, String>(1).unwrap_or_default())),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0).unwrap_or_default(),
+                    row.get::<_, String>(1).unwrap_or_default(),
+                ))
+            },
         ) {
             if row.0.to_lowercase().contains(&needle) || row.1.to_lowercase().contains(&needle) {
                 return true;
@@ -297,13 +427,20 @@ impl super::PlatformAdapter for OpenCodePlatform {
 
 fn part_to_block(part_id: &str, data: &Value, message_data: &Value) -> Option<TimelineBlock> {
     let kind = data.get("type").and_then(|v| v.as_str())?;
-    let message_role = message_data.get("role").and_then(|v| v.as_str()).unwrap_or("user");
+    let message_role = message_data
+        .get("role")
+        .and_then(|v| v.as_str())
+        .unwrap_or("user");
 
     match kind {
         "text" => Some(TimelineBlock {
             id: part_id.to_string(),
             role: message_role.to_string(),
-            content: data.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            content: data
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             editable: true,
             edit_target: part_id.to_string(),
             source_meta: serde_json::json!({"partType": kind, "messageRole": message_role}),
@@ -312,7 +449,11 @@ fn part_to_block(part_id: &str, data: &Value, message_data: &Value) -> Option<Ti
         "reasoning" => Some(TimelineBlock {
             id: part_id.to_string(),
             role: "thinking".into(),
-            content: data.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            content: data
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             editable: true,
             edit_target: part_id.to_string(),
             source_meta: serde_json::json!({"partType": kind}),
@@ -392,7 +533,10 @@ mod tests {
         assert_eq!(tool_call.id, "part_1");
         assert_eq!(tool_call.name, "bash");
         assert_eq!(tool_call.status, "completed");
-        assert_eq!(tool_call.input.as_deref(), Some("{\n  \"command\": \"npm test\"\n}"));
+        assert_eq!(
+            tool_call.input.as_deref(),
+            Some("{\n  \"command\": \"npm test\"\n}")
+        );
         assert_eq!(tool_call.output.as_deref(), Some("ok"));
     }
 }

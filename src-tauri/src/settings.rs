@@ -173,7 +173,12 @@ pub fn bootstrap(app: &AppHandle, state: &SharedSettingsState) -> Result<Desktop
 
     let db_path = ensure_data_dir(app)?.join("memory-forge.db");
 
-    snapshot_from_settings(app, settings.clone(), autostart_supported, db_path.to_string_lossy().to_string())
+    snapshot_from_settings(
+        app,
+        settings.clone(),
+        autostart_supported,
+        db_path.to_string_lossy().to_string(),
+    )
 }
 
 pub fn update_settings(
@@ -264,7 +269,12 @@ pub fn update_settings(
     persist_settings(app, &settings)?;
 
     let db_path = ensure_data_dir(app)?.join("memory-forge.db");
-    snapshot_from_settings(app, settings.clone(), autostart_supported, db_path.to_string_lossy().to_string())
+    snapshot_from_settings(
+        app,
+        settings.clone(),
+        autostart_supported,
+        db_path.to_string_lossy().to_string(),
+    )
 }
 
 fn set_autostart(app: &AppHandle, enabled: bool) -> Result<(), String> {
@@ -326,20 +336,26 @@ fn load_settings(app: &AppHandle) -> Result<AppSettings, String> {
     let raw = fs::read_to_string(&path)
         .map_err(|error| format!("failed to read settings file '{}': {error}", path.display()))?;
 
-    serde_json::from_str::<AppSettings>(&raw).map(migrate_settings).map_err(|error| {
-        format!(
-            "failed to parse settings file '{}': {error}",
-            path.display()
-        )
-    })
+    serde_json::from_str::<AppSettings>(&raw)
+        .map(migrate_settings)
+        .map_err(|error| {
+            format!(
+                "failed to parse settings file '{}': {error}",
+                path.display()
+            )
+        })
 }
 
 fn persist_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), String> {
     let path = settings_file_path(app)?;
     let json = serde_json::to_string_pretty(settings)
         .map_err(|error| format!("failed to serialize settings: {error}"))?;
-    fs::write(&path, json)
-        .map_err(|error| format!("failed to write settings file '{}': {error}", path.display()))
+    fs::write(&path, json).map_err(|error| {
+        format!(
+            "failed to write settings file '{}': {error}",
+            path.display()
+        )
+    })
 }
 
 fn settings_file_path(app: &AppHandle) -> Result<PathBuf, String> {

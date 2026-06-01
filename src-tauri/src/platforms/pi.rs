@@ -1,18 +1,19 @@
 use std::collections::{HashMap, HashSet};
-use std::fs::{self, File};
-use std::io::{BufRead, BufReader};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use chrono::DateTime;
 use serde_json::{json, Value};
 
-use crate::database::{CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache};
+use crate::database::{
+    CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache,
+};
 
 use super::{
-    build_commands, content_entries_to_matches, tool_text_from_str, tool_text_from_value,
-    ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult,
-    TimelineBlock, ToolCallBlock,
+    build_commands, content_entries_to_matches, read_head_tail_lines, tool_text_from_str,
+    tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionKey,
+    SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
 };
 
 pub struct PiPlatform {
@@ -61,56 +62,42 @@ impl PiPlatform {
     }
 
     fn quick_scan(path: &Path) -> Option<QuickScan> {
-        let file = File::open(path).ok()?;
-        let reader = BufReader::new(file);
         let mut scan = QuickScan::default();
 
-        for line in reader.lines().map_while(Result::ok) {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            let Ok(value) = serde_json::from_str::<Value>(trimmed) else {
-                continue;
-            };
+        let Ok((head, tail)) = read_head_tail_lines(path, 80, 80) else {
+            return Self::full_scan(path);
+        };
+        for line in head.iter().chain(tail.iter()) {
+            apply_quick_scan_line(&mut scan, line);
+        }
 
-            let entry_type = value
-                .get("type")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            if entry_type == "session" {
-                scan.session_id = value
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string();
-                scan.cwd = value
-                    .get("cwd")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string();
-            }
+        if scan.session_id.is_empty() {
+            scan.session_id = path
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+        }
+        if scan.updated_at.is_empty() {
+            scan.updated_at = file_modified_millis(path).unwrap_or_default();
+        }
 
-            if entry_type == "session_info" {
-                if let Some(name) = value.get("name").and_then(Value::as_str) {
-                    if !name.trim().is_empty() {
-                        scan.title = name.trim().to_string();
-                    }
+        if scan.cwd.is_empty() || scan.preview.is_empty() {
+            if let Some(full) = Self::full_scan(path) {
+                if scan.cwd.is_empty() || scan.preview.is_empty() {
+                    return Some(full);
                 }
             }
+        }
 
-            if let Some(timestamp) = value.get("timestamp").and_then(Value::as_str) {
-                if let Some(ms) = timestamp_to_millis_string(timestamp) {
-                    scan.updated_at = ms;
-                }
-            }
+        Some(scan)
+    }
 
-            if scan.preview.is_empty() && entry_type == "message" {
-                scan.preview = value
-                    .get("message")
-                    .and_then(message_preview)
-                    .unwrap_or_default();
-            }
+    fn full_scan(path: &Path) -> Option<QuickScan> {
+        let raw = fs::read_to_string(path).ok()?;
+        let mut scan = QuickScan::default();
+        for line in raw.lines() {
+            apply_quick_scan_line(&mut scan, line);
         }
 
         if scan.session_id.is_empty() {
@@ -419,6 +406,46 @@ impl PlatformAdapter for PiPlatform {
         SessionListResult { total, items }
     }
 
+    fn list_session_keys(&self) -> Option<Vec<SessionKey>> {
+        Some(
+            self.collect_session_files()
+                .into_iter()
+                .filter_map(|path| {
+                    let key = Self::key_for_path(&path)?;
+                    let scan = Self::quick_scan(&path)?;
+                    let sort_key = timestamp_sort_key(&scan.updated_at);
+                    Some(SessionKey { key, sort_key })
+                })
+                .collect(),
+        )
+    }
+
+    fn session_list_item(
+        &self,
+        session_key: &str,
+        alias_map: &HashMap<String, String>,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> Option<SessionListItem> {
+        let path = self.path_for_key(session_key)?;
+        let scan = Self::cached_quick_scan(&path, session_key, cache)?;
+        let alias_title = alias_map.get(session_key).cloned().unwrap_or_default();
+        let display_title = Self::session_title(session_key, &scan, &alias_title);
+        Some(SessionListItem {
+            platform: "pi".to_string(),
+            session_key: session_key.to_string(),
+            session_id: scan.session_id,
+            display_title,
+            alias_title,
+            preview: scan.preview,
+            updated_at: scan.updated_at,
+            cwd: scan.cwd,
+            editable: true,
+            content_matches: vec![],
+            total_content_matches: 0,
+            favorite: false,
+        })
+    }
+
     fn get_session_detail(
         &self,
         session_key: &str,
@@ -540,6 +567,29 @@ impl PlatformAdapter for PiPlatform {
         raw.to_lowercase().contains(&needle)
     }
 
+    fn warm_content_index(
+        &self,
+        session_key: &str,
+        index: Option<&SessionContentIndex<'_>>,
+    ) -> bool {
+        let Some(index) = index else {
+            return false;
+        };
+        let Some(path) = self.path_for_key(session_key) else {
+            return false;
+        };
+        let Some(fingerprint) = SessionSummaryCache::fingerprint(&path) else {
+            return false;
+        };
+        if index.is_current("pi", session_key, &fingerprint) {
+            return true;
+        }
+        let entries = self.searchable_content_entries(session_key);
+        index
+            .replace("pi", session_key, &fingerprint, &entries)
+            .is_ok()
+    }
+
     fn content_search(&self, session_key: &str, query: &str) -> Vec<ContentMatch> {
         let needle = query.to_lowercase();
         if needle.trim().is_empty() {
@@ -578,6 +628,54 @@ impl PlatformAdapter for PiPlatform {
         let matches = content_entries_to_matches(entries.clone(), &needle);
         let _ = index.replace("pi", session_key, &fingerprint, &entries);
         matches
+    }
+}
+
+fn apply_quick_scan_line(scan: &mut QuickScan, line: &str) {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    let Ok(value) = serde_json::from_str::<Value>(trimmed) else {
+        return;
+    };
+
+    let entry_type = value
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if entry_type == "session" {
+        scan.session_id = value
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        scan.cwd = value
+            .get("cwd")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+    }
+
+    if entry_type == "session_info" {
+        if let Some(name) = value.get("name").and_then(Value::as_str) {
+            if !name.trim().is_empty() {
+                scan.title = name.trim().to_string();
+            }
+        }
+    }
+
+    if let Some(timestamp) = value.get("timestamp").and_then(Value::as_str) {
+        if let Some(ms) = timestamp_to_millis_string(timestamp) {
+            scan.updated_at = ms;
+        }
+    }
+
+    if scan.preview.is_empty() && entry_type == "message" {
+        scan.preview = value
+            .get("message")
+            .and_then(message_preview)
+            .unwrap_or_default();
     }
 }
 

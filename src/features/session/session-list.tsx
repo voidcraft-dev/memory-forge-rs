@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, type CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
@@ -58,6 +58,10 @@ const platformColors = {
 
 
 const PAGE_SIZE = 50
+const SESSION_CARD_RENDER_STYLE: CSSProperties = {
+  contentVisibility: 'auto',
+  containIntrinsicSize: '160px',
+}
 
 export function SessionList() {
   const { t, state, dispatch } = useDesktop()
@@ -98,9 +102,6 @@ export function SessionList() {
         console.timeEnd(`[perf] getSessions(${currentPlatform}, search=${isSearch})`)
         dispatch({ type: 'setSessions', payload: result.items })
         setTotalCount(result.total)
-        if (result.items.length > 0 && !selectedSessionKey) {
-          dispatch({ type: 'setSelectedSessionKey', payload: result.items[0].sessionKey })
-        }
         dispatch({ type: 'setEditingBlock', payload: null })
         dispatch({ type: 'setSessionStatus', payload: null })
       } catch (err) {
@@ -500,6 +501,7 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
   return (
     <div
       onClick={onClick}
+      style={SESSION_CARD_RENDER_STYLE}
       className={cn(
         "group relative cursor-pointer rounded-2xl border transition-all duration-300 select-none overflow-hidden p-4",
         highlightAsSelection

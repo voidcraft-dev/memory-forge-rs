@@ -6,11 +6,13 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-use crate::database::{CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache};
+use crate::database::{
+    CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache,
+};
 
 use super::{
     build_commands, content_entries_to_matches, tool_text_from_str, tool_text_from_value,
-    ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult,
+    ContentMatch, PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult,
     TimelineBlock, ToolCallBlock,
 };
 
@@ -60,17 +62,27 @@ impl CodexPlatform {
         let mut preview = String::new();
 
         let Ok(file) = File::open(path) else {
-            return SummaryData { session_id, cwd, preview };
+            return SummaryData {
+                session_id,
+                cwd,
+                preview,
+            };
         };
         let reader = BufReader::new(file);
 
         for line in reader.lines() {
             let Ok(line) = line else { continue };
             let trimmed = line.trim();
-            if trimmed.is_empty() { continue; }
-            let Ok(parsed) = serde_json::from_str::<Value>(trimmed) else { continue };
+            if trimmed.is_empty() {
+                continue;
+            }
+            let Ok(parsed) = serde_json::from_str::<Value>(trimmed) else {
+                continue;
+            };
 
-            let Some(payload) = parsed.get("payload") else { continue };
+            let Some(payload) = parsed.get("payload") else {
+                continue;
+            };
 
             if let Some(id) = payload.get("id").and_then(Value::as_str) {
                 session_id = id.to_string();
@@ -192,7 +204,11 @@ impl CodexPlatform {
                 continue;
             };
 
-            match payload.get("type").and_then(Value::as_str).unwrap_or_default() {
+            match payload
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+            {
                 "message" => {
                     if let Some(role) = codex_message_role(payload) {
                         for part in codex_message_text_parts(payload) {
@@ -232,7 +248,8 @@ impl CodexPlatform {
                         .and_then(Value::as_str)
                         .unwrap_or_default()
                         .to_string();
-                    if response_message_signatures.contains(&("user".to_string(), content.clone())) {
+                    if response_message_signatures.contains(&("user".to_string(), content.clone()))
+                    {
                         continue;
                     }
 
@@ -253,7 +270,9 @@ impl CodexPlatform {
                         .and_then(Value::as_str)
                         .unwrap_or_default()
                         .to_string();
-                    if response_message_signatures.contains(&("assistant".to_string(), content.clone())) {
+                    if response_message_signatures
+                        .contains(&("assistant".to_string(), content.clone()))
+                    {
                         continue;
                     }
 
@@ -281,7 +300,11 @@ impl CodexPlatform {
         }
 
         if !pending_tool_calls.is_empty() {
-            if let Some(last_assistant) = blocks.iter_mut().rev().find(|block| block.role == "assistant") {
+            if let Some(last_assistant) = blocks
+                .iter_mut()
+                .rev()
+                .find(|block| block.role == "assistant")
+            {
                 last_assistant.tool_calls.append(&mut pending_tool_calls);
             }
         }
@@ -377,7 +400,11 @@ fn push_codex_block(
     if block.role == "assistant" {
         block.tool_calls.append(pending_tool_calls);
     } else if !pending_tool_calls.is_empty() {
-        if let Some(last_assistant) = blocks.iter_mut().rev().find(|block| block.role == "assistant") {
+        if let Some(last_assistant) = blocks
+            .iter_mut()
+            .rev()
+            .find(|block| block.role == "assistant")
+        {
             last_assistant.tool_calls.append(pending_tool_calls);
         }
     }
@@ -428,7 +455,8 @@ fn merge_codex_tool_call(existing: &mut ToolCallBlock, incoming: ToolCallBlock) 
         "requested".to_string()
     };
 
-    existing.source_meta = merge_codex_tool_source_meta(&existing.source_meta, &incoming.source_meta);
+    existing.source_meta =
+        merge_codex_tool_source_meta(&existing.source_meta, &incoming.source_meta);
 }
 
 fn merge_codex_tool_source_meta(left: &Value, right: &Value) -> Value {
@@ -475,7 +503,10 @@ fn codex_function_call_to_block(payload: &Value, line_index: usize) -> ToolCallB
             .and_then(|value| tool_text_from_value(value, 8192)),
         output: None,
         error: None,
-        started_at: payload.get("timestamp").and_then(Value::as_str).map(ToString::to_string),
+        started_at: payload
+            .get("timestamp")
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
         ended_at: None,
         source_meta: json!({
             "lineIndex": line_index,
@@ -500,17 +531,20 @@ fn codex_function_output_to_block(payload: &Value, line_index: usize) -> ToolCal
         kind: "function_call_output".to_string(),
         status: "completed".to_string(),
         input: None,
-        output: payload
-            .get("output")
-            .and_then(|value| {
-                value
-                    .as_str()
-                    .and_then(|text| tool_text_from_str(text, 32768))
-                    .or_else(|| tool_text_from_value(value, 32768))
-            }),
-        error: payload.get("error").and_then(|value| tool_text_from_value(value, 8192)),
+        output: payload.get("output").and_then(|value| {
+            value
+                .as_str()
+                .and_then(|text| tool_text_from_str(text, 32768))
+                .or_else(|| tool_text_from_value(value, 32768))
+        }),
+        error: payload
+            .get("error")
+            .and_then(|value| tool_text_from_value(value, 8192)),
         started_at: None,
-        ended_at: payload.get("timestamp").and_then(Value::as_str).map(ToString::to_string),
+        ended_at: payload
+            .get("timestamp")
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
         source_meta: json!({
             "lineIndex": line_index,
             "payloadType": "function_call_output",
@@ -519,9 +553,17 @@ fn codex_function_output_to_block(payload: &Value, line_index: usize) -> ToolCal
 }
 
 impl PlatformAdapter for CodexPlatform {
-    fn list_sessions(&self, alias_map: &HashMap<String, String>, limit: Option<usize>, offset: usize) -> SessionListResult {
+    fn list_sessions(
+        &self,
+        alias_map: &HashMap<String, String>,
+        limit: Option<usize>,
+        offset: usize,
+    ) -> SessionListResult {
         if !self.sessions_root.exists() {
-            return SessionListResult { total: 0, items: Vec::new() };
+            return SessionListResult {
+                total: 0,
+                items: Vec::new(),
+            };
         }
 
         let mut entries = Vec::new();
@@ -573,7 +615,10 @@ impl PlatformAdapter for CodexPlatform {
         cache: Option<&SessionSummaryCache<'_>>,
     ) -> SessionListResult {
         if !self.sessions_root.exists() {
-            return SessionListResult { total: 0, items: Vec::new() };
+            return SessionListResult {
+                total: 0,
+                items: Vec::new(),
+            };
         }
 
         let mut entries = Vec::new();
@@ -615,6 +660,41 @@ impl PlatformAdapter for CodexPlatform {
             .collect();
 
         SessionListResult { total, items }
+    }
+
+    fn list_session_keys(&self) -> Option<Vec<SessionKey>> {
+        if !self.sessions_root.exists() || self.project_root.is_some() {
+            return None;
+        }
+
+        let mut entries = Vec::new();
+        collect_jsonl_recursive(&self.sessions_root, &mut entries);
+        Some(
+            entries
+                .into_iter()
+                .map(|path| SessionKey {
+                    key: encode_path_key(&path),
+                    sort_key: modified_nanos(&path) as i128,
+                })
+                .collect(),
+        )
+    }
+
+    fn session_list_item(
+        &self,
+        session_key: &str,
+        alias_map: &HashMap<String, String>,
+        cache: Option<&SessionSummaryCache<'_>>,
+    ) -> Option<SessionListItem> {
+        let path = Path::new(session_key);
+        if !path.exists() {
+            return None;
+        }
+        let item = self.session_item(path, alias_map, cache);
+        if self.project_root.is_some() && !self.includes_project_cwd(&item.cwd) {
+            return None;
+        }
+        Some(item)
     }
 
     fn get_session_detail(
@@ -743,6 +823,27 @@ impl PlatformAdapter for CodexPlatform {
         !self.content_search(session_key, query).is_empty()
     }
 
+    fn warm_content_index(
+        &self,
+        session_key: &str,
+        index: Option<&SessionContentIndex<'_>>,
+    ) -> bool {
+        let Some(index) = index else {
+            return false;
+        };
+        let path = Path::new(session_key);
+        let Some(fingerprint) = SessionSummaryCache::fingerprint(path) else {
+            return false;
+        };
+        if index.is_current("codex", session_key, &fingerprint) {
+            return true;
+        }
+        let entries = self.searchable_content_entries(session_key);
+        index
+            .replace("codex", session_key, &fingerprint, &entries)
+            .is_ok()
+    }
+
     fn content_search(&self, session_key: &str, query: &str) -> Vec<ContentMatch> {
         let needle = query.trim().to_lowercase();
         if needle.is_empty() {
@@ -857,8 +958,12 @@ fn should_include_response_message(role: &str, text: &str) -> bool {
 fn is_internal_codex_user_message(text: &str) -> bool {
     let trimmed = text.trim_start();
     trimmed.starts_with("<environment_context>")
-        || trimmed.starts_with("The following is the Codex agent history whose request action you are assessing.")
-        || trimmed.starts_with("The following is the Codex agent history added since your last approval assessment.")
+        || trimmed.starts_with(
+            "The following is the Codex agent history whose request action you are assessing.",
+        )
+        || trimmed.starts_with(
+            "The following is the Codex agent history added since your last approval assessment.",
+        )
 }
 
 fn codex_reasoning_to_block(payload: &Value, line_index: usize) -> Option<TimelineBlock> {
@@ -1101,7 +1206,10 @@ mod tests {
         assert_eq!(blocks[1].tool_calls[0].name, "shell");
         assert_eq!(blocks[1].tool_calls[0].kind, "function_call");
         assert_eq!(blocks[1].tool_calls[0].status, "completed");
-        assert_eq!(blocks[1].tool_calls[0].input.as_deref(), Some("{\n  \"command\": \"cargo test\"\n}"));
+        assert_eq!(
+            blocks[1].tool_calls[0].input.as_deref(),
+            Some("{\n  \"command\": \"cargo test\"\n}")
+        );
         assert_eq!(blocks[1].tool_calls[0].output.as_deref(), Some("ok"));
     }
 
@@ -1122,8 +1230,14 @@ mod tests {
         assert_eq!(blocks[0].tool_calls.len(), 1);
         assert_eq!(blocks[0].tool_calls[0].name, "shell");
         assert_eq!(blocks[0].tool_calls[0].status, "completed");
-        assert_eq!(blocks[0].tool_calls[0].input.as_deref(), Some("{\n  \"command\": \"rg TODO\"\n}"));
-        assert_eq!(blocks[0].tool_calls[0].output.as_deref(), Some("todo found"));
+        assert_eq!(
+            blocks[0].tool_calls[0].input.as_deref(),
+            Some("{\n  \"command\": \"rg TODO\"\n}")
+        );
+        assert_eq!(
+            blocks[0].tool_calls[0].output.as_deref(),
+            Some("todo found")
+        );
         assert_eq!(blocks[1].role, "user");
         assert!(blocks[1].tool_calls.is_empty());
     }
@@ -1237,7 +1351,8 @@ mod tests {
                     "cwd": project_a.display().to_string(),
                     "message": "inside"
                 }
-            })).expect("serialize inside session"),
+            }))
+            .expect("serialize inside session"),
         )
         .expect("write inside session");
         fs::write(
@@ -1249,7 +1364,8 @@ mod tests {
                     "cwd": other_project.display().to_string(),
                     "message": "outside"
                 }
-            })).expect("serialize outside session"),
+            }))
+            .expect("serialize outside session"),
         )
         .expect("write outside session");
 

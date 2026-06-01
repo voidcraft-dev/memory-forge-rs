@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::thread;
 use std::time::Instant;
 
 use chrono::{Duration, Local, TimeZone};
@@ -39,22 +40,33 @@ pub fn dashboard_summary(db: &DbState, settings: &AppSettings) -> Result<Dashboa
     let mut recent_sessions = Vec::new();
     let mut trend_map: HashMap<String, usize> = HashMap::new();
 
-    for platform_name in ["claude", "codex", "opencode", "pi", "cursor", "kiro", "kiro-ide", "gemini"] {
-        let tp = Instant::now();
-        let adapter = platforms::get_adapter(platform_name, settings)?;
-        let aliases = database::get_alias_map(&db.conn, platform_name)?;
-        let archived = database::get_flagged_keys(&db.conn, platform_name, "archived").unwrap_or_default();
-        let favorites = database::get_flagged_keys(&db.conn, platform_name, "favorite").unwrap_or_default();
-        let summary_cache = database::SessionSummaryCache::new(&db.conn);
-        let result = adapter.list_sessions_with_cache(&aliases, Some(50), 0, Some(&summary_cache));
-        // Filter out archived, annotate favorites, take top 20
-        let items: Vec<SessionListItem> = result.items.into_iter()
-            .filter(|item| !archived.contains(&item.session_key))
-            .map(|mut item| { item.favorite = favorites.contains(&item.session_key); item })
+    let platform_names = [
+        "claude", "codex", "opencode", "pi", "cursor", "kiro", "kiro-ide", "gemini",
+    ];
+    let db_path = db.db_path.clone();
+    let settings = settings.clone();
+    let platform_results = thread::scope(|scope| {
+        let handles: Vec<_> = platform_names
+            .iter()
+            .map(|platform_name| {
+                let db_path = db_path.clone();
+                let settings = settings.clone();
+                scope.spawn(move || dashboard_platform_summary(&db_path, &settings, platform_name))
+            })
             .collect();
-        let total = result.total.saturating_sub(archived.len());
-        eprintln!("[perf] dashboard({platform_name}) list ({total} active): {:?}", tp.elapsed());
 
+        handles
+            .into_iter()
+            .map(|handle| {
+                handle
+                    .join()
+                    .unwrap_or_else(|_| Err("dashboard worker panicked".to_string()))
+            })
+            .collect::<Vec<_>>()
+    });
+
+    for result in platform_results {
+        let (summary, items) = result?;
         for item in items.iter().take(20) {
             let day = format_timestamp(&item.updated_at);
             if !day.is_empty() {
@@ -63,16 +75,7 @@ pub fn dashboard_summary(db: &DbState, settings: &AppSettings) -> Result<Dashboa
         }
 
         recent_sessions.extend(items.iter().take(10).cloned());
-
-        platforms_summary.push(PlatformSummary {
-            platform: platform_name.to_string(),
-            count: total,
-            latest: items
-                .first()
-                .map(|item| format_timestamp(&item.updated_at))
-                .unwrap_or_default(),
-            items: items.into_iter().take(5).collect(),
-        });
+        platforms_summary.push(summary);
     }
 
     recent_sessions.sort_by_key(|item| std::cmp::Reverse(timestamp_sort_key(&item.updated_at)));
@@ -97,6 +100,50 @@ pub fn dashboard_summary(db: &DbState, settings: &AppSettings) -> Result<Dashboa
     })
 }
 
+fn dashboard_platform_summary(
+    db_path: &str,
+    settings: &AppSettings,
+    platform_name: &str,
+) -> Result<(PlatformSummary, Vec<SessionListItem>), String> {
+    let tp = Instant::now();
+    let db = DbState::new(db_path)?;
+    let adapter = platforms::get_adapter(platform_name, settings)?;
+    let aliases = database::get_alias_map(&db.conn, platform_name)?;
+    let archived =
+        database::get_flagged_keys(&db.conn, platform_name, "archived").unwrap_or_default();
+    let favorites =
+        database::get_flagged_keys(&db.conn, platform_name, "favorite").unwrap_or_default();
+    let summary_cache = database::SessionSummaryCache::new(&db.conn);
+    let result = list_sessions_page(
+        adapter.as_ref(),
+        &aliases,
+        Some(50),
+        0,
+        &archived,
+        &favorites,
+        false,
+        Some(&summary_cache),
+    );
+    let total = result.total;
+    let items = result.items;
+    eprintln!(
+        "[perf] dashboard({platform_name}) list ({total} active): {:?}",
+        tp.elapsed()
+    );
+
+    let summary = PlatformSummary {
+        platform: platform_name.to_string(),
+        count: total,
+        latest: items
+            .first()
+            .map(|item| format_timestamp(&item.updated_at))
+            .unwrap_or_default(),
+        items: items.iter().take(5).cloned().collect(),
+    };
+
+    Ok((summary, items))
+}
+
 pub fn session_list(
     db: &DbState,
     settings: &AppSettings,
@@ -116,11 +163,20 @@ pub fn session_list(
     let has_query = query.map(|q| !q.trim().is_empty()).unwrap_or(false);
 
     // Helper: filter by archive status and annotate favorites
-    let apply_flags = |items: Vec<SessionListItem>, archived: &HashSet<String>, favorites: &HashSet<String>, show_archived: bool| -> Vec<SessionListItem> {
-        items.into_iter()
+    let apply_flags = |items: Vec<SessionListItem>,
+                       archived: &HashSet<String>,
+                       favorites: &HashSet<String>,
+                       show_archived: bool|
+     -> Vec<SessionListItem> {
+        items
+            .into_iter()
             .filter(|item| {
                 let is_archived = archived.contains(&item.session_key);
-                if show_archived { is_archived } else { !is_archived }
+                if show_archived {
+                    is_archived
+                } else {
+                    !is_archived
+                }
             })
             .map(|mut item| {
                 item.favorite = favorites.contains(&item.session_key);
@@ -134,41 +190,56 @@ pub fn session_list(
         let summary_cache = database::SessionSummaryCache::new(&db.conn);
         let content_index = database::SessionContentIndex::new(&db.conn);
         let result = adapter.list_sessions_with_cache(&aliases, None, 0, Some(&summary_cache));
-        eprintln!("[perf] session_list({platform}) list_all {} sessions: {:?}", result.items.len(), t1.elapsed());
+        eprintln!(
+            "[perf] session_list({platform}) list_all {} sessions: {:?}",
+            result.items.len(),
+            t1.elapsed()
+        );
 
         let needle = query.unwrap().trim().to_lowercase();
         let t2 = Instant::now();
         let mut search_count = 0usize;
-        let filtered: Vec<SessionListItem> = result.items.into_iter().filter_map(|item| {
-            let title_match = [
-                item.display_title.as_str(),
-                item.preview.as_str(),
-                item.cwd.as_str(),
-                item.session_id.as_str(),
-            ]
-            .join(" ")
-            .to_lowercase()
-            .contains(&needle);
+        let filtered: Vec<SessionListItem> = result
+            .items
+            .into_iter()
+            .filter_map(|item| {
+                let title_match = [
+                    item.display_title.as_str(),
+                    item.preview.as_str(),
+                    item.cwd.as_str(),
+                    item.session_id.as_str(),
+                ]
+                .join(" ")
+                .to_lowercase()
+                .contains(&needle);
 
-            // Skip expensive content_search when title already matches
-            if title_match {
-                Some(item)
-            } else {
-                search_count += 1;
-                let content_matches =
-                    adapter.content_search_with_index(&item.session_key, &needle, Some(&content_index));
-                if !content_matches.is_empty() {
-                    let mut item = item;
-                    item.total_content_matches = content_matches.len();
-                    item.content_matches = content_matches;
+                // Skip expensive content_search when title already matches
+                if title_match {
                     Some(item)
                 } else {
-                    None
+                    search_count += 1;
+                    let content_matches = adapter.content_search_with_index(
+                        &item.session_key,
+                        &needle,
+                        Some(&content_index),
+                    );
+                    if !content_matches.is_empty() {
+                        let mut item = item;
+                        item.total_content_matches = content_matches.len();
+                        item.content_matches = content_matches;
+                        Some(item)
+                    } else {
+                        None
+                    }
                 }
-            }
-        }).collect();
+            })
+            .collect();
         let mut filtered = apply_flags(filtered, &archived, &favorites, show_archived);
-        eprintln!("[perf] session_list({platform}) content_search x{search_count} -> {} hits: {:?}", filtered.len(), t2.elapsed());
+        eprintln!(
+            "[perf] session_list({platform}) content_search x{search_count} -> {} hits: {:?}",
+            filtered.len(),
+            t2.elapsed()
+        );
 
         let total = filtered.len();
         let start = offset.min(total);
@@ -181,18 +252,135 @@ pub fn session_list(
         let t1 = Instant::now();
         // For non-search: load enough to fill the page after filtering
         let summary_cache = database::SessionSummaryCache::new(&db.conn);
-        let result = adapter.list_sessions_with_cache(&aliases, None, 0, Some(&summary_cache));
-        let mut items = apply_flags(result.items, &archived, &favorites, show_archived);
-        // Sort: favorites first
-        items.sort_by(|a, b| b.favorite.cmp(&a.favorite));
-        let total = items.len();
-        let start = offset.min(total);
-        let end = limit.map(|l| (start + l).min(total)).unwrap_or(total);
-        let page = items[start..end].to_vec();
-        eprintln!("[perf] session_list({platform}) paginated {total} items: {:?}", t1.elapsed());
+        let page_result = list_sessions_page(
+            adapter.as_ref(),
+            &aliases,
+            limit,
+            offset,
+            &archived,
+            &favorites,
+            show_archived,
+            Some(&summary_cache),
+        );
+        eprintln!(
+            "[perf] session_list({platform}) paginated {} items: {:?}",
+            page_result.total,
+            t1.elapsed()
+        );
         eprintln!("[perf] session_list({platform}) total: {:?}", t0.elapsed());
-        Ok(SessionListResult { total, items: page })
+        schedule_content_index_warmup(
+            settings,
+            platform,
+            &db.db_path,
+            page_result
+                .items
+                .iter()
+                .map(|item| item.session_key.clone())
+                .collect(),
+        );
+        Ok(page_result)
     }
+}
+
+fn list_sessions_page(
+    adapter: &dyn platforms::PlatformAdapter,
+    aliases: &HashMap<String, String>,
+    limit: Option<usize>,
+    offset: usize,
+    archived: &HashSet<String>,
+    favorites: &HashSet<String>,
+    show_archived: bool,
+    summary_cache: Option<&database::SessionSummaryCache<'_>>,
+) -> SessionListResult {
+    if let Some(mut keys) = adapter.list_session_keys() {
+        keys.retain(|item| {
+            let is_archived = archived.contains(&item.key);
+            if show_archived {
+                is_archived
+            } else {
+                !is_archived
+            }
+        });
+        keys.sort_by(|a, b| {
+            favorites
+                .contains(&b.key)
+                .cmp(&favorites.contains(&a.key))
+                .then_with(|| b.sort_key.cmp(&a.sort_key))
+        });
+
+        let total = keys.len();
+        let page_keys: Vec<String> = keys
+            .into_iter()
+            .skip(offset.min(total))
+            .take(limit.unwrap_or(usize::MAX))
+            .map(|item| item.key)
+            .collect();
+
+        let items = page_keys
+            .into_iter()
+            .filter_map(|key| adapter.session_list_item(&key, aliases, summary_cache))
+            .map(|mut item| {
+                item.favorite = favorites.contains(&item.session_key);
+                item
+            })
+            .collect();
+
+        return SessionListResult { total, items };
+    }
+
+    let mut items = adapter
+        .list_sessions_with_cache(aliases, None, 0, summary_cache)
+        .items;
+    items = items
+        .into_iter()
+        .filter(|item| {
+            let is_archived = archived.contains(&item.session_key);
+            if show_archived {
+                is_archived
+            } else {
+                !is_archived
+            }
+        })
+        .map(|mut item| {
+            item.favorite = favorites.contains(&item.session_key);
+            item
+        })
+        .collect();
+    items.sort_by(|a, b| b.favorite.cmp(&a.favorite));
+
+    let total = items.len();
+    let start = offset.min(total);
+    let end = limit.map(|l| (start + l).min(total)).unwrap_or(total);
+    let page = items[start..end].to_vec();
+
+    SessionListResult { total, items: page }
+}
+
+fn schedule_content_index_warmup(
+    settings: &AppSettings,
+    platform: &str,
+    db_path: &str,
+    session_keys: Vec<String>,
+) {
+    if session_keys.is_empty() || !matches!(platform, "claude" | "codex" | "pi") {
+        return;
+    }
+
+    let settings = settings.clone();
+    let platform = platform.to_string();
+    let db_path = db_path.to_string();
+    thread::spawn(move || {
+        let Ok(adapter) = platforms::get_adapter(&platform, &settings) else {
+            return;
+        };
+        let Ok(db) = database::DbState::new(&db_path) else {
+            return;
+        };
+        let index = database::SessionContentIndex::new(&db.conn);
+        for session_key in session_keys.into_iter().take(20) {
+            let _ = adapter.warm_content_index(&session_key, Some(&index));
+        }
+    });
 }
 
 pub fn session_toggle_flag(
@@ -213,16 +401,30 @@ pub fn session_batch_set_flag(
 ) -> Result<usize, String> {
     let t0 = Instant::now();
     let affected = database::batch_set_session_flag(&db.conn, platform, session_keys, flag, set)?;
-    eprintln!("[perf] session_batch_set_flag({platform}, {flag}, set={set}) {} keys -> {} affected: {:?}", session_keys.len(), affected, t0.elapsed());
+    eprintln!(
+        "[perf] session_batch_set_flag({platform}, {flag}, set={set}) {} keys -> {} affected: {:?}",
+        session_keys.len(),
+        affected,
+        t0.elapsed()
+    );
     Ok(affected)
 }
 
-pub fn session_detail(db: &DbState, settings: &AppSettings, platform: &str, session_key: &str) -> Result<SessionDetail, String> {
+pub fn session_detail(
+    db: &DbState,
+    settings: &AppSettings,
+    platform: &str,
+    session_key: &str,
+) -> Result<SessionDetail, String> {
     let t0 = Instant::now();
     let adapter = platforms::get_adapter(platform, settings)?;
     let aliases = database::get_alias_map(&db.conn, platform)?;
     let detail = adapter.get_session_detail(session_key, &aliases)?;
-    eprintln!("[perf] session_detail({platform}) {} blocks: {:?}", detail.blocks.len(), t0.elapsed());
+    eprintln!(
+        "[perf] session_detail({platform}) {} blocks: {:?}",
+        detail.blocks.len(),
+        t0.elapsed()
+    );
     Ok(detail)
 }
 
@@ -280,7 +482,14 @@ pub fn session_edit_message(
 ) -> Result<(), String> {
     let adapter = platforms::get_adapter(platform, settings)?;
     let old_content = adapter.update_message(edit_target, content)?;
-    database::insert_edit_log(&db.conn, platform, session_key, edit_target, &old_content, content)
+    database::insert_edit_log(
+        &db.conn,
+        platform,
+        session_key,
+        edit_target,
+        &old_content,
+        content,
+    )
 }
 
 pub fn session_edit_log(
@@ -299,7 +508,14 @@ pub fn session_restore_message(
     session_key: &str,
 ) -> Result<(), String> {
     let log = database::get_edit_log_by_id(&db.conn, edit_log_id)?;
-    session_edit_message(db, settings, platform, &log.edit_target, &log.old_content, session_key)
+    session_edit_message(
+        db,
+        settings,
+        platform,
+        &log.edit_target,
+        &log.old_content,
+        session_key,
+    )
 }
 
 fn format_timestamp(value: &str) -> String {
