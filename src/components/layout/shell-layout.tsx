@@ -168,9 +168,9 @@ export default function ShellLayout() {
                 <button
                   onClick={() => { if (hasUpdate) { navigate("/about"); setMobileMenuOpen(false); } }}
                   className={cn(
-                    "flex items-center gap-1.5 text-[11px] font-mono select-none px-2.5 py-1 rounded-xl border transition-all duration-300",
+                    "h-8 flex items-center gap-1.5 text-[11px] font-mono select-none px-2.5 rounded-xl border transition-all duration-300",
                     hasUpdate
-                      ? "bg-amber-500/10 text-amber-400 border-amber-500/25 hover:bg-amber-500/15"
+                      ? "bg-amber-500/10 text-amber-400 border-amber-500/25 hover:bg-amber-500/15 cursor-pointer"
                       : "bg-muted/20 text-muted-foreground/50 border-border/10 cursor-default"
                   )}
                   title={hasUpdate ? t("updateAvailable") || "发现新版本！点击查看" : undefined}
@@ -179,23 +179,25 @@ export default function ShellLayout() {
                   {hasUpdate && <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />}
                 </button>
 
-                {/* Collapse button on the right */}
+                {/* Collapse button on the right - Enlarge and add text for easier target acquisition */}
                 <button
                   onClick={() => setSidebarCollapsed(true)}
-                  className="h-7 w-7 rounded-lg flex items-center justify-center text-quiet hover:bg-white/5 hover:text-foreground border border-transparent hover:border-border/30 transition-all"
+                  className="h-8 px-3.5 rounded-xl flex items-center gap-1.5 text-xs text-quiet hover:bg-white/5 hover:text-foreground border border-border/10 hover:border-border/30 transition-all font-medium cursor-pointer shadow-sm active:scale-95"
                   title={t("sidebar.collapse") || "收起菜单"}
                 >
-                  <ChevronLeft className="size-4" />
+                  <ChevronLeft className="size-3.5" />
+                  <span>{t("editLog.collapse") || "收起"}</span>
                 </button>
               </div>
             ) : (
-              <div className="mt-auto flex flex-col items-center gap-3 pt-4 border-t border-border/20">
+              <div className="mt-auto flex flex-col items-center gap-3 pt-4 border-t border-border/20 w-full">
+                {/* Expand button - Enlarge width to fill available space (up to 40px) */}
                 <button
                   onClick={() => setSidebarCollapsed(false)}
-                  className="relative h-8 w-8 rounded-xl flex items-center justify-center text-quiet hover:bg-white/5 hover:text-foreground border border-border/20 hover:border-border/50 transition-all"
+                  className="relative h-8.5 w-full max-w-[40px] rounded-xl flex items-center justify-center text-quiet hover:bg-white/5 hover:text-foreground border border-border/20 hover:border-border/50 transition-all active:scale-95 cursor-pointer"
                   title={t("sidebar.expand") || "展开菜单"}
                 >
-                  <ChevronRight className="size-4" />
+                  <ChevronRight className="size-4.5" />
                   {hasUpdate && (
                     <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
