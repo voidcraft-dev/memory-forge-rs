@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod database;
+mod editor_targets;
 mod platforms;
 mod session_service;
 mod settings;
@@ -130,6 +131,22 @@ async fn launch_session_terminal(
             cwd.as_deref(),
             preferred_terminal.as_deref(),
         )
+    })
+    .await
+    .map_err(|e| format!("Task error: {e}"))??;
+
+    Ok(true)
+}
+
+#[tauri::command]
+fn list_editor_targets() -> Result<Vec<editor_targets::EditorTarget>, String> {
+    Ok(editor_targets::list_available_editor_targets())
+}
+
+#[tauri::command]
+async fn open_path_in_editor(editor_id: String, path: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        editor_targets::open_path_in_editor(&editor_id, &path)
     })
     .await
     .map_err(|e| format!("Task error: {e}"))??;
@@ -308,6 +325,8 @@ fn main() {
             session_execution_output,
             session_execution_outputs,
             launch_session_terminal,
+            list_editor_targets,
+            open_path_in_editor,
             session_set_alias,
             session_toggle_flag,
             session_batch_set_flag,

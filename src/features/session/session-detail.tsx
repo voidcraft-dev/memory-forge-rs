@@ -166,6 +166,7 @@ export function SessionDetail() {
       : null
     return stored ?? editorTargets[0]
   }, [editorTargets, preferredEditorId])
+  const PreferredIcon = preferredEditor ? getEditorIcon(preferredEditor.id) : FolderOpen
   const canOpenWorkspace = Boolean(sessionDetail?.cwd?.trim() && preferredEditor)
   const hasExportableToolCalls = blocks.some(block => (block.toolCalls?.length ?? 0) > 0)
   const kiroExecutionPlaceholderBlocks = useMemo(() => {
@@ -507,13 +508,13 @@ export function SessionDetail() {
   const detailLoading = selectedSessionKey !== sessionDetail.sessionKey
 
   return (
-    <section className="relative flex min-w-0 flex-1 flex-col bg-gradient-to-br from-background via-background to-muted/10">
+    <section className="relative z-10 flex min-w-0 flex-1 flex-col bg-gradient-to-br from-background via-background to-muted/10">
       {detailLoading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
           <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       )}
-      <header className="border-b bg-card/50 px-5 py-4 backdrop-blur-xl md:px-6">
+      <header className="relative z-20 border-b bg-card/50 px-5 py-4 backdrop-blur-xl md:px-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex items-center gap-3">
             {isEditingAlias ? (
@@ -616,7 +617,7 @@ export function SessionDetail() {
                   {openingEditorId ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />
                   ) : (
-                    <FolderOpen className="w-3.5 h-3.5 text-primary/80 group-hover:text-primary transition-colors shrink-0" />
+                    <PreferredIcon className="w-3.5 h-3.5 text-primary/80 group-hover:text-primary transition-colors shrink-0" />
                   )}
                   <span>{t('session.openWorkspace')}</span>
                 </button>

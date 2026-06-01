@@ -3,6 +3,7 @@ import type {
   DashboardSummary,
   DesktopSettingsPatch,
   DesktopSnapshot,
+  EditorTarget,
   EditLogEntry,
   PromptCreateInput,
   PromptItem,
@@ -313,6 +314,20 @@ export const api = {
       return invoke<boolean>("launch_session_terminal", { command, cwd: cwd ?? null });
     }
     throw new Error("Terminal launch is not supported in web preview");
+  },
+
+  async listEditorTargets(): Promise<EditorTarget[]> {
+    if (isTauriRuntime()) {
+      return invoke<EditorTarget[]>("list_editor_targets");
+    }
+    return [];
+  },
+
+  async openPathInEditor(editorId: string, path: string): Promise<boolean> {
+    if (isTauriRuntime()) {
+      return invoke<boolean>("open_path_in_editor", { editorId, path });
+    }
+    throw new Error("Opening editors is not supported in web preview");
   },
 
   async setAlias(platform: string, sessionKey: string, title: string) {

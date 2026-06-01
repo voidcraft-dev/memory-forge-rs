@@ -96,6 +96,11 @@ export type SessionDetail = {
   blocks: TimelineBlock[];
 };
 
+export type EditorTarget = {
+  id: string;
+  label: string;
+};
+
 export type SessionListResult = {
   total: number;
   items: Session[];

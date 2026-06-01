@@ -152,6 +152,10 @@ export type MessageKey =
   | "session.closeEditor"
   | "session.cancel"
   | "session.copied"
+  | "session.openWorkspace"
+  | "session.chooseEditor"
+  | "session.workspaceOpened"
+  | "session.workspaceOpenFailed"
   | "session.openTerminal"
   | "session.terminalOpened"
   | "session.terminalOpenFailed"
@@ -369,6 +373,10 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.closeEditor": "关闭编辑器",
     "session.cancel": "取消",
     "session.copied": "已复制",
+    "session.openWorkspace": "打开",
+    "session.chooseEditor": "选择编辑器",
+    "session.workspaceOpened": "已打开工作目录",
+    "session.workspaceOpenFailed": "打开工作目录失败",
     "session.openTerminal": "打开终端",
     "session.terminalOpened": "已打开终端",
     "session.terminalOpenFailed": "打开终端失败，已复制命令",
@@ -584,6 +592,10 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.closeEditor": "Close editor",
     "session.cancel": "Cancel",
     "session.copied": "Copied",
+    "session.openWorkspace": "Open",
+    "session.chooseEditor": "Choose editor",
+    "session.workspaceOpened": "Workspace opened",
+    "session.workspaceOpenFailed": "Failed to open workspace",
     "session.openTerminal": "Open terminal",
     "session.terminalOpened": "Terminal opened",
     "session.terminalOpenFailed": "Failed to open terminal; command copied",
