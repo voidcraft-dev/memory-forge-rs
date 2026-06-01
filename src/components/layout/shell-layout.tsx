@@ -13,6 +13,7 @@ import {
   Code,
   Sparkles,
   Gem,
+  Pi,
 } from "lucide-react";
 import { AppLogo } from "@/components/logo";
 import { NavLink, Outlet, useNavigate } from "react-router";
@@ -30,7 +31,7 @@ const navigation = [
   { to: "/kiro", labelKey: "platformKiro" as const, icon: Sparkles, platformId: "kiro" },
   { to: "/kiro-ide", labelKey: "platformKiroIde" as const, icon: Sparkles, platformId: "kiro-ide" },
   { to: "/gemini", labelKey: "platformGemini" as const, icon: Gem, platformId: "gemini" },
-  { to: "/pi", labelKey: "platformPi" as const, icon: Terminal, platformId: "pi" },
+  { to: "/pi", labelKey: "platformPi" as const, icon: Pi, platformId: "pi" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem } from "lucide-react";
+import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Pi } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/logo";
@@ -78,6 +78,16 @@ const platformMeta = [
     iconBg: "bg-blue-500/15 text-blue-400 group-hover:scale-110",
     hoverGlow: "hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] hover:-translate-y-1"
   },
+  {
+    key: "pi",
+    label: "Pi",
+    icon: Pi,
+    to: "/pi",
+    gradient: "from-rose-500/10 to-cyan-600/5",
+    border: "border-rose-500/20 hover:border-cyan-500/40",
+    iconBg: "bg-rose-500/15 text-rose-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(244,63,94,0.12)] hover:-translate-y-1"
+  },
 ] as const;
 
 export default function DashboardPage() {
@@ -90,7 +100,7 @@ export default function DashboardPage() {
   }, [dispatch]);
 
   const platforms = state.dashboard?.platforms ?? [];
-  const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode"];
+  const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode", "pi"];
   const displayPlatforms = platformMeta.filter((pm) => visiblePlatforms.includes(pm.key));
 
   return (

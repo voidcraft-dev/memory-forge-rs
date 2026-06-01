@@ -35,6 +35,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub gemini_home: Option<String>,
     #[serde(default)]
+    pub pi_home: Option<String>,
+    #[serde(default)]
     pub preferred_terminal: Option<String>,
     #[serde(default = "default_visible_platforms")]
     pub visible_platforms: Vec<String>,
@@ -45,6 +47,7 @@ fn default_visible_platforms() -> Vec<String> {
         "claude".to_string(),
         "codex".to_string(),
         "opencode".to_string(),
+        "pi".to_string(),
     ]
 }
 
@@ -86,6 +89,7 @@ impl Default for AppSettings {
             kiro_home: None,
             kiro_ide_home: None,
             gemini_home: None,
+            pi_home: None,
             preferred_terminal: None,
             visible_platforms: default_visible_platforms(),
         }
@@ -108,6 +112,7 @@ pub struct AppSettingsPatch {
     pub kiro_home: Option<Option<String>>,
     pub kiro_ide_home: Option<Option<String>>,
     pub gemini_home: Option<Option<String>>,
+    pub pi_home: Option<Option<String>>,
     pub preferred_terminal: Option<Option<String>>,
     pub visible_platforms: Option<Vec<String>>,
 }
@@ -228,6 +233,10 @@ pub fn update_settings(
 
     if let Some(gemini_home) = patch.gemini_home {
         settings.gemini_home = gemini_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(pi_home) = patch.pi_home {
+        settings.pi_home = pi_home.filter(|s| !s.trim().is_empty());
     }
 
     if let Some(preferred_terminal) = patch.preferred_terminal {

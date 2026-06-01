@@ -31,7 +31,7 @@ const defaultSettings = {
   geminiHome: null,
   piHome: null,
   preferredTerminal: null,
-  visiblePlatforms: ["claude", "codex", "opencode"] as string[],
+  visiblePlatforms: ["claude", "codex", "opencode", "pi"] as string[],
 };
 
 function isTauriRuntime() {

@@ -17,6 +17,7 @@ export type DesktopSettings = {
   kiroHome: string | null;
   kiroIdeHome: string | null;
   geminiHome: string | null;
+  piHome: string | null;
   preferredTerminal: string | null;
   visiblePlatforms: string[];
 };
@@ -38,7 +39,7 @@ export type DesktopSnapshot = {
 
 // ─── Session ───
 
-export type Platform = "claude" | "codex" | "cursor" | "opencode" | "kiro" | "kiro-ide" | "gemini";
+export type Platform = "claude" | "codex" | "cursor" | "opencode" | "kiro" | "kiro-ide" | "gemini" | "pi";
 
 export type ContentMatch = {
   snippet: string;

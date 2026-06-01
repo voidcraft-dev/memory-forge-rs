@@ -17,8 +17,9 @@ import { cn } from "@/lib/utils";
 const PLATFORM_ITEMS = [
   { id: "claude", labelKey: "platformClaude" as const },
   { id: "codex", labelKey: "platformCodex" as const },
-  { id: "cursor", labelKey: "platformCursor" as const },
   { id: "opencode", labelKey: "platformOpencode" as const },
+  { id: "pi", labelKey: "platformPi" as const },
+  { id: "cursor", labelKey: "platformCursor" as const },
   { id: "kiro", labelKey: "platformKiro" as const },
   { id: "kiro-ide", labelKey: "platformKiroIde" as const },
   { id: "gemini", labelKey: "platformGemini" as const },
@@ -96,6 +97,7 @@ export default function SettingsPage() {
     "claude",
     "codex",
     "opencode",
+    "pi",
   ];
 
   const togglePlatformVisible = async (
@@ -365,6 +367,13 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ geminiHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.geminiHome ?? ""}
+            />
+            <PathRow
+              defaultHint="~/.pi/agent"
+              label={t("piHome")}
+              onSave={(v) => updateSettings({ piHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.piHome ?? ""}
             />
           </div>
         </section>

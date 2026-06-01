@@ -52,6 +52,7 @@ const platformColors = {
   'kiro-ide': 'bg-gradient-to-br from-fuchsia-500 to-purple-600',
   cursor: 'bg-gradient-to-br from-sky-400 to-blue-600',
   gemini: 'bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600',
+  pi: 'bg-gradient-to-br from-rose-500 via-pink-500 to-cyan-500',
 }
 
 
@@ -274,6 +275,7 @@ export function SessionList() {
             {(() => {
               if (currentPlatform === 'kiro-ide') return 'Kiro IDE'
               if (currentPlatform === 'opencode') return 'OpenCode'
+              if (currentPlatform === 'pi') return 'Pi'
               return currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)
             })()} {showArchived ? t('session.archiveView') : t('session.sessions')}
           </h2>
@@ -519,7 +521,8 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
                 platform === 'kiro' && "bg-gradient-to-b from-purple-400 to-violet-500",
                 platform === 'kiro-ide' && "bg-gradient-to-b from-fuchsia-400 to-purple-500",
                 platform === 'gemini' && "bg-gradient-to-b from-blue-400 to-indigo-500",
-                platform === 'cursor' && "bg-gradient-to-b from-sky-400 to-blue-500"
+                platform === 'cursor' && "bg-gradient-to-b from-sky-400 to-blue-500",
+                platform === 'pi' && "bg-gradient-to-b from-rose-400 to-cyan-500"
               )
         )}
       />
@@ -542,7 +545,7 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
             "w-7 h-7 rounded-xl flex items-center justify-center text-white font-black text-xs flex-shrink-0 shadow-lg shadow-black/10 border border-white/10 select-none",
             platformColors[platform as keyof typeof platformColors] || platformColors.claude
           )}>
-            {platform === 'kiro-ide' ? 'K' : platform === 'opencode' ? 'O' : platform[0].toUpperCase()}
+            {platform === 'kiro-ide' ? 'K' : platform === 'opencode' ? 'O' : platform === 'pi' ? 'P' : platform[0].toUpperCase()}
           </span>
           <h3 className={cn("font-bold text-sm truncate min-w-0 transition-colors duration-200 flex-1", highlightAsSelection ? "text-primary" : "text-foreground group-hover:text-foreground")}>
             {session.displayTitle || session.sessionId || untitledLabel}

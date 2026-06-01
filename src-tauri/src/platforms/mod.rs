@@ -5,6 +5,7 @@ pub mod gemini;
 pub mod kiro;
 pub mod kiro_ide;
 pub mod opencode;
+pub mod pi;
 
 use serde::Serialize;
 use std::collections::HashMap;
@@ -204,6 +205,14 @@ pub fn get_adapter(platform: &str, settings: &AppSettings) -> Result<Box<dyn Pla
                 .unwrap_or_else(|| home.join(".gemini"));
             Ok(Box::new(gemini::GeminiPlatform::new(path)))
         }
+        "pi" => {
+            let path = settings.pi_home.as_ref()
+                .map(PathBuf::from)
+                .or_else(pi::default_pi_home)
+                .unwrap_or_else(|| home.join(".pi").join("agent"));
+            let sessions_root = pi::default_pi_sessions_root(&path);
+            Ok(Box::new(pi::PiPlatform::new(path, sessions_root)))
+        }
         _ => Err(format!("Unknown platform: {platform}")),
     }
 }
@@ -237,6 +246,11 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         "gemini" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("gemini --resume '{session_id}'"));
+            m
+        }
+        "pi" => {
+            let mut m = HashMap::new();
+            m.insert("resume".into(), format!("pi --session {session_id}"));
             m
         }
         _ => {
