@@ -549,33 +549,11 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
           </h3>
         </div>
         {!selectionMode && (
-          <div className="relative flex items-center gap-1 flex-shrink-0 h-6">
-            {/* Action buttons shown on hover, using absolute position to NOT occupy layout width in normal state */}
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute right-0 bg-gradient-to-l from-card via-card to-transparent pl-4 py-0.5 pointer-events-none group-hover:pointer-events-auto z-10">
-              <button
-                type="button"
-                onClick={onToggleFavorite}
-                className={cn(
-                  "p-1 rounded-md transition-colors",
-                  session.favorite
-                    ? "text-amber-400 hover:text-amber-300"
-                    : "text-muted-foreground/40 hover:text-amber-400"
-                )}
-              >
-                <Star className={cn("w-3.5 h-3.5", session.favorite && "fill-current")} />
-              </button>
-              <button
-                type="button"
-                onClick={onToggleArchive}
-                className="p-1 rounded-md text-muted-foreground/40 hover:text-foreground transition-colors"
-                title={archiveLabel}
-              >
-                {showArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-
-            {/* Relative timestamp badge shown normally, fades out on hover */}
-            <span className="text-[10px] text-muted-foreground/60 bg-muted/40 border border-border/30 px-2 py-0.5 rounded-lg transition-opacity duration-200 group-hover:opacity-0 select-none flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0 h-6">
+            {session.favorite && (
+              <Star className="w-3.5 h-3.5 text-amber-400 fill-current flex-shrink-0 animate-in zoom-in-50 duration-200" />
+            )}
+            <span className="text-[10px] text-muted-foreground/60 bg-muted/40 border border-border/30 px-2 py-0.5 rounded-lg select-none flex-shrink-0">
               {formatTime(session.updatedAt, justNowLabel)}
             </span>
           </div>
@@ -623,26 +601,79 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
         </div>
       )}
       {session.updatedAt && (
-        <div className="flex items-center gap-1.5 mt-2.5 text-[10px] text-muted-foreground/55">
-          <Clock className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/40" />
-          <span>{formatDateTime(session.updatedAt)}</span>
+        <div className="flex items-center justify-between gap-1.5 mt-2.5 text-[10px] text-muted-foreground/55">
+          <div className="flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/40" />
+            <span>{formatDateTime(session.updatedAt)}</span>
+          </div>
+          {!session.cwd && !selectionMode && (
+            <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <button
+                type="button"
+                onClick={onToggleFavorite}
+                className={cn(
+                  "p-1 rounded-md transition-colors",
+                  session.favorite
+                    ? "text-amber-400 hover:text-amber-300"
+                    : "text-muted-foreground/40 hover:text-amber-400"
+                )}
+              >
+                <Star className={cn("w-3.5 h-3.5", session.favorite && "fill-current")} />
+              </button>
+              <button
+                type="button"
+                onClick={onToggleArchive}
+                className="p-1 rounded-md text-muted-foreground/40 hover:text-foreground transition-colors"
+                title={archiveLabel}
+              >
+                {showArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          )}
         </div>
       )}
       {session.cwd && (
-        <button
-          type="button"
-          onClick={handleCopyCwd}
-          className={cn(
-            "flex items-center gap-1.5 mt-2 max-w-full text-[10px] font-mono rounded-lg px-2.5 py-1 border transition-all duration-200",
-            copied
-              ? "bg-green-500/10 text-green-400 border-green-500/20"
-              : "bg-muted/30 text-muted-foreground/50 border-border/30 hover:bg-primary/10 hover:text-primary hover:border-primary/20"
+        <div className="flex items-center gap-2 mt-2 max-w-full">
+          <button
+            type="button"
+            onClick={handleCopyCwd}
+            className={cn(
+              "flex items-center gap-1.5 text-[10px] font-mono rounded-lg px-2.5 py-1 border transition-all duration-200 min-w-0 flex-1",
+              copied
+                ? "bg-green-500/10 text-green-400 border-green-500/20"
+                : "bg-muted/30 text-muted-foreground/50 border-border/30 hover:bg-primary/10 hover:text-primary hover:border-primary/20"
+            )}
+          >
+            {copied ? <Check className="w-3 h-3 flex-shrink-0" /> : <FolderOpen className="w-3 h-3 flex-shrink-0" />}
+            <span className="truncate">{session.cwd}</span>
+            {!copied && <Copy className="w-3 h-3 flex-shrink-0 ml-auto opacity-0 group-hover:opacity-80 transition-opacity" />}
+          </button>
+          
+          {!selectionMode && (
+            <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <button
+                type="button"
+                onClick={onToggleFavorite}
+                className={cn(
+                  "p-1 rounded-md transition-colors",
+                  session.favorite
+                    ? "text-amber-400 hover:text-amber-300"
+                    : "text-muted-foreground/45 hover:text-amber-400"
+                )}
+              >
+                <Star className={cn("w-3.5 h-3.5", session.favorite && "fill-current")} />
+              </button>
+              <button
+                type="button"
+                onClick={onToggleArchive}
+                className="p-1 rounded-md text-muted-foreground/45 hover:text-foreground transition-colors"
+                title={archiveLabel}
+              >
+                {showArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+              </button>
+            </div>
           )}
-        >
-          {copied ? <Check className="w-3 h-3 flex-shrink-0" /> : <FolderOpen className="w-3 h-3 flex-shrink-0" />}
-          <span className="truncate">{session.cwd}</span>
-          {!copied && <Copy className="w-3 h-3 flex-shrink-0 ml-auto opacity-0 group-hover:opacity-80 transition-opacity" />}
-        </button>
+        </div>
       )}
     </div>
   )
