@@ -30,6 +30,7 @@ const navigation = [
   { to: "/kiro", labelKey: "platformKiro" as const, icon: Sparkles, platformId: "kiro" },
   { to: "/kiro-ide", labelKey: "platformKiroIde" as const, icon: Sparkles, platformId: "kiro-ide" },
   { to: "/gemini", labelKey: "platformGemini" as const, icon: Gem, platformId: "gemini" },
+  { to: "/pi", labelKey: "platformPi" as const, icon: Terminal, platformId: "pi" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },
@@ -94,14 +95,14 @@ export default function ShellLayout() {
           "relative grid h-full gap-2.5 p-2.5 pt-[4.5rem] lg:pt-2.5 transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
           sidebarCollapsed
             ? "lg:grid-cols-[68px_minmax(0,1fr)]"
-            : "lg:grid-cols-[280px_minmax(0,1fr)]"
+            : "lg:grid-cols-[220px_minmax(0,1fr)]"
         )}
       >
         {/* Sidebar */}
         <aside
           className={cn(
-            "panel-surface fixed inset-y-2.5 left-2.5 z-50 flex h-[calc(100vh-1.25rem)] w-[280px] flex-col overflow-hidden rounded-[24px] p-5 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:static lg:h-full lg:translate-x-0",
-            sidebarCollapsed ? "lg:w-auto lg:p-3" : "lg:w-auto lg:p-6",
+            "panel-surface fixed inset-y-2.5 left-2.5 z-50 flex h-[calc(100vh-1.25rem)] w-[220px] flex-col overflow-hidden rounded-[24px] p-5 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:static lg:h-full lg:translate-x-0",
+            sidebarCollapsed ? "lg:w-auto lg:p-3" : "lg:w-auto lg:p-5",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >

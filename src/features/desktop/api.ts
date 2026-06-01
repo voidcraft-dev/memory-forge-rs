@@ -29,6 +29,7 @@ const defaultSettings = {
   kiroHome: null,
   kiroIdeHome: null,
   geminiHome: null,
+  piHome: null,
   preferredTerminal: null,
   visiblePlatforms: ["claude", "codex", "opencode"] as string[],
 };
