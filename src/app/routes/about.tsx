@@ -82,7 +82,7 @@ export default function AboutPage() {
           </div>
           <div className="min-w-0">
             <p className="text-fine uppercase tracking-[0.28em] text-primary font-bold">Memory Forge</p>
-            <h2 className="mt-1 text-2xl font-extrabold md:text-3xl bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">记忆制造</h2>
+            <h2 className="mt-1 text-2xl font-extrabold md:text-3xl bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">记忆锻造</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 onClick={() => openUrl("https://github.com/voidcraft-dev")}
