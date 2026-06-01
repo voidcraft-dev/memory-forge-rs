@@ -14,7 +14,7 @@ jobs:
           - platform: windows-latest
             rust-targets: ''
             tauri-args: ''
-          - platform: macos-latest
+          - platform: macos-15-intel
             rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
             tauri-args: '--target universal-apple-darwin'
           - platform: ubuntu-22.04
