@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
+import { AppLogo } from "@/components/logo";
 import { useDesktop } from "@/features/desktop/provider";
 import { api } from "@/features/desktop/api";
 import { cn } from "@/lib/utils";
@@ -102,13 +103,18 @@ export default function DashboardPage() {
         <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.04),transparent_72%)] lg:block pointer-events-none" />
 
         <div className="relative flex flex-col gap-6">
-          <div className="max-w-4xl">
-            <p className="text-fine uppercase tracking-[0.28em] text-primary font-bold">Memory Forge</p>
-            <h2 className="mt-3 max-w-3xl text-3xl font-extrabold leading-tight md:text-4xl bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
-              {t("welcomeTitle")}
-            </h2>
-            <p className="mt-4 max-w-3xl text-sm md:text-base leading-7 text-quiet">{t("welcomeDesc")}</p>
+          <div className="flex flex-col md:flex-row md:items-center gap-5">
+            <div className="inline-flex size-16 shrink-0 items-center justify-center rounded-2xl overflow-hidden shadow-lg shadow-black/25 ring-soft bg-stone-900 border border-white/5 transition-transform duration-300 hover:scale-105 select-none">
+              <AppLogo className="size-16" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-fine uppercase tracking-[0.28em] text-primary font-bold">Memory Forge</p>
+              <h2 className="mt-1 max-w-3xl text-3xl font-extrabold leading-tight md:text-4xl bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
+                {t("welcomeTitle")}
+              </h2>
+            </div>
           </div>
+          <p className="max-w-3xl text-sm md:text-base leading-7 text-quiet">{t("welcomeDesc")}</p>
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <Button asChild size="lg" className="rounded-xl shadow-md shadow-primary/14 hover:shadow-lg hover:shadow-primary/22 cursor-pointer transition-all duration-200">
               <Link to="/prompts">

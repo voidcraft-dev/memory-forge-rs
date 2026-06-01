@@ -20,7 +20,7 @@ export function AppLogo({ className }: { className?: string }) {
           <stop offset="100%" stopColor={gradientTo} />
         </radialGradient>
       </defs>
-      <rect width="512" height="512" rx="96" fill={bgColor} />
+      <rect width="512" height="512" rx="128" fill={bgColor} />
       <path
         fillRule="evenodd"
         d="M 72,184 C 72,120 120,72 184,72 L 328,72 C 392,72 440,120 440,184 L 440,328 C 440,392 392,440 328,440 L 184,440 C 120,440 72,392 72,328 Z M 156,380 L 156,164 L 256,316 L 356,164 L 356,380 L 308,380 L 308,224 L 256,344 L 204,224 L 204,380 Z"
