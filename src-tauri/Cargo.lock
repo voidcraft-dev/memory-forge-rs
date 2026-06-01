@@ -2140,7 +2140,7 @@ dependencies = [
 
 [[package]]
 name = "memory-forge"
-version = "3.3.5"
+version = "3.3.6"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
