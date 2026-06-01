@@ -7,7 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
-import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play } from 'lucide-react'
+import type { EditorTarget } from '@/features/desktop/types'
+import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play, FolderOpen, MousePointer2, Code, Sparkles } from 'lucide-react'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
@@ -15,6 +16,7 @@ import { invoke } from '@tauri-apps/api/core'
 const PAGE_SIZE = 50
 const TOOL_INPUT_EXPORT_LIMIT = 8192
 const TOOL_OUTPUT_EXPORT_LIMIT = 32768
+const PREFERRED_EDITOR_STORAGE_KEY = 'memory-forge.preferred-editor'
 
 function truncateExportText(value: string, maxChars: number) {
   const chars = Array.from(value)
@@ -36,6 +38,14 @@ function pushMarkdownCodeBlock(lines: string[], label: string, language: string,
   lines.push(text)
   lines.push(fence)
   lines.push('')
+}
+
+const getEditorIcon = (id: string) => {
+  const lower = id.toLowerCase()
+  if (lower.includes('cursor')) return MousePointer2
+  if (lower.includes('code') || lower.includes('vscode')) return Code
+  if (lower.includes('zed')) return Sparkles
+  return FolderOpen
 }
 
 export function SessionDetail() {
@@ -61,6 +71,10 @@ export function SessionDetail() {
   const [loadingExecutionTargets, setLoadingExecutionTargets] = useState<Set<string>>(new Set())
   const [loadingAllExecutionOutputs, setLoadingAllExecutionOutputs] = useState(false)
   const [includeToolCallsInExport, setIncludeToolCallsInExport] = useState(false)
+  const [editorTargets, setEditorTargets] = useState<EditorTarget[]>([])
+  const [preferredEditorId, setPreferredEditorId] = useState<string | null>(null)
+  const [editorMenuOpen, setEditorMenuOpen] = useState(false)
+  const [openingEditorId, setOpeningEditorId] = useState<string | null>(null)
 
   // New visual states for dropdowns and inline alias editing
   const [terminalMenuOpen, setTerminalMenuOpen] = useState(false)
@@ -70,6 +84,7 @@ export function SessionDetail() {
 
   const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const activeSessionKeyRef = useRef<string | null>(null)
+  const editorMenuRef = useRef<HTMLDivElement>(null)
   const terminalMenuRef = useRef<HTMLDivElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
 
@@ -79,6 +94,9 @@ export function SessionDetail() {
     function handleClickOutside(event: MouseEvent) {
       if (terminalMenuRef.current && !terminalMenuRef.current.contains(event.target as Node)) {
         setTerminalMenuOpen(false)
+      }
+      if (editorMenuRef.current && !editorMenuRef.current.contains(event.target as Node)) {
+        setEditorMenuOpen(false)
       }
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
         setExportMenuOpen(false)
@@ -93,6 +111,28 @@ export function SessionDetail() {
   useEffect(() => {
     activeSessionKeyRef.current = sessionDetail?.sessionKey ?? null
   }, [sessionDetail?.sessionKey])
+
+  useEffect(() => {
+    let cancelled = false
+    api.listEditorTargets()
+      .then(targets => {
+        if (!cancelled) setEditorTargets(targets)
+      })
+      .catch(err => {
+        if (!cancelled) {
+          console.error('Failed to list editor targets:', err)
+          setEditorTargets([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setPreferredEditorId(window.localStorage.getItem(PREFERRED_EDITOR_STORAGE_KEY))
+  }, [])
 
   useEffect(() => {
     setAliasTitle(sessionDetail?.aliasTitle || '')
@@ -119,6 +159,14 @@ export function SessionDetail() {
   }, [dispatch, sessionStatus])
 
   const blocks = sessionDetail?.blocks ?? []
+  const preferredEditor = useMemo(() => {
+    if (editorTargets.length === 0) return null
+    const stored = preferredEditorId
+      ? editorTargets.find(target => target.id === preferredEditorId)
+      : null
+    return stored ?? editorTargets[0]
+  }, [editorTargets, preferredEditorId])
+  const canOpenWorkspace = Boolean(sessionDetail?.cwd?.trim() && preferredEditor)
   const hasExportableToolCalls = blocks.some(block => (block.toolCalls?.length ?? 0) > 0)
   const kiroExecutionPlaceholderBlocks = useMemo(() => {
     if (currentPlatform !== 'kiro-ide') return []
@@ -338,6 +386,34 @@ export function SessionDetail() {
     }
   }
 
+  const handleOpenWorkspace = async (target: EditorTarget | null) => {
+    if (!target || !sessionDetail.cwd) return
+
+    setOpeningEditorId(target.id)
+    setEditorMenuOpen(false)
+    setPreferredEditorId(target.id)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(PREFERRED_EDITOR_STORAGE_KEY, target.id)
+    }
+    dispatch({ type: 'setSessionStatus', payload: null })
+
+    try {
+      await api.openPathInEditor(target.id, sessionDetail.cwd)
+      dispatch({
+        type: 'setSessionStatus',
+        payload: { tone: 'success', message: `${t('session.workspaceOpened')} · ${target.label}` },
+      })
+    } catch (err) {
+      console.error('Failed to open workspace:', err)
+      dispatch({
+        type: 'setSessionStatus',
+        payload: { tone: 'error', message: t('session.workspaceOpenFailed') },
+      })
+    } finally {
+      setOpeningEditorId(null)
+    }
+  }
+
   const handleExportMarkdown = async () => {
     if (!sessionDetail) return
 
@@ -525,6 +601,70 @@ export function SessionDetail() {
               {refreshDone ? <CheckCircle className="w-4 h-4" /> : <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />}
               <span className="hidden sm:inline">{refreshDone ? t('session.refreshed') : t('session.refresh')}</span>
             </Button>
+            {canOpenWorkspace && (
+              <div className="relative flex overflow-visible rounded-xl border border-border/40 bg-white/4 shadow-sm hover:border-border/60 transition-all duration-300" ref={editorMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => handleOpenWorkspace(preferredEditor)}
+                  disabled={Boolean(openingEditorId)}
+                  className={cn(
+                    "flex h-8 items-center gap-2 rounded-l-xl px-3 text-xs font-semibold text-quiet transition-all hover:bg-white/5 hover:text-foreground disabled:pointer-events-none disabled:opacity-60 cursor-pointer group",
+                    editorMenuOpen && "bg-white/5 text-foreground"
+                  )}
+                  title={`${t('session.openWorkspace')} · ${preferredEditor?.label ?? ''}`}
+                >
+                  {openingEditorId ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />
+                  ) : (
+                    <FolderOpen className="w-3.5 h-3.5 text-primary/80 group-hover:text-primary transition-colors shrink-0" />
+                  )}
+                  <span>{t('session.openWorkspace')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditorMenuOpen(!editorMenuOpen)}
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-r-xl border-l border-border/30 text-quiet transition-all hover:bg-white/5 hover:text-foreground cursor-pointer",
+                    editorMenuOpen && "bg-white/5 text-foreground"
+                  )}
+                  title={t('session.chooseEditor')}
+                  aria-label={t('session.chooseEditor')}
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {editorMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-52 rounded-2xl border border-border/80 bg-card/98 p-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                    {editorTargets.map((target) => {
+                      const isPreferred = target.id === preferredEditor?.id
+                      const isOpening = target.id === openingEditorId
+                      const TargetIcon = getEditorIcon(target.id)
+                      return (
+                        <button
+                          key={target.id}
+                          type="button"
+                          onClick={() => handleOpenWorkspace(target)}
+                          disabled={Boolean(openingEditorId)}
+                          className={cn(
+                            "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-semibold text-quiet transition-all hover:bg-primary/10 hover:text-foreground disabled:opacity-50 select-none cursor-pointer group",
+                            isPreferred && "text-foreground bg-primary/5 hover:bg-primary/10"
+                          )}
+                        >
+                          {isOpening ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0 text-primary" />
+                          ) : (
+                            <TargetIcon className={cn("w-3.5 h-3.5 shrink-0 transition-transform duration-300 group-hover:scale-110", isPreferred ? "text-primary" : "text-quiet group-hover:text-foreground")} />
+                          )}
+                          <span className="min-w-0 flex-1 truncate">
+                            {target.label}
+                          </span>
+                          {isPreferred && <Check className="w-3.5 h-3.5 text-primary shrink-0 animate-in fade-in zoom-in-75 duration-200" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             {kiroExecutionPlaceholderBlocks.length > 0 && (
               <Button
                 variant="ghost"
