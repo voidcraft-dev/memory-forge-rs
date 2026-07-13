@@ -2,6 +2,13 @@
 
 Date: 2026-06-03
 
+Implementation status (2026-07-13):
+
+- Raw JSONL export implemented for Claude Code, Codex, and Pi.
+- Import probe and confirmation preview implemented.
+- Safe copy import implemented with same-file detection and automatic conflict rename.
+- CLI resume compatibility still needs real-world verification on all three platforms.
+
 ## Summary
 
 本规划只覆盖 **Claude Code CLI、Codex、Pi** 三个平台的原始会话 JSONL 导入/导出。

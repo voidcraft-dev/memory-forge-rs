@@ -3,11 +3,13 @@ import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
-import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore, ChevronDown, ChevronUp, CheckSquare, X } from 'lucide-react'
-import type { Session } from '@/features/desktop/types'
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
+import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore, ChevronDown, ChevronUp, CheckSquare, X, Upload, FileJson, AlertTriangle } from 'lucide-react'
+import type { RawJsonlImportPreview, Session } from '@/features/desktop/types'
 
 function formatTime(timestamp: string, justNowLabel: string): string {
   try {
@@ -58,6 +60,7 @@ const platformColors = {
 
 
 const PAGE_SIZE = 50
+const JSONL_TRANSFER_PLATFORMS = new Set(['claude', 'codex', 'pi'])
 const SESSION_CARD_RENDER_STYLE: CSSProperties = {
   contentVisibility: 'auto',
   containIntrinsicSize: '160px',
@@ -79,6 +82,10 @@ export function SessionList() {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
   const [batchOperating, setBatchOperating] = useState(false)
+  const [importPreview, setImportPreview] = useState<RawJsonlImportPreview | null>(null)
+  const [probingImport, setProbingImport] = useState(false)
+  const [committingImport, setCommittingImport] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
 
   const showArchived = state.showArchived
   const { confirm, dialogProps } = useConfirmDialog()
@@ -166,6 +173,52 @@ export function SessionList() {
       console.error('Failed to load more:', err)
     }
     setLoadingMore(false)
+  }
+
+  const handleChooseImport = async () => {
+    setImportError(null)
+    try {
+      const selected = await openDialog({
+        multiple: false,
+        directory: false,
+        filters: [{ name: 'Session JSONL', extensions: ['jsonl'] }],
+      })
+      if (!selected || Array.isArray(selected)) return
+      setProbingImport(true)
+      const preview = await api.probeJsonlImport(currentPlatform, selected)
+      setImportPreview(preview)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setImportError(message)
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message } })
+    } finally {
+      setProbingImport(false)
+    }
+  }
+
+  const handleCommitImport = async () => {
+    if (!importPreview) return
+    setCommittingImport(true)
+    setImportError(null)
+    try {
+      const result = await api.importRawJsonl(currentPlatform, importPreview.sourcePath)
+      const refreshed = await api.getSessions(currentPlatform, '', PAGE_SIZE, 0, showArchived)
+      dispatch({ type: 'setSessions', payload: refreshed.items })
+      setTotalCount(refreshed.total)
+      dispatch({ type: 'setSelectedSessionKey', payload: result.sessionKey })
+      dispatch({
+        type: 'setSessionStatus',
+        payload: {
+          tone: 'success',
+          message: result.alreadyExists ? t('session.importExists') : result.renamed ? t('session.importedRenamed') : t('session.imported'),
+        },
+      })
+      setImportPreview(null)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCommittingImport(false)
+    }
   }
 
   const exitSelectionMode = useCallback(() => {
@@ -281,6 +334,18 @@ export function SessionList() {
             })()} {showArchived ? t('session.archiveView') : t('session.sessions')}
           </h2>
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {JSONL_TRANSFER_PLATFORMS.has(currentPlatform) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleChooseImport}
+                disabled={probingImport}
+                className="h-8 w-8 text-muted-foreground transition-all hover:bg-cyan-500/10 hover:text-cyan-400"
+                title={t('session.importJsonl')}
+              >
+                <Upload className={cn('w-3.5 h-3.5', probingImport && 'animate-pulse')} />
+              </Button>
+            )}
             <Button
               variant={selectionMode ? "secondary" : "ghost"}
               size="icon"
@@ -464,6 +529,67 @@ export function SessionList() {
         </div>
       </ScrollArea>
       <ConfirmDialog {...dialogProps} />
+      <Dialog open={importPreview !== null} onOpenChange={(open) => { if (!open && !committingImport) setImportPreview(null) }}>
+        <DialogContent className="max-w-[620px] border-cyan-500/20 bg-card/98">
+          <DialogHeader className="border-cyan-500/15 bg-gradient-to-r from-cyan-500/10 via-blue-500/5 to-transparent">
+            <DialogTitle className="flex items-center gap-3">
+              <span className="flex size-10 items-center justify-center rounded-xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-400">
+                <FileJson className="size-5" />
+              </span>
+              <span>
+                <span className="block text-base">{t('session.importTitle')}</span>
+                <span className="mt-1 block font-mono text-[10px] font-normal uppercase tracking-[0.18em] text-cyan-400/70">{t('session.importSubtitle')}</span>
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          {importPreview && (
+            <DialogBody className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-border/40 bg-muted/20 p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-quiet">Platform</p>
+                  <p className="mt-1 text-sm font-semibold capitalize text-foreground">{importPreview.platform}</p>
+                </div>
+                <div className="rounded-xl border border-border/40 bg-muted/20 p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-quiet">Session ID</p>
+                  <p className="mt-1 truncate font-mono text-xs text-foreground" title={importPreview.sessionId}>{importPreview.sessionId}</p>
+                </div>
+              </div>
+              {(importPreview.title || importPreview.preview) && (
+                <div className="rounded-xl border border-border/40 bg-background/40 p-3.5">
+                  <p className="text-sm font-semibold text-foreground">{importPreview.title || 'Untitled Session'}</p>
+                  {importPreview.preview && <p className="mt-1.5 line-clamp-3 text-xs leading-5 text-muted-foreground">{importPreview.preview}</p>}
+                </div>
+              )}
+              <div className="space-y-2 rounded-xl border border-border/40 bg-muted/15 p-3.5 font-mono text-[11px]">
+                <div><span className="text-quiet">cwd</span><p className="mt-0.5 break-all text-foreground/80">{importPreview.cwd || '—'}</p></div>
+                <div><span className="text-quiet">target</span><p className="mt-0.5 break-all text-cyan-300/80">{importPreview.targetPath}</p></div>
+              </div>
+              {importPreview.conflict && (
+                <div className={cn('flex gap-2.5 rounded-xl border px-3.5 py-3 text-xs', importPreview.conflict === 'same' ? 'border-emerald-500/20 bg-emerald-500/8 text-emerald-300' : 'border-amber-500/20 bg-amber-500/8 text-amber-300')}>
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <span>{importPreview.conflict === 'same' ? t('session.importConflictSame') : t('session.importConflictDifferent')}</span>
+                </div>
+              )}
+              {importPreview.warnings.length > 0 && (
+                <div className="rounded-xl border border-amber-500/15 bg-amber-500/5 px-3.5 py-3">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-amber-400">{t('session.importWarnings')}</p>
+                  <ul className="space-y-1.5 text-xs leading-5 text-muted-foreground">
+                    {importPreview.warnings.map((warning) => <li key={warning}>• {warning}</li>)}
+                  </ul>
+                </div>
+              )}
+              {importError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3.5 py-3 text-xs text-red-300">{importError}</div>}
+            </DialogBody>
+          )}
+          <DialogFooter className="flex items-center justify-end gap-2 bg-muted/20">
+            <Button variant="ghost" onClick={() => setImportPreview(null)} disabled={committingImport}>{t('cancel')}</Button>
+            <Button className="gap-2 bg-cyan-600 text-white hover:bg-cyan-500" onClick={handleCommitImport} disabled={committingImport}>
+              {committingImport ? <RefreshCw className="size-4 animate-spin" /> : <Upload className="size-4" />}
+              {committingImport ? t('session.importing') : t('session.importConfirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   )
 }

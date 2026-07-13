@@ -78,12 +78,15 @@ export function SessionDetail() {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshDone, setRefreshDone] = useState(false)
   const [exportDone, setExportDone] = useState(false)
+  const [exportingRawJsonl, setExportingRawJsonl] = useState(false)
   const [inlineSearch, setInlineSearch] = useState('')
   const [currentMatchIdx, setCurrentMatchIdx] = useState(0)
   const [tocOpen, setTocOpen] = useState(false)
   const [loadingExecutionTargets, setLoadingExecutionTargets] = useState<Set<string>>(new Set())
   const [loadingAllExecutionOutputs, setLoadingAllExecutionOutputs] = useState(false)
   const [includeToolCallsInExport, setIncludeToolCallsInExport] = useState(false)
+  const [exportRange, setExportRange] = useState<'all' | 'recent20' | 'recent50' | 'recent100' | 'since'>('all')
+  const [exportSinceDate, setExportSinceDate] = useState('')
   const [editorTargets, setEditorTargets] = useState<EditorTarget[]>([])
   const [preferredEditorId, setPreferredEditorId] = useState<string | null>(null)
   const [editorMenuOpen, setEditorMenuOpen] = useState(false)
@@ -122,8 +125,17 @@ export function SessionDetail() {
   }, [])
 
   useEffect(() => {
-    activeSessionKeyRef.current = sessionDetail?.sessionKey ?? null
-  }, [sessionDetail?.sessionKey])
+    activeSessionKeyRef.current = selectedSessionKey
+  }, [selectedSessionKey])
+
+  useEffect(() => {
+    setOpeningKey(null)
+    setOpeningEditorId(null)
+    setCopiedKey(null)
+    setTerminalMenuOpen(false)
+    setEditorMenuOpen(false)
+    setExportMenuOpen(false)
+  }, [selectedSessionKey])
 
   useEffect(() => {
     let cancelled = false
@@ -407,35 +419,47 @@ export function SessionDetail() {
   }
 
   const handleCopyCommand = async (label: string, command: string) => {
+    const operationSessionKey = sessionDetail.sessionKey
+    const operationKey = `${operationSessionKey}::${label}`
     try {
       await navigator.clipboard.writeText(command)
-      setCopiedKey(label)
-      setTimeout(() => setCopiedKey(null), 2000)
+      if (activeSessionKeyRef.current === operationSessionKey) {
+        setCopiedKey(operationKey)
+        setTimeout(() => setCopiedKey((current) => current === operationKey ? null : current), 2000)
+      }
     } catch (err) {
       console.error('Failed to copy:', err)
     }
   }
 
   const handleOpenCommand = async (label: string, command: string) => {
-    setOpeningKey(label)
+    const operationSessionKey = sessionDetail.sessionKey
+    const operationKey = `${operationSessionKey}::${label}`
+    setOpeningKey(operationKey)
     dispatch({ type: 'setSessionStatus', payload: null })
 
     try {
       await api.launchSessionTerminal(command, sessionDetail.cwd || null)
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.terminalOpened') } })
+      if (activeSessionKeyRef.current === operationSessionKey) {
+        dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.terminalOpened') } })
+      }
     } catch (err) {
       console.error('Failed to launch terminal:', err)
       await handleCopyCommand(label, command)
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.terminalOpenFailed') } })
+      if (activeSessionKeyRef.current === operationSessionKey) {
+        dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.terminalOpenFailed') } })
+      }
     } finally {
-      setOpeningKey(null)
+      setOpeningKey((current) => current === operationKey ? null : current)
     }
   }
 
   const handleOpenWorkspace = async (target: EditorTarget | null) => {
     if (!target || !sessionDetail.cwd) return
 
-    setOpeningEditorId(target.id)
+    const operationSessionKey = sessionDetail.sessionKey
+    const operationKey = `${operationSessionKey}::${target.id}`
+    setOpeningEditorId(operationKey)
     setEditorMenuOpen(false)
     setPreferredEditorId(target.id)
     if (typeof window !== 'undefined') {
@@ -445,18 +469,22 @@ export function SessionDetail() {
 
     try {
       await api.openPathInEditor(target.id, sessionDetail.cwd)
-      dispatch({
-        type: 'setSessionStatus',
-        payload: { tone: 'success', message: `${t('session.workspaceOpened')} · ${target.label}` },
-      })
+      if (activeSessionKeyRef.current === operationSessionKey) {
+        dispatch({
+          type: 'setSessionStatus',
+          payload: { tone: 'success', message: `${t('session.workspaceOpened')} · ${target.label}` },
+        })
+      }
     } catch (err) {
       console.error('Failed to open workspace:', err)
-      dispatch({
-        type: 'setSessionStatus',
-        payload: { tone: 'error', message: t('session.workspaceOpenFailed') },
-      })
+      if (activeSessionKeyRef.current === operationSessionKey) {
+        dispatch({
+          type: 'setSessionStatus',
+          payload: { tone: 'error', message: t('session.workspaceOpenFailed') },
+        })
+      }
     } finally {
-      setOpeningEditorId(null)
+      setOpeningEditorId((current) => current === operationKey ? null : current)
     }
   }
 
@@ -475,7 +503,28 @@ export function SessionDetail() {
     lines.push('---')
     lines.push('')
 
-    for (const block of sessionDetail.blocks) {
+    let blocksToExport = sessionDetail.blocks
+    if (exportRange.startsWith('recent')) {
+      const count = Number.parseInt(exportRange.replace('recent', ''), 10)
+      blocksToExport = blocksToExport.slice(-count)
+    } else if (exportRange === 'since' && exportSinceDate) {
+      const since = new Date(`${exportSinceDate}T00:00:00`).getTime()
+      blocksToExport = blocksToExport.filter((block) => {
+        const metaCreatedAt = block.sourceMeta.createdAt
+        const metaTimestamp = block.sourceMeta.timestamp
+        const raw = block.createdAt
+          ?? (typeof metaCreatedAt === 'string' || typeof metaCreatedAt === 'number' ? metaCreatedAt : null)
+          ?? (typeof metaTimestamp === 'string' || typeof metaTimestamp === 'number' ? metaTimestamp : null)
+        if (!raw) return false
+        const timestamp = new Date(raw).getTime()
+        return Number.isFinite(timestamp) && timestamp >= since
+      })
+    }
+
+    lines.push(`- Export Range: ${exportRange === 'all' ? 'All messages' : exportRange === 'since' ? `Since ${exportSinceDate}` : `Last ${exportRange.replace('recent', '')} blocks`}`)
+    lines.push('')
+
+    for (const block of blocksToExport) {
       const toolCalls = block.toolCalls ?? []
       const hasContent = block.content.trim().length > 0
       const hasToolCalls = includeToolCallsInExport && toolCalls.length > 0
@@ -548,6 +597,28 @@ export function SessionDetail() {
     setExportDone(true)
     dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.exported') } })
     setTimeout(() => setExportDone(false), 2000)
+  }
+
+  const handleExportRawJsonl = async () => {
+    if (!sessionDetail || !['claude', 'codex', 'pi'].includes(sessionDetail.platform)) return
+    const filePath = await save({
+      defaultPath: `${sessionDetail.platform}-${sessionDetail.sessionId}.jsonl`,
+      filters: [{ name: 'Session JSONL', extensions: ['jsonl'] }],
+    })
+    if (!filePath) return
+    setExportingRawJsonl(true)
+    try {
+      await api.exportRawJsonl(sessionDetail.platform, sessionDetail.sessionKey, filePath)
+      setExportDone(true)
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.rawExported') } })
+      setTimeout(() => setExportDone(false), 2000)
+    } catch (err) {
+      console.error('Failed to export raw JSONL:', err)
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: err instanceof Error ? err.message : String(err) } })
+    } finally {
+      setExportingRawJsonl(false)
+      setExportMenuOpen(false)
+    }
   }
 
   const detailLoading = selectedSessionKey !== sessionDetail.sessionKey
@@ -682,7 +753,7 @@ export function SessionDetail() {
                   <div className="absolute right-0 top-full mt-1.5 z-50 w-52 rounded-2xl border border-border/80 bg-card/98 p-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
                     {editorTargets.map((target) => {
                       const isPreferred = target.id === preferredEditor?.id
-                      const isOpening = target.id === openingEditorId
+                      const isOpening = `${sessionDetail.sessionKey}::${target.id}` === openingEditorId
                       const TargetIcon = getEditorIcon(target.id)
                       return (
                         <button
@@ -749,6 +820,7 @@ export function SessionDetail() {
                     <div className="absolute right-0 top-full mt-1.5 z-50 w-56 rounded-2xl border border-border/60 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
                       {availableCommands.map((label, idx, arr) => {
                         const command = sessionDetail.commands[label]
+                        const operationKey = `${sessionDetail.sessionKey}::${label}`
                         return (
                           <div key={label} className="p-1 space-y-1">
                             <button
@@ -757,10 +829,10 @@ export function SessionDetail() {
                                 setTerminalMenuOpen(false)
                                 handleOpenCommand(label, command)
                               }}
-                              disabled={openingKey === label}
+                              disabled={openingKey === operationKey}
                               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors disabled:opacity-50"
                             >
-                              {openingKey === label ? (
+                              {openingKey === operationKey ? (
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                               ) : (
                                 <Play className="w-3.5 h-3.5 shrink-0" />
@@ -779,7 +851,7 @@ export function SessionDetail() {
                             >
                               <Copy className="w-3 h-3 shrink-0" />
                               <span>
-                                {copiedKey === label ? '已复制命令' : `复制 ${label} 命令`}
+                                {copiedKey === operationKey ? '已复制命令' : `复制 ${label} 命令`}
                               </span>
                             </button>
                             {idx < arr.length - 1 && <div className="border-t border-border/20 my-1" />}
@@ -809,8 +881,42 @@ export function SessionDetail() {
                 <ChevronDown className="w-3 h-3 opacity-60" />
               </Button>
               {exportMenuOpen && (
-                <div className="absolute right-0 top-full mt-1.5 z-50 w-64 rounded-2xl border border-border/60 bg-card/95 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200 select-none">
-                  <h4 className="text-xs font-bold text-foreground mb-3">配置导出选项</h4>
+                <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-2xl border border-border/60 bg-card/95 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200 select-none">
+                  <h4 className="text-xs font-bold text-foreground mb-3">{t('session.exportOptions')}</h4>
+                  <div className="mb-3 rounded-xl border border-border/40 bg-muted/20 p-2.5">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-quiet">{t('session.exportRange')}</p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {([
+                        ['all', t('session.exportAll')],
+                        ['recent20', t('session.exportRecent', { count: 20 })],
+                        ['recent50', t('session.exportRecent', { count: 50 })],
+                        ['recent100', t('session.exportRecent', { count: 100 })],
+                        ['since', t('session.exportSince')],
+                      ] as const).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          className={cn(
+                            'rounded-lg border px-2 py-1.5 text-[10px] font-medium transition-colors',
+                            exportRange === value
+                              ? 'border-blue-500/40 bg-blue-500/15 text-blue-300'
+                              : 'border-border/30 bg-background/40 text-muted-foreground hover:text-foreground',
+                          )}
+                          onClick={() => setExportRange(value)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {exportRange === 'since' && (
+                      <input
+                        type="date"
+                        value={exportSinceDate}
+                        onChange={(event) => setExportSinceDate(event.target.value)}
+                        className="mt-2 w-full rounded-lg border border-border/50 bg-background/70 px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-blue-500/50"
+                      />
+                    )}
+                  </div>
                   <label
                     className={cn(
                       "flex items-center gap-2.5 rounded-xl border border-border/40 bg-muted/20 px-3 py-2 text-xs text-muted-foreground mb-3 transition-colors",
@@ -832,14 +938,27 @@ export function SessionDetail() {
                   <Button
                     size="sm"
                     className="w-full gap-2 rounded-xl bg-primary text-primary-foreground font-semibold shadow-sm hover:shadow"
+                    disabled={exportRange === 'since' && !exportSinceDate}
                     onClick={() => {
                       setExportMenuOpen(false)
                       handleExportMarkdown()
                     }}
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>确认下载 Markdown (.md)</span>
+                    <span>{t('session.exportMarkdown')}</span>
                   </Button>
+                  {sessionDetail && ['claude', 'codex', 'pi'].includes(sessionDetail.platform) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 w-full gap-2 rounded-xl border-cyan-500/25 text-cyan-400 hover:border-cyan-500/40 hover:bg-cyan-500/10"
+                      onClick={handleExportRawJsonl}
+                      disabled={exportingRawJsonl}
+                    >
+                      {exportingRawJsonl ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                      <span>{exportingRawJsonl ? t('session.exportingRaw') : t('session.exportRawJsonl')}</span>
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

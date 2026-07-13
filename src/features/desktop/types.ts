@@ -82,6 +82,7 @@ export type TimelineBlock = {
   editable: boolean;
   editTarget: string;
   sourceMeta: Record<string, unknown>;
+  createdAt?: string | null;
   toolCalls?: ToolCallBlock[];
 };
 
@@ -104,6 +105,36 @@ export type EditorTarget = {
 export type SessionListResult = {
   total: number;
   items: Session[];
+};
+
+export type RawJsonlImportPreview = {
+  platform: string;
+  sessionId: string;
+  cwd: string;
+  title: string;
+  preview: string;
+  detectedAt: string;
+  sourcePath: string;
+  targetPath: string;
+  conflict: "same" | "different" | null;
+  warnings: string[];
+};
+
+export type RawJsonlImportResult = {
+  platform: string;
+  sessionKey: string;
+  sessionId: string;
+  targetPath: string;
+  alreadyExists: boolean;
+  renamed: boolean;
+  warnings: string[];
+};
+
+export type RawJsonlExportResult = {
+  platform: string;
+  sourcePath: string;
+  outputPath: string;
+  bytes: number;
 };
 
 export type PlatformSummary = {

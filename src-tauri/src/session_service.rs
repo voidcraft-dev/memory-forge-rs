@@ -500,6 +500,23 @@ pub fn session_edit_log(
     database::get_edit_log(&db.conn, platform, session_key)
 }
 
+pub fn session_delete_edit_log(
+    db: &DbState,
+    platform: &str,
+    session_key: &str,
+    edit_log_id: i64,
+) -> Result<bool, String> {
+    database::delete_edit_log(&db.conn, edit_log_id, platform, session_key)
+}
+
+pub fn session_clear_edit_logs(
+    db: &DbState,
+    platform: &str,
+    session_key: &str,
+) -> Result<usize, String> {
+    database::clear_edit_logs(&db.conn, platform, session_key)
+}
+
 pub fn session_restore_message(
     db: &DbState,
     settings: &AppSettings,
@@ -507,7 +524,8 @@ pub fn session_restore_message(
     edit_log_id: i64,
     session_key: &str,
 ) -> Result<(), String> {
-    let log = database::get_edit_log_by_id(&db.conn, edit_log_id)?;
+    let log =
+        database::get_edit_log_by_id_for_session(&db.conn, edit_log_id, platform, session_key)?;
     session_edit_message(
         db,
         settings,

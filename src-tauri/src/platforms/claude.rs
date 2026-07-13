@@ -246,6 +246,7 @@ impl ClaudePlatform {
         let mut pending_tool_calls = Vec::new();
 
         for (line_index, line) in lines.iter().enumerate() {
+            let timestamp = line.get("timestamp").and_then(Value::as_str);
             let Some(message) = line.get("message") else {
                 continue;
             };
@@ -265,6 +266,7 @@ impl ClaudePlatform {
                         source_meta: json!({
                             "lineIndex": line_index,
                             "contentIndex": 0,
+                            "createdAt": timestamp,
                         }),
                         tool_calls: Vec::new(),
                     };
@@ -295,6 +297,7 @@ impl ClaudePlatform {
                             source_meta: json!({
                                 "lineIndex": line_index,
                                 "contentIndex": content_index,
+                                "createdAt": timestamp,
                             }),
                             tool_calls: Vec::new(),
                         };
@@ -314,6 +317,7 @@ impl ClaudePlatform {
                             source_meta: json!({
                                 "lineIndex": line_index,
                                 "contentIndex": content_index,
+                                "createdAt": timestamp,
                             }),
                             tool_calls: Vec::new(),
                         };
@@ -340,6 +344,7 @@ impl ClaudePlatform {
                             source_meta: json!({
                                 "lineIndex": line_index,
                                 "contentIndex": content_index,
+                                "createdAt": timestamp,
                             }),
                             tool_calls: Vec::new(),
                         });

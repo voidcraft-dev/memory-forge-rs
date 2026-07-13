@@ -221,6 +221,7 @@ impl PiPlatform {
                 .and_then(Value::as_str)
                 .map(ToString::to_string)
                 .unwrap_or_else(|| idx.to_string());
+            let block_start = blocks.len();
 
             match entry_type {
                 "message" => {
@@ -258,6 +259,13 @@ impl PiPlatform {
                     }
                 }
                 _ => {}
+            }
+            if let Some(timestamp) = entry.get("timestamp").and_then(Value::as_str) {
+                for block in &mut blocks[block_start..] {
+                    if let Some(meta) = block.source_meta.as_object_mut() {
+                        meta.insert("createdAt".to_string(), json!(timestamp));
+                    }
+                }
             }
         }
 

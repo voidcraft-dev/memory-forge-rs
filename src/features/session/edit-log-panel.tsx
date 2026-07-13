@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useDesktop } from '@/features/desktop/provider'
 import { cn } from '@/lib/utils'
-import { FileText, ArrowRight, Clock, Eye, EyeOff, RefreshCw, CheckCircle, Undo2 } from 'lucide-react'
+import { FileText, ArrowRight, Clock, Eye, EyeOff, RefreshCw, CheckCircle, Undo2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import type { MessageKey } from '@/features/desktop/i18n'
 import type { EditLogEntry } from '@/features/desktop/types'
@@ -49,6 +49,7 @@ export function EditLogPanel() {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshDone, setRefreshDone] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const handleRefreshLog = async () => {
     if (!selectedSessionKey) return
@@ -84,6 +85,37 @@ export function EditLogPanel() {
     }
   }
 
+  const handleDelete = async (entry: EditLogEntry) => {
+    if (!selectedSessionKey || !window.confirm(t('editLog.deleteConfirm'))) return
+    setDeletingId(entry.id)
+    try {
+      const deleted = await api.deleteEditLog(currentPlatform, entry.id, selectedSessionKey)
+      if (!deleted) throw new Error('Edit log does not belong to this session')
+      dispatch({ type: 'setEditLog', payload: editLog.filter((item) => item.id !== entry.id) })
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('editLog.deleted') } })
+    } catch (err) {
+      console.error('Failed to delete edit log:', err)
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleClear = async () => {
+    if (!selectedSessionKey || editLog.length === 0 || !window.confirm(t('editLog.clearConfirm'))) return
+    setDeletingId(-1)
+    try {
+      await api.clearEditLogs(currentPlatform, selectedSessionKey)
+      dispatch({ type: 'setEditLog', payload: [] })
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('editLog.deleted') } })
+    } catch (err) {
+      console.error('Failed to clear edit logs:', err)
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings' || !selectedSessionKey) return null
   if (!showEditLog) return null
 
@@ -96,6 +128,12 @@ export function EditLogPanel() {
             {t('editLog.title')}
           </h2>
           <div className="flex items-center gap-1">
+            {editLog.length > 0 && (
+              <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={handleClear} disabled={deletingId !== null}>
+                <Trash2 className="w-3.5 h-3.5" />
+                {t('editLog.clear')}
+              </Button>
+            )}
             <Button variant="ghost" size="sm" className={cn("h-7 gap-1 text-xs", refreshDone ? "text-green-400" : "")} onClick={handleRefreshLog} disabled={refreshing}>
               {refreshDone ? <CheckCircle className="w-3.5 h-3.5" /> : <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />}
             </Button>
@@ -140,6 +178,9 @@ export function EditLogPanel() {
                         <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs border-blue-500/20 hover:bg-blue-500/10 hover:border-blue-500/30 text-blue-400" onClick={() => handleRestore(entry)}>
                           <Undo2 className="w-3 h-3" />{t('session.restore')}
                         </Button>
+                        <Button variant="outline" size="sm" className="px-2 text-xs border-red-500/20 text-red-400 hover:border-red-500/30 hover:bg-red-500/10" onClick={() => handleDelete(entry)} disabled={deletingId === entry.id} title={t('editLog.delete')}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
                       </div>
                     </>
                   ) : (
@@ -152,6 +193,9 @@ export function EditLogPanel() {
                         </Button>
                         <Button variant="outline" size="sm" className="gap-1.5 text-xs border-blue-500/20 hover:bg-blue-500/10 hover:border-blue-500/30 text-blue-400" onClick={() => handleRestore(entry)}>
                           <Undo2 className="w-3 h-3" />{t('session.restore')}
+                        </Button>
+                        <Button variant="outline" size="sm" className="px-2 text-xs border-red-500/20 text-red-400 hover:border-red-500/30 hover:bg-red-500/10" onClick={() => handleDelete(entry)} disabled={deletingId === entry.id} title={t('editLog.delete')}>
+                          <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>
                     </>

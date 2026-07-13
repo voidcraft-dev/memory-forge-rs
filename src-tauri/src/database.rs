@@ -786,11 +786,17 @@ pub fn get_edit_log(
     Ok(logs)
 }
 
-pub fn get_edit_log_by_id(conn: &Mutex<Connection>, id: i64) -> Result<EditLog, String> {
+pub fn get_edit_log_by_id_for_session(
+    conn: &Mutex<Connection>,
+    id: i64,
+    platform: &str,
+    session_key: &str,
+) -> Result<EditLog, String> {
     let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
     conn.query_row(
-        "SELECT id, platform, session_key, edit_target, old_content, new_content, created_at FROM edit_log WHERE id = ?1",
-        params![id],
+        "SELECT id, platform, session_key, edit_target, old_content, new_content, created_at
+         FROM edit_log WHERE id = ?1 AND platform = ?2 AND session_key = ?3",
+        params![id, platform, session_key],
         |row| {
             Ok(EditLog {
                 id: row.get(0)?,
@@ -803,7 +809,36 @@ pub fn get_edit_log_by_id(conn: &Mutex<Connection>, id: i64) -> Result<EditLog, 
             })
         },
     )
-    .map_err(|e| format!("Edit log not found: {e}"))
+    .map_err(|e| format!("Edit log not found for this session: {e}"))
+}
+
+pub fn delete_edit_log(
+    conn: &Mutex<Connection>,
+    id: i64,
+    platform: &str,
+    session_key: &str,
+) -> Result<bool, String> {
+    let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+    let affected = conn
+        .execute(
+            "DELETE FROM edit_log WHERE id = ?1 AND platform = ?2 AND session_key = ?3",
+            params![id, platform, session_key],
+        )
+        .map_err(|e| format!("Delete edit log error: {e}"))?;
+    Ok(affected > 0)
+}
+
+pub fn clear_edit_logs(
+    conn: &Mutex<Connection>,
+    platform: &str,
+    session_key: &str,
+) -> Result<usize, String> {
+    let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+    conn.execute(
+        "DELETE FROM edit_log WHERE platform = ?1 AND session_key = ?2",
+        params![platform, session_key],
+    )
+    .map_err(|e| format!("Clear edit logs error: {e}"))
 }
 
 // ─── Prompt CRUD ───
@@ -1014,6 +1049,24 @@ pub fn import_prompts(conn: &Mutex<Connection>, prompts: &[PromptCreate]) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn edit_log_deletion_is_scoped_to_session() {
+        let conn = Connection::open_in_memory().expect("sqlite memory");
+        init_tables(&conn).expect("init tables");
+        let state = Mutex::new(conn);
+
+        insert_edit_log(&state, "claude", "session-a", "target", "old", "new")
+            .expect("insert edit log");
+        let log = get_edit_log(&state, "claude", "session-a")
+            .expect("list edit log")
+            .pop()
+            .expect("edit log");
+
+        assert!(!delete_edit_log(&state, log.id, "claude", "session-b").expect("scoped delete"));
+        assert!(get_edit_log_by_id_for_session(&state, log.id, "claude", "session-a").is_ok());
+        assert!(delete_edit_log(&state, log.id, "claude", "session-a").expect("matching delete"));
+    }
 
     #[test]
     fn session_summary_cache_requires_matching_fingerprint() {

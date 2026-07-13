@@ -5,6 +5,7 @@ mod database;
 mod editor_targets;
 mod platforms;
 mod session_service;
+mod session_transfer;
 mod settings;
 mod shell;
 mod terminal;
@@ -244,6 +245,25 @@ fn session_edit_log(
 }
 
 #[tauri::command]
+fn session_delete_edit_log(
+    db: tauri::State<'_, DbState>,
+    platform: String,
+    session_key: String,
+    edit_log_id: i64,
+) -> Result<bool, String> {
+    session_service::session_delete_edit_log(&db, &platform, &session_key, edit_log_id)
+}
+
+#[tauri::command]
+fn session_clear_edit_logs(
+    db: tauri::State<'_, DbState>,
+    platform: String,
+    session_key: String,
+) -> Result<usize, String> {
+    session_service::session_clear_edit_logs(&db, &platform, &session_key)
+}
+
+#[tauri::command]
 fn session_restore_message(
     db: tauri::State<'_, DbState>,
     settings_state: tauri::State<'_, SharedSettingsState>,
@@ -256,6 +276,47 @@ fn session_restore_message(
         .lock()
         .map_err(|_| "lock error".to_string())?;
     session_service::session_restore_message(&db, &settings, &platform, edit_log_id, &session_key)
+}
+
+#[tauri::command]
+fn session_export_raw_jsonl(
+    settings_state: tauri::State<'_, SharedSettingsState>,
+    platform: String,
+    session_key: String,
+    output_path: String,
+) -> Result<session_transfer::RawJsonlExportResult, String> {
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?;
+    session_transfer::export_raw_jsonl(&settings, &platform, &session_key, &output_path)
+}
+
+#[tauri::command]
+fn session_probe_jsonl_import(
+    settings_state: tauri::State<'_, SharedSettingsState>,
+    platform: String,
+    input_path: String,
+) -> Result<session_transfer::RawJsonlImportPreview, String> {
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?;
+    session_transfer::probe_jsonl_import(&settings, &platform, &input_path)
+}
+
+#[tauri::command]
+fn session_import_raw_jsonl(
+    settings_state: tauri::State<'_, SharedSettingsState>,
+    platform: String,
+    input_path: String,
+    conflict_policy: session_transfer::ImportConflictPolicy,
+) -> Result<session_transfer::RawJsonlImportResult, String> {
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?;
+    session_transfer::import_raw_jsonl(&settings, &platform, &input_path, conflict_policy)
 }
 
 // ─── Prompt Commands ───
@@ -371,7 +432,12 @@ fn main() {
             session_batch_set_flag,
             session_edit_message,
             session_edit_log,
+            session_delete_edit_log,
+            session_clear_edit_logs,
             session_restore_message,
+            session_export_raw_jsonl,
+            session_probe_jsonl_import,
+            session_import_raw_jsonl,
             // Prompts
             prompt_list,
             prompt_create,

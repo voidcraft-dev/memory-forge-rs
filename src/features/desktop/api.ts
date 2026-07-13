@@ -8,6 +8,9 @@ import type {
   PromptCreateInput,
   PromptItem,
   PromptUpdateInput,
+  RawJsonlExportResult,
+  RawJsonlImportPreview,
+  RawJsonlImportResult,
   Session,
   SessionDetail,
   SessionListResult,
@@ -364,6 +367,45 @@ export const api = {
       return invoke("session_restore_message", { platform, editLogId, sessionKey });
     }
     throw new Error("Restore not supported in web preview");
+  },
+
+  async deleteEditLog(platform: string, editLogId: number, sessionKey: string): Promise<boolean> {
+    if (isTauriRuntime()) {
+      return invoke<boolean>("session_delete_edit_log", { platform, editLogId, sessionKey });
+    }
+    throw new Error("Edit log deletion is not supported in web preview");
+  },
+
+  async clearEditLogs(platform: string, sessionKey: string): Promise<number> {
+    if (isTauriRuntime()) {
+      return invoke<number>("session_clear_edit_logs", { platform, sessionKey });
+    }
+    throw new Error("Edit log deletion is not supported in web preview");
+  },
+
+  async exportRawJsonl(platform: string, sessionKey: string, outputPath: string): Promise<RawJsonlExportResult> {
+    if (isTauriRuntime()) {
+      return invoke<RawJsonlExportResult>("session_export_raw_jsonl", { platform, sessionKey, outputPath });
+    }
+    throw new Error("Raw JSONL export is only available in the desktop app");
+  },
+
+  async probeJsonlImport(platform: string, inputPath: string): Promise<RawJsonlImportPreview> {
+    if (isTauriRuntime()) {
+      return invoke<RawJsonlImportPreview>("session_probe_jsonl_import", { platform, inputPath });
+    }
+    throw new Error("Raw JSONL import is only available in the desktop app");
+  },
+
+  async importRawJsonl(platform: string, inputPath: string): Promise<RawJsonlImportResult> {
+    if (isTauriRuntime()) {
+      return invoke<RawJsonlImportResult>("session_import_raw_jsonl", {
+        platform,
+        inputPath,
+        conflictPolicy: "rename",
+      });
+    }
+    throw new Error("Raw JSONL import is only available in the desktop app");
   },
 
   async toggleFlag(platform: string, sessionKey: string, flag: string): Promise<boolean> {

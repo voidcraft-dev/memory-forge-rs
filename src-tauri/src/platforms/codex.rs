@@ -203,6 +203,12 @@ impl CodexPlatform {
             let Some(payload) = line.get("payload") else {
                 continue;
             };
+            let block_start = blocks.len();
+            let timestamp = line
+                .get("timestamp")
+                .or_else(|| payload.get("timestamp"))
+                .and_then(Value::as_str)
+                .map(ToString::to_string);
 
             match payload
                 .get("type")
@@ -296,6 +302,14 @@ impl CodexPlatform {
                     push_codex_tool_call(&mut pending_tool_calls, tool_call);
                 }
                 _ => {}
+            }
+
+            if let Some(timestamp) = &timestamp {
+                for block in &mut blocks[block_start..] {
+                    if let Some(meta) = block.source_meta.as_object_mut() {
+                        meta.insert("createdAt".to_string(), json!(timestamp));
+                    }
+                }
             }
         }
 

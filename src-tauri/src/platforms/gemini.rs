@@ -228,6 +228,8 @@ struct GeminiSessionFile {
 #[derive(Deserialize)]
 struct GeminiMessage {
     id: String,
+    #[serde(default)]
+    timestamp: Option<String>,
     #[serde(rename = "type")]
     msg_type: String,
     content: serde_json::Value,
@@ -501,7 +503,8 @@ impl PlatformAdapter for GeminiPlatform {
                         edit_target: String::new(),
                         source_meta: serde_json::json!({
                             "messageId": msg.id,
-                            "type": "thinking"
+                            "type": "thinking",
+                            "createdAt": msg.timestamp
                         }),
                         tool_calls: Vec::new(),
                     });
@@ -529,7 +532,8 @@ impl PlatformAdapter for GeminiPlatform {
                 edit_target,
                 source_meta: serde_json::json!({
                     "messageId": msg.id,
-                    "type": msg.msg_type
+                    "type": msg.msg_type,
+                    "createdAt": msg.timestamp
                 }),
                 tool_calls: Vec::new(),
             });
