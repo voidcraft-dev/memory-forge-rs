@@ -34,15 +34,31 @@ pub struct DashboardSummary {
     pub recent_sessions: Vec<SessionListItem>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawJsonlExportResult {
+    pub platform: String,
+    pub session_key: String,
+    pub source_path: String,
+    pub output_path: String,
+    pub bytes: u64,
+}
+
+const DASHBOARD_PLATFORM_NAMES: [&str; 8] = [
+    "claude", "codex", "opencode", "pi", "cursor", "kiro", "kiro-ide", "gemini",
+];
+
 pub fn dashboard_summary(db: &DbState, settings: &AppSettings) -> Result<DashboardSummary, String> {
     let t0 = Instant::now();
     let mut platforms_summary = Vec::new();
     let mut recent_sessions = Vec::new();
     let mut trend_map: HashMap<String, usize> = HashMap::new();
 
-    let platform_names = [
-        "claude", "codex", "opencode", "pi", "cursor", "kiro", "kiro-ide", "gemini",
-    ];
+    let platform_names = dashboard_platform_names(settings);
+    eprintln!(
+        "[perf] dashboard_summary visible_platforms={:?}",
+        platform_names
+    );
     let db_path = db.db_path.clone();
     let settings = settings.clone();
     let platform_results = thread::scope(|scope| {
@@ -98,6 +114,19 @@ pub fn dashboard_summary(db: &DbState, settings: &AppSettings) -> Result<Dashboa
         trend,
         recent_sessions,
     })
+}
+
+fn dashboard_platform_names(settings: &AppSettings) -> Vec<&'static str> {
+    let visible: HashSet<&str> = settings
+        .visible_platforms
+        .iter()
+        .map(String::as_str)
+        .collect();
+
+    DASHBOARD_PLATFORM_NAMES
+        .into_iter()
+        .filter(|platform_name| visible.contains(platform_name))
+        .collect()
 }
 
 fn dashboard_platform_summary(
@@ -463,6 +492,42 @@ pub fn session_execution_outputs(
     Ok(outputs)
 }
 
+pub fn session_export_raw_jsonl(
+    settings: &AppSettings,
+    platform: &str,
+    session_key: &str,
+    output_path: &str,
+) -> Result<RawJsonlExportResult, String> {
+    let t0 = Instant::now();
+    if !matches!(platform, "claude" | "codex" | "pi") {
+        return Err(format!(
+            "Raw JSONL export is not supported for platform: {platform}"
+        ));
+    }
+
+    let output = Path::new(output_path);
+    if output.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
+        return Err("Raw JSONL export output must use a .jsonl extension".to_string());
+    }
+
+    let adapter = platforms::get_adapter(platform, settings)?;
+    let source = adapter.raw_jsonl_path(session_key)?;
+    let bytes = std::fs::copy(&source, output)
+        .map_err(|error| format!("Failed to export raw JSONL: {error}"))?;
+
+    eprintln!(
+        "[perf] session_export_raw_jsonl({platform}) {bytes} bytes: {:?}",
+        t0.elapsed()
+    );
+    Ok(RawJsonlExportResult {
+        platform: platform.to_string(),
+        session_key: session_key.to_string(),
+        source_path: source.display().to_string(),
+        output_path: output.display().to_string(),
+        bytes,
+    })
+}
+
 pub fn session_set_alias(
     db: &DbState,
     platform: &str,
@@ -567,4 +632,172 @@ fn timestamp_sort_key(value: &str) -> i128 {
 #[allow(dead_code)]
 fn path_exists(path: &str) -> bool {
     Path::new(path).exists()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_root(name: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "memory-forge-export-{name}-{}-{nanos}",
+            std::process::id()
+        ))
+    }
+
+    fn write_session(path: &Path, content: &str) {
+        fs::create_dir_all(path.parent().expect("parent")).expect("create parent");
+        fs::write(path, content).expect("write session");
+    }
+
+    #[test]
+    fn raw_jsonl_export_copies_supported_platform_files_without_rewriting() {
+        let root = temp_root("supported");
+        let claude_home = root.join("claude");
+        let codex_home = root.join("codex");
+        let pi_home = root.join("pi");
+
+        let claude_session = claude_home
+            .join("projects")
+            .join("proj")
+            .join("claude-session.jsonl");
+        let codex_session = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("06")
+            .join("06")
+            .join("codex-session.jsonl");
+        let pi_session = pi_home
+            .join("sessions")
+            .join("proj")
+            .join("2026-06-06T01-02-03-004Z_pi-session.jsonl");
+
+        let claude_raw =
+            "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"hello\"}}\n";
+        let codex_raw = "{\"payload\":{\"type\":\"user_message\",\"message\":\"hello codex\"}}\n";
+        let pi_raw =
+            "{\"type\":\"session\",\"id\":\"pi-session\"}\n{\"type\":\"message\",\"id\":\"m1\",\"message\":{\"role\":\"user\",\"content\":\"hello pi\"}}\n";
+        write_session(&claude_session, claude_raw);
+        write_session(&codex_session, codex_raw);
+        write_session(&pi_session, pi_raw);
+
+        let previous_pi_sessions = std::env::var_os("PI_CODING_AGENT_SESSION_DIR");
+        std::env::remove_var("PI_CODING_AGENT_SESSION_DIR");
+
+        let settings = AppSettings {
+            claude_home: Some(claude_home.display().to_string()),
+            codex_home: Some(codex_home.display().to_string()),
+            pi_home: Some(pi_home.display().to_string()),
+            ..AppSettings::default()
+        };
+
+        let claude_out = root.join("claude-export.jsonl");
+        let codex_out = root.join("codex-export.jsonl");
+        let pi_out = root.join("pi-export.jsonl");
+
+        let claude_result = session_export_raw_jsonl(
+            &settings,
+            "claude",
+            claude_session.to_str().expect("utf8 path"),
+            claude_out.to_str().expect("utf8 path"),
+        )
+        .expect("export claude");
+        let codex_result = session_export_raw_jsonl(
+            &settings,
+            "codex",
+            codex_session.to_str().expect("utf8 path"),
+            codex_out.to_str().expect("utf8 path"),
+        )
+        .expect("export codex");
+        let pi_result = session_export_raw_jsonl(
+            &settings,
+            "pi",
+            "proj::2026-06-06T01-02-03-004Z_pi-session",
+            pi_out.to_str().expect("utf8 path"),
+        )
+        .expect("export pi");
+
+        assert_eq!(
+            fs::read_to_string(&claude_out).expect("read claude"),
+            claude_raw
+        );
+        assert_eq!(
+            fs::read_to_string(&codex_out).expect("read codex"),
+            codex_raw
+        );
+        assert_eq!(fs::read_to_string(&pi_out).expect("read pi"), pi_raw);
+        assert_eq!(claude_result.bytes, claude_raw.len() as u64);
+        assert_eq!(codex_result.bytes, codex_raw.len() as u64);
+        assert_eq!(pi_result.bytes, pi_raw.len() as u64);
+
+        if let Some(value) = previous_pi_sessions {
+            std::env::set_var("PI_CODING_AGENT_SESSION_DIR", value);
+        } else {
+            std::env::remove_var("PI_CODING_AGENT_SESSION_DIR");
+        }
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn raw_jsonl_export_rejects_unsupported_platform_and_non_jsonl_output() {
+        let root = temp_root("rejects");
+        fs::create_dir_all(&root).expect("create root");
+        let settings = AppSettings::default();
+
+        let unsupported = session_export_raw_jsonl(
+            &settings,
+            "opencode",
+            "session",
+            root.join("out.jsonl").to_str().expect("utf8 path"),
+        )
+        .expect_err("unsupported platform");
+        assert!(unsupported.contains("not supported"));
+
+        let wrong_extension = session_export_raw_jsonl(
+            &settings,
+            "claude",
+            "session.jsonl",
+            root.join("out.md").to_str().expect("utf8 path"),
+        )
+        .expect_err("wrong extension");
+        assert!(wrong_extension.contains(".jsonl"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn dashboard_platform_names_only_include_visible_supported_platforms() {
+        let settings = AppSettings {
+            visible_platforms: vec![
+                "gemini".to_string(),
+                "unknown".to_string(),
+                "claude".to_string(),
+                "pi".to_string(),
+            ],
+            ..AppSettings::default()
+        };
+
+        assert_eq!(
+            dashboard_platform_names(&settings),
+            vec!["claude", "pi", "gemini"]
+        );
+    }
+
+    #[test]
+    fn dashboard_platform_names_can_be_empty_when_all_platforms_are_hidden() {
+        let settings = AppSettings {
+            visible_platforms: Vec::new(),
+            ..AppSettings::default()
+        };
+
+        assert!(dashboard_platform_names(&settings).is_empty());
+    }
 }

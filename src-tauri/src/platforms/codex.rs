@@ -11,9 +11,9 @@ use crate::database::{
 };
 
 use super::{
-    build_commands, content_entries_to_matches, tool_text_from_str, tool_text_from_value,
-    ContentMatch, PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult,
-    TimelineBlock, ToolCallBlock,
+    build_commands, content_entries_to_matches, resolve_existing_jsonl_path_within_root,
+    tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail,
+    SessionKey, SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
 };
 
 pub struct CodexPlatform {
@@ -817,6 +817,14 @@ impl PlatformAdapter for CodexPlatform {
             .map_err(|error| format!("Write error: {error}"))?;
 
         Ok(old_content)
+    }
+
+    fn raw_jsonl_path(&self, session_key: &str) -> Result<PathBuf, String> {
+        resolve_existing_jsonl_path_within_root(
+            &self.sessions_root,
+            Path::new(session_key),
+            "Codex",
+        )
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {

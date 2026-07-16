@@ -49,15 +49,23 @@ async fn check_update(app: tauri::AppHandle) -> Result<update_checker::UpdateInf
 }
 
 #[tauri::command]
-fn dashboard_summary(
+async fn dashboard_summary(
     db: tauri::State<'_, DbState>,
     settings_state: tauri::State<'_, SharedSettingsState>,
 ) -> Result<DashboardSummary, String> {
     let settings = settings_state
         .settings
         .lock()
-        .map_err(|_| "lock error".to_string())?;
-    session_service::dashboard_summary(&db, &settings)
+        .map_err(|_| "lock error".to_string())?
+        .clone();
+    let db_path = db.db_path.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = DbState::new(&db_path)?;
+        session_service::dashboard_summary(&db, &settings)
+    })
+    .await
+    .map_err(|e| format!("Task error: {e}"))?
 }
 
 #[tauri::command]
@@ -137,6 +145,25 @@ async fn session_execution_outputs(
             &session_key,
             &edit_targets,
         )
+    })
+    .await
+    .map_err(|e| format!("Task error: {e}"))?
+}
+
+#[tauri::command]
+async fn session_export_raw_jsonl(
+    settings_state: tauri::State<'_, SharedSettingsState>,
+    platform: String,
+    session_key: String,
+    output_path: String,
+) -> Result<session_service::RawJsonlExportResult, String> {
+    let settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "lock error".to_string())?
+        .clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        session_service::session_export_raw_jsonl(&settings, &platform, &session_key, &output_path)
     })
     .await
     .map_err(|e| format!("Task error: {e}"))?
@@ -363,6 +390,7 @@ fn main() {
             session_detail,
             session_execution_output,
             session_execution_outputs,
+            session_export_raw_jsonl,
             launch_session_terminal,
             list_editor_targets,
             open_path_in_editor,

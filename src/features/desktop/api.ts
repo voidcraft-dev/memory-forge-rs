@@ -8,6 +8,7 @@ import type {
   PromptCreateInput,
   PromptItem,
   PromptUpdateInput,
+  RawJsonlExportResult,
   Session,
   SessionDetail,
   SessionListResult,
@@ -307,6 +308,13 @@ export const api = {
       return invoke<Record<string, string>>("session_execution_outputs", { platform, sessionKey, editTargets });
     }
     throw new Error("Execution output loading is not supported in web preview");
+  },
+
+  async exportRawJsonl(platform: string, sessionKey: string, outputPath: string): Promise<RawJsonlExportResult> {
+    if (isTauriRuntime()) {
+      return invoke<RawJsonlExportResult>("session_export_raw_jsonl", { platform, sessionKey, outputPath });
+    }
+    throw new Error("Raw JSONL export is not supported in web preview");
   },
 
   async launchSessionTerminal(command: string, cwd?: string | null): Promise<boolean> {

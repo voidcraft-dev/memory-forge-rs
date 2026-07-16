@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Pi } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -92,15 +92,47 @@ const platformMeta = [
 
 export default function DashboardPage() {
   const { snapshot, loading, t, state, dispatch } = useDesktop();
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode", "pi"];
+  const visiblePlatformsKey = visiblePlatforms.join("|");
+  const snapshotReady = Boolean(snapshot);
 
   useEffect(() => {
+    if (!snapshotReady) return;
+
+    let cancelled = false;
+    const label = `[perf] dashboard load (${visiblePlatformsKey || "none"})`;
+    setDashboardLoading(true);
+    setDashboardError(null);
+    console.time(label);
+
     api.getDashboard()
-      .then((data) => dispatch({ type: "setDashboard", payload: data }))
-      .catch(console.error);
-  }, [dispatch]);
+      .then((data) => {
+        if (!cancelled) {
+          dispatch({ type: "setDashboard", payload: data });
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load dashboard:", error);
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : String(error);
+          setDashboardError(message);
+        }
+      })
+      .finally(() => {
+        console.timeEnd(label);
+        if (!cancelled) {
+          setDashboardLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, snapshotReady, visiblePlatformsKey]);
 
   const platforms = state.dashboard?.platforms ?? [];
-  const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode", "pi"];
   const displayPlatforms = platformMeta.filter((pm) => visiblePlatforms.includes(pm.key));
 
   return (
@@ -155,6 +187,7 @@ export default function DashboardPage() {
           const summary = platforms.find((p) => p.platform === pm.key);
           const count = summary?.count ?? 0;
           const latest = summary?.latest || "—";
+          const isPlatformLoading = dashboardLoading && !summary;
           return (
             <Link
               key={pm.key}
@@ -172,14 +205,21 @@ export default function DashboardPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-quiet group-hover:text-foreground transition-colors">{pm.label}</p>
-                  <p className="text-2xl font-bold tracking-tight">{count}</p>
+                  <p className="text-2xl font-bold tracking-tight">{isPlatformLoading ? "…" : count}</p>
                 </div>
               </div>
-              <p className="truncate text-xs text-quiet border-t border-border/30 pt-2 mt-1">最近活跃: {latest}</p>
+              <p className="truncate text-xs text-quiet border-t border-border/30 pt-2 mt-1">
+                最近活跃: {isPlatformLoading ? t("loading") : latest}
+              </p>
             </Link>
           );
         })}
       </section>
+      {dashboardError && (
+        <div className="mt-3 rounded-xl border border-red-500/25 bg-red-500/8 px-4 py-2 text-xs text-red-300">
+          Dashboard 加载失败: {dashboardError}
+        </div>
+      )}
 
       {/* Feature Cards */}
       <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">

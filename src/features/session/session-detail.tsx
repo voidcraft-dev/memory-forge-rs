@@ -43,6 +43,14 @@ function markdownFence(value: string) {
   return '`'.repeat(Math.max(3, longest + 1))
 }
 
+function safeExportFileName(value: string) {
+  return value
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 160) || 'session'
+}
+
 function pushMarkdownCodeBlock(lines: string[], label: string, language: string, value: string, maxChars: number) {
   const text = truncateExportText(value, maxChars)
   const fence = markdownFence(text)
@@ -172,6 +180,7 @@ export function SessionDetail() {
   }, [dispatch, sessionStatus])
 
   const blocks = sessionDetail?.blocks ?? []
+  const isTauriRuntime = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
   const preferredEditor = useMemo(() => {
     if (editorTargets.length === 0) return null
     const stored = preferredEditorId
@@ -182,6 +191,7 @@ export function SessionDetail() {
   const PreferredIcon = preferredEditor ? getEditorIcon(preferredEditor.id) : FolderOpen
   const canOpenWorkspace = Boolean(sessionDetail?.cwd?.trim() && preferredEditor)
   const hasExportableToolCalls = blocks.some(block => (block.toolCalls?.length ?? 0) > 0)
+  const canExportRawJsonl = isTauriRuntime && ['claude', 'codex', 'pi'].includes(currentPlatform)
   const kiroExecutionPlaceholderBlocks = useMemo(() => {
     if (currentPlatform !== 'kiro-ide') return []
     return blocks.filter(block =>
@@ -524,9 +534,7 @@ export function SessionDetail() {
     const content = lines.join('\n')
     const fileName = `${sessionDetail.title || sessionDetail.sessionId}.md`
 
-    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-
-    if (isTauri) {
+    if (isTauriRuntime) {
       const filePath = await save({
         defaultPath: fileName,
         filters: [{ name: 'Markdown', extensions: ['md'] }],
@@ -548,6 +556,32 @@ export function SessionDetail() {
     setExportDone(true)
     dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.exported') } })
     setTimeout(() => setExportDone(false), 2000)
+  }
+
+  const handleExportRawJsonl = async () => {
+    if (!sessionDetail) return
+    if (!canExportRawJsonl) {
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: '当前平台不支持原始 JSONL 导出' } })
+      return
+    }
+
+    const baseName = safeExportFileName(`${currentPlatform}-${sessionDetail.sessionId || sessionDetail.sessionKey}`)
+    const filePath = await save({
+      defaultPath: `${baseName}.jsonl`,
+      filters: [{ name: 'JSONL', extensions: ['jsonl'] }],
+    })
+    if (!filePath) return
+
+    try {
+      await api.exportRawJsonl(currentPlatform, sessionDetail.sessionKey, filePath)
+      setExportDone(true)
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.exported') } })
+      setTimeout(() => setExportDone(false), 2000)
+    } catch (err) {
+      console.error('Failed to export raw JSONL:', err)
+      const message = err instanceof Error ? err.message : '导出原始 JSONL 失败'
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message } })
+    }
   }
 
   const detailLoading = selectedSessionKey !== sessionDetail.sessionKey
@@ -829,17 +863,33 @@ export function SessionDetail() {
                       <p className="text-[10px] text-quiet mt-0.5 leading-none">导出各个工具在后台的执行输出</p>
                     </div>
                   </label>
-                  <Button
-                    size="sm"
-                    className="w-full gap-2 rounded-xl bg-primary text-primary-foreground font-semibold shadow-sm hover:shadow"
-                    onClick={() => {
-                      setExportMenuOpen(false)
-                      handleExportMarkdown()
-                    }}
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>确认下载 Markdown (.md)</span>
-                  </Button>
+                  <div className="space-y-2">
+                    <Button
+                      size="sm"
+                      className="w-full gap-2 rounded-xl bg-primary text-primary-foreground font-semibold shadow-sm hover:shadow"
+                      onClick={() => {
+                        setExportMenuOpen(false)
+                        handleExportMarkdown()
+                      }}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>下载 Markdown (.md)</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!canExportRawJsonl}
+                      className="w-full gap-2 rounded-xl border-border/50 bg-background/60 text-xs font-semibold hover:bg-background/80 disabled:cursor-not-allowed disabled:opacity-50"
+                      title={canExportRawJsonl ? '导出平台原始 JSONL 文件' : '仅支持 Claude / Codex / Pi'}
+                      onClick={() => {
+                        setExportMenuOpen(false)
+                        handleExportRawJsonl()
+                      }}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>导出原始 JSONL (.jsonl)</span>
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

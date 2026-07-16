@@ -11,9 +11,10 @@ use crate::database::{
 };
 
 use super::{
-    build_commands, content_entries_to_matches, read_head_tail_lines, tool_text_from_str,
-    tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionKey,
-    SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
+    build_commands, content_entries_to_matches, read_head_tail_lines,
+    resolve_existing_jsonl_path_within_root, tool_text_from_str, tool_text_from_value,
+    ContentMatch, PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult,
+    TimelineBlock, ToolCallBlock,
 };
 
 pub struct PiPlatform {
@@ -551,6 +552,13 @@ impl PlatformAdapter for PiPlatform {
             .map_err(|e| format!("cannot write Pi session '{}': {e}", path.display()))?;
 
         Ok(old_content)
+    }
+
+    fn raw_jsonl_path(&self, session_key: &str) -> Result<PathBuf, String> {
+        let path = self
+            .path_for_key(session_key)
+            .ok_or_else(|| format!("Pi session not found: {session_key}"))?;
+        resolve_existing_jsonl_path_within_root(&self.sessions_root, &path, "Pi")
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {

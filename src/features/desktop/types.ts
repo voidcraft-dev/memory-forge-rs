@@ -106,6 +106,14 @@ export type SessionListResult = {
   items: Session[];
 };
 
+export type RawJsonlExportResult = {
+  platform: string;
+  sessionKey: string;
+  sourcePath: string;
+  outputPath: string;
+  bytes: number;
+};
+
 export type PlatformSummary = {
   platform: string;
   count: number;
