@@ -34,7 +34,7 @@ const defaultSettings = {
   grokHome: null,
   piHome: null,
   preferredTerminal: null,
-  visiblePlatforms: ["claude", "codex", "opencode", "pi", "grok"] as string[],
+  visiblePlatforms: ["claude", "codex", "opencode", "grok", "pi"] as string[],
 };
 
 function isTauriRuntime() {

@@ -45,7 +45,7 @@ pub struct RawJsonlExportResult {
 }
 
 const DASHBOARD_PLATFORM_NAMES: [&str; 9] = [
-    "claude", "codex", "opencode", "pi", "grok", "cursor", "kiro", "kiro-ide", "gemini",
+    "claude", "codex", "opencode", "grok", "pi", "cursor", "kiro", "kiro-ide", "gemini",
 ];
 
 pub fn dashboard_summary(db: &DbState, settings: &AppSettings) -> Result<DashboardSummary, String> {

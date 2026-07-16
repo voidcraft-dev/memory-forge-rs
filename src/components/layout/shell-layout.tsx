@@ -45,6 +45,21 @@ export default function ShellLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [hasUpdate, setHasUpdate] = useState(false);
+  const visiblePlatformOrder = snapshot?.settings?.visiblePlatforms ?? [
+    "claude",
+    "codex",
+    "opencode",
+    "grok",
+    "pi",
+  ];
+  const visibleNavigation = [
+    navigation[0],
+    ...visiblePlatformOrder.flatMap((platformId) => {
+      const item = navigation.find((candidate) => candidate.platformId === platformId);
+      return item ? [item] : [];
+    }),
+    ...navigation.filter((item) => !item.platformId && item.to !== "/"),
+  ];
 
   useEffect(() => {
     api.checkUpdate().then(info => {
@@ -133,11 +148,7 @@ export default function ShellLayout() {
 
             {/* Navigation */}
             <nav className={cn("mt-6 space-y-2", sidebarCollapsed && "mt-4 space-y-1.5")}>
-              {navigation.filter((item) => {
-                if (!item.platformId) return true;
-                const visible = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode", "pi", "grok"];
-                return visible.includes(item.platformId);
-              }).map((item) => {
+              {visibleNavigation.map((item) => {
                 const Icon = item.icon;
                 return (
                   <NavLink

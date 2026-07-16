@@ -187,6 +187,11 @@ export type MessageKey =
   | "editLog.traceDesc"
   | "sidebar.collapse"
   | "sidebar.expand"
+  | "sidebar.dragHint"
+  | "sidebar.dragLabel"
+  | "sidebar.enableToReorder"
+  | "sidebar.showPlatform"
+  | "sidebar.hidePlatform"
   | "sidebarSection"
   | "sidebarSectionDesc"
   | "platformPaths"
@@ -409,8 +414,13 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "editLog.traceDesc": "每次编辑都会记录原始内容和新内容，支持 diff 对比。",
     "sidebar.collapse": "收起菜单",
     "sidebar.expand": "展开菜单",
+    "sidebar.dragHint": "拖动排序，或按 ↑ / ↓ 调整",
+    "sidebar.dragLabel": "{platform}，当前优先级 {priority}。拖动排序，或使用上下方向键调整。",
+    "sidebar.enableToReorder": "启用后可调整顺序",
+    "sidebar.showPlatform": "显示 {platform}",
+    "sidebar.hidePlatform": "隐藏 {platform}",
     sidebarSection: "平台显示",
-    sidebarSectionDesc: "选择在侧边栏显示哪些平台入口，总览/提示词/设置/关于始终显示。",
+    sidebarSectionDesc: "选择在侧边栏显示的平台；拖动已启用平台可调整菜单优先级。总览/提示词/设置/关于始终显示。",
     "platformPaths": "平台路径",
     "platformPathsDesc": "自定义各平台的数据目录。留空则使用默认路径。",
     "claudeHomePath": "Claude 数据目录",
@@ -630,8 +640,13 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "editLog.traceDesc": "Each edit records the original and new content with diff comparison.",
     "sidebar.collapse": "Collapse",
     "sidebar.expand": "Expand",
+    "sidebar.dragHint": "Drag to reorder, or press ↑ / ↓",
+    "sidebar.dragLabel": "{platform}, priority {priority}. Drag to reorder, or use the up and down arrow keys.",
+    "sidebar.enableToReorder": "Enable to reorder",
+    "sidebar.showPlatform": "Show {platform}",
+    "sidebar.hidePlatform": "Hide {platform}",
     sidebarSection: "Platform Visibility",
-    sidebarSectionDesc: "Choose which platforms appear in the sidebar. Dashboard, Prompts, Settings & About are always visible.",
+    sidebarSectionDesc: "Choose sidebar platforms and drag enabled items to set their navigation priority. Dashboard, Prompts, Settings & About are always visible.",
     "platformPaths": "Platform Paths",
     "platformPathsDesc": "Customize data directories for each platform. Leave empty to use defaults.",
     "claudeHomePath": "Claude Home Directory",

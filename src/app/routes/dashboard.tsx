@@ -104,7 +104,7 @@ export default function DashboardPage() {
   const { snapshot, loading, t, state, dispatch } = useDesktop();
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
-  const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode", "pi", "grok"];
+  const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode", "grok", "pi"];
   const visiblePlatformsKey = visiblePlatforms.join("|");
   const snapshotReady = Boolean(snapshot);
 
@@ -143,7 +143,10 @@ export default function DashboardPage() {
   }, [dispatch, snapshotReady, visiblePlatformsKey]);
 
   const platforms = state.dashboard?.platforms ?? [];
-  const displayPlatforms = platformMeta.filter((pm) => visiblePlatforms.includes(pm.key));
+  const displayPlatforms = visiblePlatforms.flatMap((platformId) => {
+    const platform = platformMeta.find((item) => item.key === platformId);
+    return platform ? [platform] : [];
+  });
 
   return (
     <div className="flex h-full flex-col overflow-y-auto pr-2 pb-6">

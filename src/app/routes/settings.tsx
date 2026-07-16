@@ -2,6 +2,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Check,
   FolderOpen,
+  GripVertical,
   Languages,
   Rocket,
   SlidersHorizontal,
@@ -18,12 +19,12 @@ const PLATFORM_ITEMS = [
   { id: "claude", labelKey: "platformClaude" as const },
   { id: "codex", labelKey: "platformCodex" as const },
   { id: "opencode", labelKey: "platformOpencode" as const },
+  { id: "grok", labelKey: "platformGrok" as const },
   { id: "pi", labelKey: "platformPi" as const },
   { id: "cursor", labelKey: "platformCursor" as const },
   { id: "kiro", labelKey: "platformKiro" as const },
   { id: "kiro-ide", labelKey: "platformKiroIde" as const },
   { id: "gemini", labelKey: "platformGemini" as const },
-  { id: "grok", labelKey: "platformGrok" as const },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -83,6 +84,8 @@ export default function SettingsPage() {
     setReduceMotion,
     updateSettings,
   } = useDesktop();
+  const [draggingPlatformId, setDraggingPlatformId] = useState<string | null>(null);
+  const [dragOverPlatformId, setDragOverPlatformId] = useState<string | null>(null);
 
   if (loading || !snapshot) {
     return (
@@ -98,8 +101,15 @@ export default function SettingsPage() {
     "claude",
     "codex",
     "opencode",
-    "pi",
     "grok",
+    "pi",
+  ];
+  const orderedPlatformItems = [
+    ...visiblePlatforms.flatMap((platformId) => {
+      const item = PLATFORM_ITEMS.find(({ id }) => id === platformId);
+      return item ? [item] : [];
+    }),
+    ...PLATFORM_ITEMS.filter(({ id }) => !visiblePlatforms.includes(id)),
   ];
 
   const togglePlatformVisible = async (
@@ -110,6 +120,26 @@ export default function SettingsPage() {
       ? [...visiblePlatforms, platformId]
       : visiblePlatforms.filter((p) => p !== platformId);
     await updateSettings({ visiblePlatforms: next });
+  };
+
+  const reorderPlatform = async (sourceId: string, targetId: string) => {
+    const sourceIndex = visiblePlatforms.indexOf(sourceId);
+    const targetIndex = visiblePlatforms.indexOf(targetId);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+
+    const next = [...visiblePlatforms];
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    setDraggingPlatformId(null);
+    setDragOverPlatformId(null);
+    await updateSettings({ visiblePlatforms: next });
+  };
+
+  const movePlatform = async (platformId: string, direction: -1 | 1) => {
+    const sourceIndex = visiblePlatforms.indexOf(platformId);
+    const targetIndex = sourceIndex + direction;
+    if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= visiblePlatforms.length) return;
+    await reorderPlatform(platformId, visiblePlatforms[targetIndex]);
   };
 
   return (
@@ -270,30 +300,100 @@ export default function SettingsPage() {
             title={t("sidebarSection")}
           />
           <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
-            {PLATFORM_ITEMS.map(({ id, labelKey }) => {
+            {orderedPlatformItems.map(({ id, labelKey }) => {
               const enabled = visiblePlatforms.includes(id);
+              const priority = visiblePlatforms.indexOf(id);
               return (
                 <div
                   className={cn(
-                    "flex items-center justify-between gap-2.5 rounded-[18px] border px-4 py-3 transition-all duration-300",
+                    "flex min-h-14 items-center justify-between gap-2 rounded-[18px] border pr-3 pl-1.5 transition-[border-color,background-color,opacity,box-shadow] duration-200",
                     enabled
                       ? "border-primary/20 bg-primary/5"
-                      : "border-border/50 bg-white/3"
+                      : "border-border/50 bg-white/3",
+                    draggingPlatformId === id && "opacity-50",
+                    dragOverPlatformId === id && "border-primary/50 bg-primary/10 ring-2 ring-primary/15"
                   )}
                   key={id}
+                  onDragOver={(event) => {
+                    if (!enabled || !draggingPlatformId || draggingPlatformId === id) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    setDragOverPlatformId(id);
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverPlatformId === id) setDragOverPlatformId(null);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (draggingPlatformId) void reorderPlatform(draggingPlatformId, id);
+                  }}
                 >
-                  <span
-                    className={cn(
-                      "truncate font-semibold text-sm",
-                      enabled ? "text-foreground" : "text-quiet"
-                    )}
-                  >
-                    {t(labelKey)}
-                  </span>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span
+                      aria-disabled={!enabled || saving}
+                      aria-label={t("sidebar.dragLabel", {
+                        platform: t(labelKey),
+                        priority: priority + 1,
+                      })}
+                      className={cn(
+                        "flex size-11 shrink-0 items-center justify-center rounded-xl text-quiet transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
+                        enabled && !saving
+                          ? "cursor-grab hover:bg-primary/10 hover:text-primary active:cursor-grabbing"
+                          : "cursor-default opacity-30"
+                      )}
+                      draggable={enabled && !saving}
+                      onDragEnd={() => {
+                        setDraggingPlatformId(null);
+                        setDragOverPlatformId(null);
+                      }}
+                      onDragStart={(event) => {
+                        if (!enabled || saving) return;
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", id);
+                        setDraggingPlatformId(id);
+                      }}
+                      onKeyDown={(event) => {
+                        if (!enabled || saving) return;
+                        if (event.key === "ArrowUp") {
+                          event.preventDefault();
+                          void movePlatform(id, -1);
+                        }
+                        if (event.key === "ArrowDown") {
+                          event.preventDefault();
+                          void movePlatform(id, 1);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={enabled && !saving ? 0 : -1}
+                      title={enabled ? t("sidebar.dragHint") : t("sidebar.enableToReorder")}
+                    >
+                      <GripVertical className="size-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span
+                        className={cn(
+                          "block truncate font-semibold text-sm",
+                          enabled ? "text-foreground" : "text-quiet"
+                        )}
+                      >
+                        {t(labelKey)}
+                      </span>
+                      {enabled && (
+                        <span className="block font-medium text-[10px] text-primary/75 tabular-nums">
+                          #{priority + 1}
+                        </span>
+                      )}
+                    </span>
+                  </div>
                   <button
                     aria-checked={enabled}
+                    aria-label={t(
+                      enabled ? "sidebar.hidePlatform" : "sidebar.showPlatform",
+                      { platform: t(labelKey) }
+                    )}
                     className="toggle-track shrink-0 scale-[0.82]"
                     data-state={enabled ? "on" : "off"}
+                    disabled={saving}
                     onClick={() => void togglePlatformVisible(id, !enabled)}
                     role="switch"
                     type="button"
