@@ -200,7 +200,15 @@ impl GrokPlatform {
                 .unwrap_or_default();
             match entry_type {
                 "user" | "assistant" => {
-                    let content = value_to_text(entry.get("content").unwrap_or(&Value::Null));
+                    let raw_content = entry.get("content").unwrap_or(&Value::Null);
+                    let content = if entry_type == "user" {
+                        let Some(content) = display_user_entry(entry) else {
+                            continue;
+                        };
+                        content
+                    } else {
+                        value_to_text(raw_content)
+                    };
                     let editable = editable_content(entry.get("content"));
                     let tool_calls = if entry_type == "assistant" {
                         parse_tool_calls(
@@ -492,10 +500,11 @@ impl PlatformAdapter for GrokPlatform {
             if !matches!(entry_type, "user" | "assistant") {
                 return Err(format!("Grok entry type is not editable: {entry_type}"));
             }
+            let is_user = entry_type == "user";
             let content = value
                 .get_mut("content")
                 .ok_or_else(|| "Grok message has no content".to_string())?;
-            old_content = Some(replace_editable_content(content, new_content)?);
+            old_content = Some(replace_editable_content(content, new_content, is_user)?);
             output_lines.push(
                 serde_json::to_string(&value)
                     .map_err(|error| format!("cannot serialize Grok chat line: {error}"))?,
@@ -628,8 +637,7 @@ fn first_user_text(path: &Path) -> String {
         if value.get("type").and_then(Value::as_str) != Some("user") {
             continue;
         }
-        let text = value_to_text(value.get("content").unwrap_or(&Value::Null));
-        if !text.trim().is_empty() {
+        if let Some(text) = display_user_entry(&value) {
             return text.trim().chars().take(200).collect();
         }
     }
@@ -654,6 +662,58 @@ fn value_to_text(value: &Value) -> String {
     }
 }
 
+fn display_user_entry(entry: &Value) -> Option<String> {
+    if entry.get("synthetic_reason").is_some() {
+        return None;
+    }
+    let text = value_to_text(entry.get("content").unwrap_or(&Value::Null));
+    display_user_text(&text)
+}
+
+fn display_user_text(text: &str) -> Option<String> {
+    const USER_QUERY_OPEN: &str = "<user_query>";
+    const USER_QUERY_CLOSE: &str = "</user_query>";
+    const SYSTEM_REMINDER_OPEN: &str = "<system-reminder>";
+    const SYSTEM_REMINDER_CLOSE: &str = "</system-reminder>";
+
+    if let Some(start) = text.find(USER_QUERY_OPEN) {
+        let content_start = start + USER_QUERY_OPEN.len();
+        let after = &text[content_start..];
+        let end = after.find(USER_QUERY_CLOSE).unwrap_or(after.len());
+        let query = after[..end].trim();
+        return (!query.is_empty()).then(|| query.to_string());
+    }
+
+    let trimmed = text.trim_start();
+    if trimmed.starts_with(SYSTEM_REMINDER_OPEN) {
+        let close = trimmed.find(SYSTEM_REMINDER_CLOSE)?;
+        let header = &trimmed[..close];
+        if header
+            .to_ascii_lowercase()
+            .contains("scheduled task execution")
+        {
+            let body = trimmed[close + SYSTEM_REMINDER_CLOSE.len()..].trim();
+            return (!body.is_empty()).then(|| body.to_string());
+        }
+        return None;
+    }
+
+    if trimmed.starts_with("<user_info>")
+        || trimmed.starts_with("<monitor-event")
+        || trimmed == "---"
+        || trimmed.lines().next().is_some_and(|first| {
+            first.starts_with(|character: char| character.is_ascii_digit())
+                && first.contains(" monitor events from ")
+                && first.contains(" (use ")
+        })
+    {
+        return None;
+    }
+
+    let text = text.trim();
+    (!text.is_empty()).then(|| text.to_string())
+}
+
 fn editable_content(value: Option<&Value>) -> bool {
     match value {
         Some(Value::String(_)) => true,
@@ -668,9 +728,13 @@ fn editable_content(value: Option<&Value>) -> bool {
     }
 }
 
-fn replace_editable_content(content: &mut Value, new_content: &str) -> Result<String, String> {
+fn replace_editable_content(
+    content: &mut Value,
+    new_content: &str,
+    is_user: bool,
+) -> Result<String, String> {
     match content {
-        Value::String(text) => Ok(std::mem::replace(text, new_content.to_string())),
+        Value::String(text) => replace_editable_text(text, new_content, is_user),
         Value::Array(items) => {
             let text_indices: Vec<usize> = items
                 .iter()
@@ -688,10 +752,57 @@ fn replace_editable_content(content: &mut Value, new_content: &str) -> Result<St
             let Value::String(text) = text else {
                 return Err("Grok text part is invalid".to_string());
             };
-            Ok(std::mem::replace(text, new_content.to_string()))
+            replace_editable_text(text, new_content, is_user)
         }
         _ => Err("Grok message content is not editable text".to_string()),
     }
+}
+
+fn replace_editable_text(
+    text: &mut String,
+    new_content: &str,
+    is_user: bool,
+) -> Result<String, String> {
+    if !is_user {
+        return Ok(std::mem::replace(text, new_content.to_string()));
+    }
+
+    const USER_QUERY_OPEN: &str = "<user_query>";
+    const USER_QUERY_CLOSE: &str = "</user_query>";
+    if let Some(start) = text.find(USER_QUERY_OPEN) {
+        let content_start = start + USER_QUERY_OPEN.len();
+        let relative_end = text[content_start..]
+            .find(USER_QUERY_CLOSE)
+            .ok_or_else(|| "Grok user_query closing tag is missing".to_string())?;
+        let content_end = content_start + relative_end;
+        let inner = &text[content_start..content_end];
+        let old_content = inner.trim().to_string();
+        let leading = &inner[..inner.len() - inner.trim_start().len()];
+        let trailing = &inner[inner.trim_end().len()..];
+        *text = format!(
+            "{}{}{}{}{}",
+            &text[..content_start],
+            leading,
+            new_content,
+            trailing,
+            &text[content_end..]
+        );
+        return Ok(old_content);
+    }
+
+    if let Some(close) = text.find("</system-reminder>") {
+        let prefix_end = close + "</system-reminder>".len();
+        if text[..close]
+            .to_ascii_lowercase()
+            .contains("scheduled task execution")
+        {
+            let old_content = text[prefix_end..].trim().to_string();
+            *text = format!("{}\n\n{}", &text[..prefix_end], new_content);
+            return Ok(old_content);
+        }
+    }
+
+    Ok(std::mem::replace(text, new_content.to_string()))
 }
 
 fn valid_component(value: &str) -> bool {
@@ -749,7 +860,11 @@ mod tests {
         fs::write(
             session_dir.join("chat_history.jsonl"),
             concat!(
-                r#"{"type":"user","content":[{"type":"text","text":"Please fix it"}],"prompt_index":0}"#,
+                r#"{"type":"user","content":[{"type":"text","text":"<user_info>\nOS Version: windows\n</user_info>"}]}"#,
+                "\n",
+                r#"{"type":"user","content":"<system-reminder>\nInternal reminder\n</system-reminder>"}"#,
+                "\n",
+                r#"{"type":"user","content":[{"type":"text","text":"<user_query>\nPlease fix it\n</user_query>\n<system-reminder>hidden context</system-reminder>"}],"prompt_index":0}"#,
                 "\n",
                 r#"{"type":"assistant","content":"Working","tool_calls":[{"id":"call-1","name":"terminal","arguments":{"command":"cargo test"}}]}"#,
                 "\n",
@@ -773,6 +888,13 @@ mod tests {
             .get_session_detail(&key, &HashMap::new())
             .expect("session detail");
         assert_eq!(detail.blocks.len(), 3);
+        assert_eq!(detail.blocks[0].content, "Please fix it");
+        assert!(!detail.blocks[0].content.contains("user_query"));
+        assert!(detail
+            .blocks
+            .iter()
+            .all(|block| !block.content.contains("user_info")
+                && !block.content.contains("system-reminder")));
         assert_eq!(detail.blocks[1].tool_calls[0].output.as_deref(), Some("ok"));
         assert_eq!(
             detail.commands.get("resume").map(String::as_str),
@@ -780,12 +902,15 @@ mod tests {
         );
 
         let old = adapter
-            .update_message(&format!("{key}::0::content"), "Please fix it now")
+            .update_message(&format!("{key}::2::content"), "Please fix it now")
             .expect("edit user message");
         assert_eq!(old, "Please fix it");
         let updated =
             fs::read_to_string(session_dir.join("chat_history.jsonl")).expect("read updated chat");
         assert!(updated.contains("Please fix it now"));
+        assert!(updated.contains("<user_query>"));
+        assert!(updated.contains("</user_query>"));
+        assert!(updated.contains("<system-reminder>hidden context</system-reminder>"));
 
         let _ = fs::remove_dir_all(root);
     }
@@ -796,5 +921,25 @@ mod tests {
         assert!(adapter.dir_for_key("..::session").is_none());
         assert!(adapter.dir_for_key("workspace::../session").is_none());
         assert!(adapter.dir_for_key("workspace/other::session").is_none());
+    }
+
+    #[test]
+    fn user_display_matches_grok_pager_rules() {
+        assert_eq!(
+            display_user_text(
+                "<user_query>\nhello\n</user_query>\n<system-reminder>x</system-reminder>"
+            )
+            .as_deref(),
+            Some("hello")
+        );
+        assert!(display_user_text("<user_info>\nOS: windows\n</user_info>").is_none());
+        assert!(display_user_text("<system-reminder>\nbackground\n</system-reminder>").is_none());
+        assert_eq!(
+            display_user_text(
+                "<system-reminder>\nThis is a scheduled task execution.\n</system-reminder>\n\nrun report"
+            )
+            .as_deref(),
+            Some("run report")
+        );
     }
 }
