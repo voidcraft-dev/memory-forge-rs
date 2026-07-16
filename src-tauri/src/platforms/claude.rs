@@ -11,9 +11,9 @@ use crate::database::{
 };
 
 use super::{
-    build_commands, content_entries_to_matches, resolve_existing_jsonl_path_within_root,
-    tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail,
-    SessionKey, SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
+    build_commands, content_entries_to_matches, tool_text_from_str, tool_text_from_value,
+    ContentMatch, PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult,
+    TimelineBlock, ToolCallBlock,
 };
 
 pub struct ClaudePlatform {
@@ -246,6 +246,7 @@ impl ClaudePlatform {
         let mut pending_tool_calls = Vec::new();
 
         for (line_index, line) in lines.iter().enumerate() {
+            let timestamp = line.get("timestamp").and_then(Value::as_str);
             let Some(message) = line.get("message") else {
                 continue;
             };
@@ -265,6 +266,7 @@ impl ClaudePlatform {
                         source_meta: json!({
                             "lineIndex": line_index,
                             "contentIndex": 0,
+                            "createdAt": timestamp,
                         }),
                         tool_calls: Vec::new(),
                     };
@@ -295,6 +297,7 @@ impl ClaudePlatform {
                             source_meta: json!({
                                 "lineIndex": line_index,
                                 "contentIndex": content_index,
+                                "createdAt": timestamp,
                             }),
                             tool_calls: Vec::new(),
                         };
@@ -314,6 +317,7 @@ impl ClaudePlatform {
                             source_meta: json!({
                                 "lineIndex": line_index,
                                 "contentIndex": content_index,
+                                "createdAt": timestamp,
                             }),
                             tool_calls: Vec::new(),
                         };
@@ -340,6 +344,7 @@ impl ClaudePlatform {
                             source_meta: json!({
                                 "lineIndex": line_index,
                                 "contentIndex": content_index,
+                                "createdAt": timestamp,
                             }),
                             tool_calls: Vec::new(),
                         });
@@ -860,14 +865,6 @@ impl PlatformAdapter for ClaudePlatform {
             .map_err(|error| format!("Write error: {error}"))?;
 
         Ok(old_content)
-    }
-
-    fn raw_jsonl_path(&self, session_key: &str) -> Result<PathBuf, String> {
-        resolve_existing_jsonl_path_within_root(
-            &self.projects_root,
-            Path::new(session_key),
-            "Claude",
-        )
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {

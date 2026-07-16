@@ -12,7 +12,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::database::{SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 use crate::settings::AppSettings;
@@ -132,9 +132,6 @@ pub trait PlatformAdapter: Send + Sync {
         alias_map: &HashMap<String, String>,
     ) -> Result<SessionDetail, String>;
     fn update_message(&self, edit_target: &str, new_content: &str) -> Result<String, String>;
-    fn raw_jsonl_path(&self, _session_key: &str) -> Result<PathBuf, String> {
-        Err("Raw JSONL export is not supported for this platform".to_string())
-    }
     fn matches_query(&self, session_key: &str, query: &str) -> bool;
     fn warm_content_index(
         &self,
@@ -172,38 +169,6 @@ pub trait PlatformAdapter: Send + Sync {
         }
         Ok(outputs)
     }
-}
-
-pub fn resolve_existing_jsonl_path_within_root(
-    root: &Path,
-    path: &Path,
-    platform: &str,
-) -> Result<PathBuf, String> {
-    if path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
-        return Err(format!("{platform} session is not a JSONL file"));
-    }
-
-    if !path.is_file() {
-        return Err(format!(
-            "{platform} session JSONL not found: {}",
-            path.display()
-        ));
-    }
-
-    let canonical_root = root
-        .canonicalize()
-        .map_err(|error| format!("Cannot resolve {platform} session root: {error}"))?;
-    let canonical_path = path
-        .canonicalize()
-        .map_err(|error| format!("Cannot resolve {platform} session path: {error}"))?;
-
-    if !canonical_path.starts_with(&canonical_root) {
-        return Err(format!(
-            "{platform} session path is outside the configured session root"
-        ));
-    }
-
-    Ok(canonical_path)
 }
 
 /// Extract a snippet of ~120 chars around the first occurrence of `needle` in `text`.

@@ -167,6 +167,26 @@ export type MessageKey =
   | "session.totalMessages"
   | "session.export"
   | "session.exported"
+  | "session.exportOptions"
+  | "session.exportRange"
+  | "session.exportAll"
+  | "session.exportRecent"
+  | "session.exportSince"
+  | "session.exportMarkdown"
+  | "session.exportRawJsonl"
+  | "session.exportingRaw"
+  | "session.rawExported"
+  | "session.importJsonl"
+  | "session.importTitle"
+  | "session.importSubtitle"
+  | "session.importConfirm"
+  | "session.importing"
+  | "session.imported"
+  | "session.importedRenamed"
+  | "session.importExists"
+  | "session.importConflictSame"
+  | "session.importConflictDifferent"
+  | "session.importWarnings"
   | "session.includeToolCalls"
   | "session.erase"
   | "session.eraseConfirm"
@@ -185,6 +205,11 @@ export type MessageKey =
   | "editLog.viewDetail"
   | "editLog.traceTitle"
   | "editLog.traceDesc"
+  | "editLog.delete"
+  | "editLog.deleteConfirm"
+  | "editLog.clear"
+  | "editLog.clearConfirm"
+  | "editLog.deleted"
   | "sidebar.collapse"
   | "sidebar.expand"
   | "sidebar.dragHint"
@@ -395,6 +420,26 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.totalMessages": "共 {count} 条消息",
     "session.export": "导出",
     "session.exported": "已导出",
+    "session.exportOptions": "配置导出选项",
+    "session.exportRange": "内容范围",
+    "session.exportAll": "全部",
+    "session.exportRecent": "最近 {count}",
+    "session.exportSince": "起始日期",
+    "session.exportMarkdown": "下载 Markdown (.md)",
+    "session.exportRawJsonl": "导出原始 JSONL (.jsonl)",
+    "session.exportingRaw": "正在复制…",
+    "session.rawExported": "原始 Session JSONL 已导出",
+    "session.importJsonl": "导入原始 Session JSONL",
+    "session.importTitle": "确认导入 Session JSONL",
+    "session.importSubtitle": "识别 → 检查 → 导入",
+    "session.importConfirm": "确认导入",
+    "session.importing": "正在导入…",
+    "session.imported": "Session JSONL 已导入",
+    "session.importedRenamed": "Session 已导入并自动重命名",
+    "session.importExists": "Session 已存在，已定位到原记录",
+    "session.importConflictSame": "目标中已有完全相同的文件，将直接定位到现有 Session。",
+    "session.importConflictDifferent": "目标中存在不同内容的同名文件，导入时会自动重命名，不会覆盖原文件。",
+    "session.importWarnings": "注意事项",
     "session.includeToolCalls": "包含工具调用历史",
     "session.erase": "擦除此消息",
     "session.eraseConfirm": "确定擦除这条消息的内容吗？此操作不可撤销。",
@@ -412,6 +457,11 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "editLog.viewDetail": "查看详情",
     "editLog.traceTitle": "修改追溯",
     "editLog.traceDesc": "每次编辑都会记录原始内容和新内容，支持 diff 对比。",
+    "editLog.delete": "删除记录",
+    "editLog.deleteConfirm": "确定删除这条修改记录吗？删除后将无法再用它恢复内容。",
+    "editLog.clear": "清空记录",
+    "editLog.clearConfirm": "确定清空当前会话的全部修改记录吗？此操作不会撤销已经修改的内容。",
+    "editLog.deleted": "修改记录已删除",
     "sidebar.collapse": "收起菜单",
     "sidebar.expand": "展开菜单",
     "sidebar.dragHint": "拖动排序，或按 ↑ / ↓ 调整",
@@ -621,6 +671,26 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.totalMessages": "{count} messages",
     "session.export": "Export",
     "session.exported": "Exported",
+    "session.exportOptions": "Export options",
+    "session.exportRange": "Content range",
+    "session.exportAll": "All",
+    "session.exportRecent": "Last {count}",
+    "session.exportSince": "Start date",
+    "session.exportMarkdown": "Download Markdown (.md)",
+    "session.exportRawJsonl": "Export raw JSONL (.jsonl)",
+    "session.exportingRaw": "Copying…",
+    "session.rawExported": "Raw session JSONL exported",
+    "session.importJsonl": "Import raw session JSONL",
+    "session.importTitle": "Confirm session JSONL import",
+    "session.importSubtitle": "Probe → Review → Import",
+    "session.importConfirm": "Import session",
+    "session.importing": "Importing…",
+    "session.imported": "Session JSONL imported",
+    "session.importedRenamed": "Session imported with a conflict-safe filename",
+    "session.importExists": "Session already exists and has been selected",
+    "session.importConflictSame": "An identical file already exists. The existing session will be selected.",
+    "session.importConflictDifferent": "A different file has the same target name. The import will be renamed and the existing file will not be overwritten.",
+    "session.importWarnings": "Important notes",
     "session.includeToolCalls": "Include tool history",
     "session.erase": "Erase Message",
     "session.eraseConfirm": "Are you sure you want to erase this message? This cannot be undone.",
@@ -638,6 +708,11 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "editLog.viewDetail": "View detail",
     "editLog.traceTitle": "Edit Trace",
     "editLog.traceDesc": "Each edit records the original and new content with diff comparison.",
+    "editLog.delete": "Delete record",
+    "editLog.deleteConfirm": "Delete this edit record? You will no longer be able to restore content from it.",
+    "editLog.clear": "Clear logs",
+    "editLog.clearConfirm": "Clear every edit record for this session? Existing message changes will not be reverted.",
+    "editLog.deleted": "Edit record deleted",
     "sidebar.collapse": "Collapse",
     "sidebar.expand": "Expand",
     "sidebar.dragHint": "Drag to reorder, or press ↑ / ↓",

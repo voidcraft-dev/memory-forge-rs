@@ -11,9 +11,9 @@ use crate::database::{
 };
 
 use super::{
-    build_commands, content_entries_to_matches, resolve_existing_jsonl_path_within_root,
-    tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail,
-    SessionKey, SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
+    build_commands, content_entries_to_matches, tool_text_from_str, tool_text_from_value,
+    ContentMatch, PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult,
+    TimelineBlock, ToolCallBlock,
 };
 
 pub struct CodexPlatform {
@@ -203,6 +203,12 @@ impl CodexPlatform {
             let Some(payload) = line.get("payload") else {
                 continue;
             };
+            let block_start = blocks.len();
+            let timestamp = line
+                .get("timestamp")
+                .or_else(|| payload.get("timestamp"))
+                .and_then(Value::as_str)
+                .map(ToString::to_string);
 
             match payload
                 .get("type")
@@ -296,6 +302,14 @@ impl CodexPlatform {
                     push_codex_tool_call(&mut pending_tool_calls, tool_call);
                 }
                 _ => {}
+            }
+
+            if let Some(timestamp) = &timestamp {
+                for block in &mut blocks[block_start..] {
+                    if let Some(meta) = block.source_meta.as_object_mut() {
+                        meta.insert("createdAt".to_string(), json!(timestamp));
+                    }
+                }
             }
         }
 
@@ -817,14 +831,6 @@ impl PlatformAdapter for CodexPlatform {
             .map_err(|error| format!("Write error: {error}"))?;
 
         Ok(old_content)
-    }
-
-    fn raw_jsonl_path(&self, session_key: &str) -> Result<PathBuf, String> {
-        resolve_existing_jsonl_path_within_root(
-            &self.sessions_root,
-            Path::new(session_key),
-            "Codex",
-        )
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {
