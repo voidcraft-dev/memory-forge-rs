@@ -44,8 +44,8 @@ pub struct RawJsonlExportResult {
     pub bytes: u64,
 }
 
-const DASHBOARD_PLATFORM_NAMES: [&str; 8] = [
-    "claude", "codex", "opencode", "pi", "cursor", "kiro", "kiro-ide", "gemini",
+const DASHBOARD_PLATFORM_NAMES: [&str; 9] = [
+    "claude", "codex", "opencode", "pi", "grok", "cursor", "kiro", "kiro-ide", "gemini",
 ];
 
 pub fn dashboard_summary(db: &DbState, settings: &AppSettings) -> Result<DashboardSummary, String> {
@@ -391,7 +391,7 @@ fn schedule_content_index_warmup(
     db_path: &str,
     session_keys: Vec<String>,
 ) {
-    if session_keys.is_empty() || !matches!(platform, "claude" | "codex" | "pi") {
+    if session_keys.is_empty() || !matches!(platform, "claude" | "codex" | "pi" | "grok") {
         return;
     }
 

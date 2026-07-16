@@ -23,6 +23,7 @@ const PLATFORM_ITEMS = [
   { id: "kiro", labelKey: "platformKiro" as const },
   { id: "kiro-ide", labelKey: "platformKiroIde" as const },
   { id: "gemini", labelKey: "platformGemini" as const },
+  { id: "grok", labelKey: "platformGrok" as const },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -98,6 +99,7 @@ export default function SettingsPage() {
     "codex",
     "opencode",
     "pi",
+    "grok",
   ];
 
   const togglePlatformVisible = async (
@@ -367,6 +369,13 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ geminiHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.geminiHome ?? ""}
+            />
+            <PathRow
+              defaultHint="~/.grok"
+              label={t("grokHome")}
+              onSave={(v) => updateSettings({ grokHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.grokHome ?? ""}
             />
             <PathRow
               defaultHint="~/.pi/agent"

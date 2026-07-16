@@ -35,6 +35,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub gemini_home: Option<String>,
     #[serde(default)]
+    pub grok_home: Option<String>,
+    #[serde(default)]
     pub pi_home: Option<String>,
     #[serde(default)]
     pub preferred_terminal: Option<String>,
@@ -48,6 +50,7 @@ fn default_visible_platforms() -> Vec<String> {
         "codex".to_string(),
         "opencode".to_string(),
         "pi".to_string(),
+        "grok".to_string(),
     ]
 }
 
@@ -63,9 +66,16 @@ fn migrate_settings(mut settings: AppSettings) -> AppSettings {
         "cursor".to_string(),
         "opencode".to_string(),
     ];
+    let legacy_default_with_pi = vec![
+        "claude".to_string(),
+        "codex".to_string(),
+        "opencode".to_string(),
+        "pi".to_string(),
+    ];
 
     if settings.visible_platforms == legacy_default_without_cursor
         || settings.visible_platforms == legacy_default_with_cursor
+        || settings.visible_platforms == legacy_default_with_pi
     {
         settings.visible_platforms = default_visible_platforms();
     }
@@ -89,6 +99,7 @@ impl Default for AppSettings {
             kiro_home: None,
             kiro_ide_home: None,
             gemini_home: None,
+            grok_home: None,
             pi_home: None,
             preferred_terminal: None,
             visible_platforms: default_visible_platforms(),
@@ -112,6 +123,7 @@ pub struct AppSettingsPatch {
     pub kiro_home: Option<Option<String>>,
     pub kiro_ide_home: Option<Option<String>>,
     pub gemini_home: Option<Option<String>>,
+    pub grok_home: Option<Option<String>>,
     pub pi_home: Option<Option<String>>,
     pub preferred_terminal: Option<Option<String>>,
     pub visible_platforms: Option<Vec<String>>,
@@ -238,6 +250,10 @@ pub fn update_settings(
 
     if let Some(gemini_home) = patch.gemini_home {
         settings.gemini_home = gemini_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(grok_home) = patch.grok_home {
+        settings.grok_home = grok_home.filter(|s| !s.trim().is_empty());
     }
 
     if let Some(pi_home) = patch.pi_home {

@@ -2,6 +2,7 @@ pub mod claude;
 pub mod codex;
 pub mod cursor;
 pub mod gemini;
+pub mod grok;
 pub mod kiro;
 pub mod kiro_ide;
 pub mod opencode;
@@ -381,6 +382,15 @@ pub fn get_adapter(
                 .unwrap_or_else(|| home.join(".gemini"));
             Ok(Box::new(gemini::GeminiPlatform::new(path)))
         }
+        "grok" => {
+            let path = settings
+                .grok_home
+                .as_ref()
+                .map(PathBuf::from)
+                .or_else(|| std::env::var_os("GROK_HOME").map(PathBuf::from))
+                .unwrap_or_else(|| home.join(".grok"));
+            Ok(Box::new(grok::GrokPlatform::new(path)))
+        }
         "pi" => {
             let path = settings
                 .pi_home
@@ -430,6 +440,15 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         "gemini" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("gemini --resume '{session_id}'"));
+            m
+        }
+        "grok" => {
+            let mut m = HashMap::new();
+            m.insert("resume".into(), format!("grok --resume {session_id}"));
+            m.insert(
+                "fork".into(),
+                format!("grok --resume {session_id} --fork-session"),
+            );
             m
         }
         "pi" => {

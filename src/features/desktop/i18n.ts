@@ -18,6 +18,7 @@ export type MessageKey =
   | "platformKiro"
   | "platformKiroIde"
   | "platformPi"
+  | "platformGrok"
   // Dashboard
   | "welcomeTitle"
   | "welcomeDesc"
@@ -199,6 +200,7 @@ export type MessageKey =
   | "kiroIdeHome"
   | "geminiHome"
   | "platformGemini"
+  | "grokHome"
   | "piHome"
   | "pathPlaceholder"
   | "pathSaved"
@@ -245,6 +247,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformKiro: "Kiro CLI",
     platformKiroIde: "Kiro IDE",
     platformPi: "Pi",
+    platformGrok: "Grok Build",
     welcomeTitle: "停止重开，直接编辑。",
     welcomeDesc: "AI 对话走偏了？别重新开始 — 直接改掉历史记录。注入上下文、纠正错误、删除废话，然后无缝继续对话。",
     totalSessions: "总会话数",
@@ -419,6 +422,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "kiroIdeHome": "Kiro IDE 数据目录",
     "geminiHome": "Gemini 数据目录",
     "platformGemini": "Gemini CLI",
+    "grokHome": "Grok Build 数据目录",
     "piHome": "Pi 数据目录",
     "pathPlaceholder": "留空使用默认路径",
     "pathSaved": "路径已保存",
@@ -464,6 +468,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformKiro: "Kiro CLI",
     platformKiroIde: "Kiro IDE",
     platformPi: "Pi",
+    platformGrok: "Grok Build",
     welcomeTitle: "Stop resetting. Start editing.",
     welcomeDesc: "AI went off track? Don't restart — edit the history directly. Inject context, fix errors, remove noise, then seamlessly continue.",
     totalSessions: "Total Sessions",
@@ -638,6 +643,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "kiroIdeHome": "Kiro IDE Data Directory",
     "geminiHome": "Gemini Home Directory",
     "platformGemini": "Gemini CLI",
+    "grokHome": "Grok Build Home Directory",
     "piHome": "Pi Data Directory",
     "pathPlaceholder": "Leave empty for default",
     "pathSaved": "Path saved",

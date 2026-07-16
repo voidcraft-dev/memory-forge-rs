@@ -13,6 +13,7 @@ import {
   Code,
   Sparkles,
   Gem,
+  Orbit,
   Pi,
 } from "lucide-react";
 import { AppLogo } from "@/components/logo";
@@ -31,6 +32,7 @@ const navigation = [
   { to: "/kiro", labelKey: "platformKiro" as const, icon: Sparkles, platformId: "kiro" },
   { to: "/kiro-ide", labelKey: "platformKiroIde" as const, icon: Sparkles, platformId: "kiro-ide" },
   { to: "/gemini", labelKey: "platformGemini" as const, icon: Gem, platformId: "gemini" },
+  { to: "/grok", labelKey: "platformGrok" as const, icon: Orbit, platformId: "grok" },
   { to: "/pi", labelKey: "platformPi" as const, icon: Pi, platformId: "pi" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
@@ -133,7 +135,7 @@ export default function ShellLayout() {
             <nav className={cn("mt-6 space-y-2", sidebarCollapsed && "mt-4 space-y-1.5")}>
               {navigation.filter((item) => {
                 if (!item.platformId) return true;
-                const visible = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "cursor", "opencode"];
+                const visible = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode", "pi", "grok"];
                 return visible.includes(item.platformId);
               }).map((item) => {
                 const Icon = item.icon;

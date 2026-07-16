@@ -31,9 +31,10 @@ const defaultSettings = {
   kiroHome: null,
   kiroIdeHome: null,
   geminiHome: null,
+  grokHome: null,
   piHome: null,
   preferredTerminal: null,
-  visiblePlatforms: ["claude", "codex", "opencode", "pi"] as string[],
+  visiblePlatforms: ["claude", "codex", "opencode", "pi", "grok"] as string[],
 };
 
 function isTauriRuntime() {
