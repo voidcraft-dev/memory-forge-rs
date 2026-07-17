@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock3, Folder, Layers3, SquareTerminal, Terminal } from "lucide-react";
+import { SquareTerminal, Terminal, X } from "lucide-react";
 import { api } from "@/features/desktop/api";
 import { useDesktop } from "@/features/desktop/provider";
 import { EmbeddedTerminalPanel } from "@/features/terminal/embedded-terminal-panel";
@@ -28,7 +28,7 @@ function platformLabel(platform: string | null) {
 }
 
 export default function TerminalSessionsPage() {
-  const { snapshot, t } = useDesktop();
+  const { t } = useDesktop();
   const {
     terminals,
     activeTerminalId,
@@ -89,33 +89,9 @@ export default function TerminalSessionsPage() {
     }
   };
 
-  const locale = snapshot?.settings.locale === "en" ? "en-US" : "zh-CN";
 
   return (
-    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] border border-border/60 bg-white/4">
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border/60 bg-card/45 px-5 py-4 md:px-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 shadow-sm">
-            <SquareTerminal className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-lg font-bold text-foreground">
-              {t("terminal.workspace.title")}
-            </h2>
-            <p className="mt-0.5 max-w-3xl text-xs leading-5 text-muted-foreground">
-              {t("terminal.workspace.subtitle")}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/55 px-3 py-1.5 text-xs font-semibold text-muted-foreground tabular-nums">
-          <span className="size-2 rounded-full bg-emerald-500" />
-          {t("terminal.workspace.runningCount", {
-            running: runningCount,
-            total: allTerminals.length,
-          })}
-        </div>
-      </header>
-
+    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] border border-border/60 bg-[#0d1117]">
       {notice && (
         <div
           className="shrink-0 border-b border-amber-500/20 bg-amber-500/8 px-5 py-2.5 text-xs font-medium text-amber-500 md:px-6"
@@ -126,100 +102,75 @@ export default function TerminalSessionsPage() {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="flex max-h-52 w-full shrink-0 flex-col border-b border-border/60 bg-card/20 md:max-h-none md:w-72 md:border-r md:border-b-0 lg:w-80">
-          <div className="flex shrink-0 items-center justify-between border-b border-border/50 px-4 py-3">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-              <Layers3 className="size-3.5" />
-              {t("terminal.workspace.collection")}
-            </div>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground tabular-nums">
-              {allTerminals.length}
-            </span>
+      {allTerminals.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center px-8 text-center bg-[#0d1117]">
+          <div className="mb-5 flex size-16 items-center justify-center rounded-[22px] border border-emerald-500/15 bg-emerald-500/8 text-emerald-400">
+            <SquareTerminal className="size-7" />
           </div>
-
-          <div
-            className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2.5"
-            role="listbox"
-            aria-label={t("terminal.tabsLabel")}
-          >
-            {allTerminals.map((terminal) => {
-              const active = terminal.id === selectedTerminal?.id;
-              const statusConfig = terminalTheme.statusConfig[terminal.status];
-              return (
-                <button
-                  key={terminal.id}
-                  type="button"
-                  role="option"
-                  aria-selected={active}
-                  onClick={() => setActiveTerminal(terminal.id)}
-                  className={cn(
-                    "group w-full cursor-pointer rounded-2xl border px-3.5 py-3 text-left transition-[border-color,background-color,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
-                    active
-                      ? "border-primary/30 bg-primary/8 shadow-sm shadow-primary/5"
-                      : "border-transparent bg-background/25 hover:border-border/70 hover:bg-background/55"
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <div
+          <h3 className="text-base font-bold text-white">
+            {t("terminal.workspace.emptyTitle")}
+          </h3>
+          <p className="mt-2 max-w-lg text-sm leading-6 text-zinc-400">
+            {t("terminal.workspace.emptyDesc")}
+          </p>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col">
+          {/* Custom Terminal Tabs Bar at the top */}
+          <div className="flex h-11 shrink-0 items-center justify-between border-b border-border/30 bg-[#090c10] px-4">
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-1">
+              {allTerminals.map((terminal) => {
+                const active = terminal.id === selectedTerminal?.id;
+                const statusConfig = terminalTheme.statusConfig[terminal.status];
+                return (
+                  <div key={terminal.id} className="relative flex items-center group">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTerminal(terminal.id)}
                       className={cn(
-                        "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl border",
-                        statusConfig.bg,
-                        statusConfig.color
+                        "flex h-8 items-center gap-2 rounded-t-lg border-t border-x px-3 pl-3 pr-8 text-xs font-semibold transition-all cursor-pointer select-none",
+                        active
+                          ? "bg-[#0d1117] text-emerald-400 border-border/40 border-b-[#0d1117]"
+                          : "bg-[#090c10]/80 text-muted-foreground border-transparent hover:bg-[#161b22] hover:text-foreground"
                       )}
                     >
-                      <Terminal className="size-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-foreground">
-                          {terminal.sessionTitle}
-                        </span>
-                        <span className={cn("size-1.5 shrink-0 rounded-full", statusConfig.dot)} />
-                      </div>
-                      <p className="mt-1 truncate text-[11px] font-medium text-muted-foreground">
-                        {t("terminal.workspace.source", {
-                          platform: platformLabel(terminal.platform),
-                        })}
-                        <span className="px-1.5 text-border">·</span>
-                        <span className="uppercase">{terminal.commandKind}</span>
-                      </p>
-                      <p className="mt-1.5 flex items-center gap-1.5 truncate font-mono text-[10px] text-muted-foreground/70">
-                        <Folder className="size-3 shrink-0" />
-                        <span className="truncate">{terminal.cwd || "~"}</span>
-                      </p>
-                      <p className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground/55">
-                        <Clock3 className="size-3" />
-                        {t("terminal.workspace.openedAt", {
-                          time: new Date(terminal.createdAt).toLocaleTimeString(locale, {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          }),
-                        })}
-                      </p>
-                    </div>
+                      <Terminal className="size-3.5 shrink-0 opacity-80" />
+                      <span className="max-w-[120px] truncate">{terminal.sessionTitle}</span>
+                      <span className="text-[10px] text-muted-foreground/60">({platformLabel(terminal.platform)})</span>
+                      <span className={cn("size-1.5 shrink-0 rounded-full", statusConfig.dot)} />
+                    </button>
+                    {/* Close Tab Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleClose(terminal);
+                      }}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded-md text-muted-foreground/40 hover:bg-red-500/10 hover:text-red-400 transition-colors cursor-pointer"
+                      title={t("terminal.btn.close")}
+                    >
+                      <X className="size-3" />
+                    </button>
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
-        <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#0d1117]">
-          {allTerminals.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
-              <div className="mb-5 flex size-16 items-center justify-center rounded-[22px] border border-emerald-500/15 bg-emerald-500/8 text-emerald-400">
-                <SquareTerminal className="size-7" />
-              </div>
-              <h3 className="text-base font-bold text-white">
-                {t("terminal.workspace.emptyTitle")}
-              </h3>
-              <p className="mt-2 max-w-lg text-sm leading-6 text-zinc-400">
-                {t("terminal.workspace.emptyDesc")}
-              </p>
+                );
+              })}
             </div>
-          ) : (
-            allTerminals.map((terminal) => {
+            
+            {/* Quick stats on the right side of tab bar */}
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground tabular-nums select-none shrink-0 pl-4">
+              <span className="size-2 rounded-full bg-emerald-500" />
+              <span>
+                {t("terminal.workspace.runningCount", {
+                  running: runningCount,
+                  total: allTerminals.length,
+                })}
+              </span>
+            </div>
+          </div>
+
+          {/* Viewports Container */}
+          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#0d1117]">
+            {allTerminals.map((terminal) => {
               const active = terminal.id === selectedTerminal?.id;
               return (
                 <div
@@ -244,10 +195,10 @@ export default function TerminalSessionsPage() {
                   </EmbeddedTerminalPanel>
                 </div>
               );
-            })
-          )}
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       <ConfirmDialog {...dialogProps} />
     </section>
