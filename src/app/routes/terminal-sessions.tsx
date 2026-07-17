@@ -221,7 +221,7 @@ export default function TerminalSessionsPage() {
           </div>
 
           {/* Viewports Container */}
-          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
+          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#0d1117]">
             {allTerminals.map((terminal) => {
               const active = terminal.id === selectedTerminal?.id;
               return (
