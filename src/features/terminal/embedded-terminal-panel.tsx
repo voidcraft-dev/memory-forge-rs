@@ -28,7 +28,7 @@ export function EmbeddedTerminalPanel({
   const { t } = useDesktop();
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0d1117]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <TerminalToolbar
         status={status}
         commandKind={commandKind}
@@ -40,7 +40,7 @@ export function EmbeddedTerminalPanel({
         onClose={onClose}
       />
 
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0d1117]">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
         {children ?? <div className="min-h-0 flex-1" />}
 
         {status === "idle" && (

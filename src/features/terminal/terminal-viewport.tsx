@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { useDesktop } from "@/features/desktop/provider";
+import { getThemeSpec } from "@/features/desktop/catalog";
 import { useTerminal } from "./terminal-context";
 import { xtermTheme } from "./terminal-theme";
 
@@ -20,12 +21,49 @@ function encodeBinaryString(value: string) {
 }
 
 export function TerminalViewport({ terminalId, isActive }: TerminalViewportProps) {
-  const { t } = useDesktop();
+  const { snapshot, t } = useDesktop();
   const { writeTerminal, resizeTerminal, subscribeToOutput } = useTerminal();
   const hostRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
+
+  const themeId = snapshot?.settings.theme || "graphite";
+  const themeSpec = getThemeSpec(themeId);
+  const isLight = themeSpec.mode === "light";
+
+  const theme = useMemo(() => {
+    return isLight ? {
+      background: themeId === "linen" ? "#f6efe4" : "#fcfcfd",
+      foreground: themeId === "linen" ? "#261d16" : "#20263a",
+      cursor: themeId === "linen" ? "#8a5a2f" : "#7a8cff",
+      cursorAccent: themeId === "linen" ? "#f6efe4" : "#fcfcfd",
+      selectionBackground: themeId === "linen" ? "#eadaaa" : "#e0e4ff",
+      selectionForeground: themeId === "linen" ? "#261d16" : "#20263a",
+      black: themeId === "linen" ? "#261d16" : "#20263a",
+      red: "#d32f2f",
+      green: "#2e7d32",
+      yellow: "#f57c00",
+      blue: "#1976d2",
+      magenta: "#7b1fa2",
+      cyan: "#0097a7",
+      white: "#f5f5f5",
+      brightBlack: "#757575",
+      brightRed: "#d32f2f",
+      brightGreen: "#2e7d32",
+      brightYellow: "#f57c00",
+      brightBlue: "#1976d2",
+      brightMagenta: "#7b1fa2",
+      brightCyan: "#0097a7",
+      brightWhite: "#ffffff",
+    } : xtermTheme;
+  }, [themeId, isLight]);
+
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.options.theme = theme;
+    }
+  }, [theme]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -44,7 +82,7 @@ export function TerminalViewport({ terminalId, isActive }: TerminalViewportProps
       minimumContrastRatio: 4.5,
       scrollback: 10_000,
       smoothScrollDuration: 0,
-      theme: xtermTheme,
+      theme,
     });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);

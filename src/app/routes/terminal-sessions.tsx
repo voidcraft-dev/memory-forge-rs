@@ -113,7 +113,7 @@ export default function TerminalSessionsPage() {
 
 
   return (
-    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] border border-border/60 bg-[#0d1117]">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] border border-border/60 bg-background">
       {notice && (
         <div
           className="shrink-0 border-b border-amber-500/20 bg-amber-500/8 px-5 py-2.5 text-xs font-medium text-amber-500 md:px-6"
@@ -125,7 +125,7 @@ export default function TerminalSessionsPage() {
       )}
 
       {allTerminals.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center px-8 text-center bg-[#0d1117]">
+        <div className="flex flex-1 flex-col items-center justify-center px-8 text-center bg-background">
           <div className="mb-5 flex size-16 items-center justify-center rounded-[22px] border border-emerald-500/15 bg-emerald-500/8 text-emerald-400">
             <SquareTerminal className="size-7" />
           </div>
@@ -139,7 +139,7 @@ export default function TerminalSessionsPage() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Custom Terminal Tabs Bar at the top */}
-          <div className="flex h-11 shrink-0 items-end justify-between border-b border-border/30 bg-[#090c10] px-4">
+          <div className="flex h-11 shrink-0 items-end justify-between border-b border-border/30 bg-muted/20 px-4">
             <div className="flex items-end gap-1 overflow-x-auto scrollbar-none">
               {allTerminals.map((terminal) => {
                 const active = terminal.id === selectedTerminal?.id;
@@ -154,8 +154,8 @@ export default function TerminalSessionsPage() {
                       className={cn(
                         "flex h-9 items-center gap-2 rounded-t-md border-t border-x px-3.5 pl-3.5 pr-8 text-xs font-semibold transition-all cursor-pointer select-none relative -mb-px z-10",
                         active
-                          ? "bg-[#0d1117] text-emerald-400 border-border/40 border-b-transparent"
-                          : "bg-[#090c10]/80 text-muted-foreground border-transparent hover:bg-[#161b22]/50 hover:text-foreground h-8 mb-0"
+                          ? "bg-background text-emerald-400 border-border/40 border-b-transparent"
+                          : "bg-transparent text-muted-foreground border-transparent hover:bg-muted/10 hover:text-foreground h-8 mb-0"
                       )}
                     >
                       <PlatformIcon className={cn("size-3.5 shrink-0 transition-colors duration-200", active ? config.color : "text-muted-foreground/80 " + config.hoverColor)} />
@@ -169,7 +169,7 @@ export default function TerminalSessionsPage() {
                             if (e.key === "Enter") handleSaveRename(terminal.id);
                             if (e.key === "Escape") setEditingTerminalId(null);
                           }}
-                          className="h-5 w-24 rounded border border-emerald-500/30 bg-[#0d1117] px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                          className="h-5 w-24 rounded border border-emerald-500/30 bg-background px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                           autoFocus
                           onClick={(e) => e.stopPropagation()}
                         />
@@ -221,7 +221,7 @@ export default function TerminalSessionsPage() {
           </div>
 
           {/* Viewports Container */}
-          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#0d1117]">
+          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
             {allTerminals.map((terminal) => {
               const active = terminal.id === selectedTerminal?.id;
               return (
