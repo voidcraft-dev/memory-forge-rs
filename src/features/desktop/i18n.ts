@@ -259,7 +259,40 @@ export type MessageKey =
   | "session.batchFavorited"
   | "session.batchUnfavorited"
   | "session.batchFailed"
-  | "session.noSelection";
+  | "session.noSelection"
+  // Terminal UI
+  | "terminal.sessionRecord"
+  | "terminal.tabTitle"
+  | "terminal.resumeEmbedded"
+  | "terminal.resumeExternal"
+  | "terminal.copyResumeCmd"
+  | "terminal.forkEmbedded"
+  | "terminal.forkExternal"
+  | "terminal.copyForkCmd"
+  | "terminal.status.idle"
+  | "terminal.status.starting"
+  | "terminal.status.running"
+  | "terminal.status.stopping"
+  | "terminal.status.exited"
+  | "terminal.status.failed"
+  | "terminal.btn.restart"
+  | "terminal.btn.stop"
+  | "terminal.btn.forceStop"
+  | "terminal.btn.confirmForceStop"
+  | "terminal.btn.cancel"
+  | "terminal.btn.openExternal"
+  | "terminal.btn.close"
+  | "terminal.idle.title"
+  | "terminal.idle.desc"
+  | "terminal.idle.btn"
+  | "terminal.starting.title"
+  | "terminal.exited.title"
+  | "terminal.failed.title"
+  | "terminal.failed.retry"
+  | "terminal.failed.copy"
+  | "terminal.failed.external"
+  | "terminal.cwd"
+  | "terminal.tabs.maxWarning";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -512,6 +545,39 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.batchUnfavorited": "已取消收藏 {count} 个会话",
     "session.batchFailed": "批量操作失败",
     "session.noSelection": "未选中任何会话",
+    // Terminal UI
+    "terminal.sessionRecord": "会话记录",
+    "terminal.tabTitle": "终端: {kind}",
+    "terminal.resumeEmbedded": "内嵌恢复会话",
+    "terminal.resumeExternal": "在外部终端恢复",
+    "terminal.copyResumeCmd": "复制恢复命令",
+    "terminal.forkEmbedded": "内嵌分支会话",
+    "terminal.forkExternal": "在外部终端分支",
+    "terminal.copyForkCmd": "复制分支命令",
+    "terminal.status.idle": "未启动",
+    "terminal.status.starting": "正在启动",
+    "terminal.status.running": "运行中",
+    "terminal.status.stopping": "正在停止",
+    "terminal.status.exited": "已退出 ({code})",
+    "terminal.status.failed": "启动失败",
+    "terminal.btn.restart": "重启",
+    "terminal.btn.stop": "停止",
+    "terminal.btn.forceStop": "强制停止",
+    "terminal.btn.confirmForceStop": "确认强制停止？",
+    "terminal.btn.cancel": "取消",
+    "terminal.btn.openExternal": "外部打开",
+    "terminal.btn.close": "关闭页签",
+    "terminal.idle.title": "终端尚未启动",
+    "terminal.idle.desc": "在内嵌终端中恢复此会话。支持交互式命令行、ANSI 颜色与光标控制。",
+    "terminal.idle.btn": "启动内嵌终端",
+    "terminal.starting.title": "正在准备终端环境...",
+    "terminal.exited.title": "终端子进程已退出，退出码: {code}",
+    "terminal.failed.title": "启动终端失败",
+    "terminal.failed.retry": "重新启动",
+    "terminal.failed.copy": "复制命令",
+    "terminal.failed.external": "外部打开",
+    "terminal.cwd": "当前目录",
+    "terminal.tabs.maxWarning": "终端页签已达上限",
   },
   en: {
     appName: "Memory Forge",
@@ -763,6 +829,39 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.batchUnfavorited": "Unfavorited {count} session(s)",
     "session.batchFailed": "Batch operation failed",
     "session.noSelection": "No sessions selected",
+    // Terminal UI
+    "terminal.sessionRecord": "History",
+    "terminal.tabTitle": "Terminal: {kind}",
+    "terminal.resumeEmbedded": "Resume Session (Embedded)",
+    "terminal.resumeExternal": "Resume in External Terminal",
+    "terminal.copyResumeCmd": "Copy Resume Command",
+    "terminal.forkEmbedded": "Fork Session (Embedded)",
+    "terminal.forkExternal": "Fork in External Terminal",
+    "terminal.copyForkCmd": "Copy Fork Command",
+    "terminal.status.idle": "Idle",
+    "terminal.status.starting": "Starting",
+    "terminal.status.running": "Running",
+    "terminal.status.stopping": "Stopping",
+    "terminal.status.exited": "Exited ({code})",
+    "terminal.status.failed": "Failed",
+    "terminal.btn.restart": "Restart",
+    "terminal.btn.stop": "Stop",
+    "terminal.btn.forceStop": "Force Stop",
+    "terminal.btn.confirmForceStop": "Confirm Force Stop?",
+    "terminal.btn.cancel": "Cancel",
+    "terminal.btn.openExternal": "Open External",
+    "terminal.btn.close": "Close Tab",
+    "terminal.idle.title": "Terminal Idle",
+    "terminal.idle.desc": "Restore this session in an embedded terminal. Supports interactive CLI, ANSI colors, and cursor controls.",
+    "terminal.idle.btn": "Start Embedded Terminal",
+    "terminal.starting.title": "Preparing terminal environment...",
+    "terminal.exited.title": "Terminal child process exited with code: {code}",
+    "terminal.failed.title": "Failed to start terminal",
+    "terminal.failed.retry": "Restart",
+    "terminal.failed.copy": "Copy Command",
+    "terminal.failed.external": "Open Externally",
+    "terminal.cwd": "Working Dir",
+    "terminal.tabs.maxWarning": "Terminal tabs limit reached",
   },
 };
 

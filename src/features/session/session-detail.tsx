@@ -12,6 +12,9 @@ import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, 
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
+import { useTerminal } from '@/features/terminal/terminal-context'
+import { TerminalTabStrip } from '@/features/terminal/terminal-tab-strip'
+import { EmbeddedTerminalPanel } from '@/features/terminal/embedded-terminal-panel'
 
 const PAGE_SIZE = 50
 const TOOL_INPUT_EXPORT_LIMIT = 8192
@@ -79,6 +82,26 @@ export function SessionDetail() {
   const showEditLog = state.showEditLog
   const sessionStatus = state.sessionStatus
   const globalSearchQuery = state.searchQuery
+
+  const {
+    terminals,
+    activeTabIds,
+    setActiveTab,
+    startTerminal,
+    restartTerminal,
+    stopTerminal,
+    closeTerminal,
+  } = useTerminal()
+
+  const currentSessionTerminals = useMemo(() => {
+    if (!sessionDetail?.sessionKey) return []
+    return terminals[sessionDetail.sessionKey] ?? []
+  }, [terminals, sessionDetail?.sessionKey])
+
+  const activeTabId = useMemo(() => {
+    if (!sessionDetail?.sessionKey) return 'record'
+    return activeTabIds[sessionDetail.sessionKey] || 'record'
+  }, [activeTabIds, sessionDetail?.sessionKey])
 
   const [aliasTitle, setAliasTitle] = useState('')
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
@@ -832,12 +855,33 @@ export function SessionDetail() {
                     <ChevronDown className="w-3 h-3 opacity-60" />
                   </Button>
                   {terminalMenuOpen && (
-                    <div className="absolute right-0 top-full mt-1.5 z-50 w-56 rounded-2xl border border-border/60 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute right-0 top-full mt-1.5 z-50 w-64 rounded-2xl border border-border/60 bg-card/95 p-2 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
                       {availableCommands.map((label, idx, arr) => {
                         const command = sessionDetail.commands[label]
                         const operationKey = `${sessionDetail.sessionKey}::${label}`
+                        const isResume = label === 'resume'
+                        
                         return (
-                          <div key={label} className="p-1 space-y-1">
+                          <div key={label} className="space-y-1">
+                            {/* Category Header */}
+                            <div className="px-2.5 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider select-none">
+                              {isResume ? '恢复会话 (Resume)' : '分支会话 (Fork)'}
+                            </div>
+                            
+                            {/* Embedded option */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTerminalMenuOpen(false)
+                                startTerminal(sessionDetail.sessionKey, label as "resume" | "fork", command, sessionDetail.cwd || null)
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors cursor-pointer"
+                            >
+                              <Terminal className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                              <span>{t(isResume ? 'terminal.resumeEmbedded' : 'terminal.forkEmbedded')}</span>
+                            </button>
+
+                            {/* External option */}
                             <button
                               type="button"
                               onClick={() => {
@@ -845,31 +889,32 @@ export function SessionDetail() {
                                 handleOpenCommand(label, command)
                               }}
                               disabled={openingKey === operationKey}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors disabled:opacity-50"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-50 cursor-pointer"
                             >
                               {openingKey === operationKey ? (
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />
                               ) : (
-                                <Play className="w-3.5 h-3.5 shrink-0" />
+                                <Play className="w-3.5 h-3.5 shrink-0 text-primary" />
                               )}
-                              <span className="font-semibold text-foreground">
-                                {label === 'resume' ? '恢复会话 (Resume)' : '分支会话 (Fork)'}
-                              </span>
+                              <span>{t(isResume ? 'terminal.resumeExternal' : 'terminal.forkExternal')}</span>
                             </button>
+
+                            {/* Copy option */}
                             <button
                               type="button"
                               onClick={() => {
                                 setTerminalMenuOpen(false)
                                 handleCopyCommand(label, command)
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors cursor-pointer"
                             >
-                              <Copy className="w-3 h-3 shrink-0" />
+                              <Copy className="w-3.5 h-3.5 shrink-0" />
                               <span>
-                                {copiedKey === operationKey ? '已复制命令' : `复制 ${label} 命令`}
+                                {copiedKey === operationKey ? t('session.copied') : t(isResume ? 'terminal.copyResumeCmd' : 'terminal.copyForkCmd')}
                               </span>
                             </button>
-                            {idx < arr.length - 1 && <div className="border-t border-border/20 my-1" />}
+                            
+                            {idx < arr.length - 1 && <div className="border-t border-border/20 my-2" />}
                           </div>
                         )
                       })}
@@ -1025,141 +1070,183 @@ export function SessionDetail() {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2 border-b bg-card/30 px-5 py-3 md:px-6">
-        {(['all', 'user', 'assistant', 'thinking'] as const).map((filter) => {
-          const isActive = roleFilter === filter
-          const filterConfig = {
-            all: { label: t('session.filter.all'), icon: null, gradient: 'from-slate-500/20 to-slate-600/20', textColor: 'text-slate-400', borderColor: 'border-slate-500/30' },
-            user: { label: t('session.filter.user'), icon: User, gradient: 'from-blue-500/20 to-blue-600/20', textColor: 'text-blue-400', borderColor: 'border-blue-500/40' },
-            assistant: { label: t('session.filter.assistant'), icon: Bot, gradient: 'from-green-500/20 to-green-600/20', textColor: 'text-green-400', borderColor: 'border-green-500/40' },
-            thinking: { label: t('session.filter.thinking'), icon: Lightbulb, gradient: 'from-orange-500/20 to-orange-600/20', textColor: 'text-orange-400', borderColor: 'border-orange-500/40' },
-          }
-          const config = filterConfig[filter]
-          const Icon = config.icon
-          return (
-            <Button key={filter} variant="ghost" size="sm" onClick={() => dispatch({ type: 'setRoleFilter', payload: filter })}
-              className={cn("gap-1.5 h-8 px-4 rounded-lg font-medium", isActive ? cn("bg-gradient-to-r shadow-lg", config.gradient, config.textColor, "border", config.borderColor) : "hover:bg-muted/50 text-muted-foreground")}>
-              {Icon && <Icon className={cn("w-3.5 h-3.5", isActive && config.textColor)} />}
-              <span>{config.label}</span>
-              {isActive && <span className={cn("ml-1 text-[10px] px-1.5 py-0.5 rounded bg-background/30", config.textColor)}>{filteredBlocks.length}</span>}
-            </Button>
-          )
-        })}
-        <span className="ml-auto text-xs text-muted-foreground/60">
-          {t('session.totalMessages', { count: sessionDetail.blocks.length })}
-        </span>
-      </div>
+      <TerminalTabStrip
+        activeTab={activeTabId}
+        onTabChange={(tabId) => setActiveTab(sessionDetail.sessionKey, tabId)}
+        terminals={currentSessionTerminals}
+        onCloseTab={(termId, e) => {
+          e.stopPropagation()
+          closeTerminal(sessionDetail.sessionKey, termId)
+        }}
+      />
 
-      {/* Inline search */}
-      <div className="flex items-center gap-2 border-b border-border/50 bg-card/30 px-5 py-2 md:px-6">
-        <Search className="size-3.5 text-muted-foreground/50 shrink-0" />
-        <input
-          type="text"
-          value={inlineSearch}
-          onChange={e => setInlineSearch(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') handleSearchNav(e.shiftKey ? 'prev' : 'next')
-            if (e.key === 'Escape') setInlineSearch('')
-          }}
-          placeholder={t('session.search')}
-          className="min-w-0 flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none"
-        />
-        {searchNeedle && (
-          <>
-            <span className="text-[10px] text-muted-foreground/60 shrink-0">
-              {matchingBlockIds.length > 0 ? `${currentMatchIdx + 1}/${matchingBlockIds.length}` : '0/0'}
+      {activeTabId === 'record' ? (
+        <>
+          <div className="flex flex-wrap items-center gap-2 border-b bg-card/30 px-5 py-3 md:px-6">
+            {(['all', 'user', 'assistant', 'thinking'] as const).map((filter) => {
+              const isActive = roleFilter === filter
+              const filterConfig = {
+                all: { label: t('session.filter.all'), icon: null, gradient: 'from-slate-500/20 to-slate-600/20', textColor: 'text-slate-400', borderColor: 'border-slate-500/30' },
+                user: { label: t('session.filter.user'), icon: User, gradient: 'from-blue-500/20 to-blue-600/20', textColor: 'text-blue-400', borderColor: 'border-blue-500/40' },
+                assistant: { label: t('session.filter.assistant'), icon: Bot, gradient: 'from-green-500/20 to-green-600/20', textColor: 'text-green-400', borderColor: 'border-green-500/40' },
+                thinking: { label: t('session.filter.thinking'), icon: Lightbulb, gradient: 'from-orange-500/20 to-orange-600/20', textColor: 'text-orange-400', borderColor: 'border-orange-500/40' },
+              }
+              const config = filterConfig[filter]
+              const Icon = config.icon
+              return (
+                <Button key={filter} variant="ghost" size="sm" onClick={() => dispatch({ type: 'setRoleFilter', payload: filter })}
+                  className={cn("gap-1.5 h-8 px-4 rounded-lg font-medium", isActive ? cn("bg-gradient-to-r shadow-lg", config.gradient, config.textColor, "border", config.borderColor) : "hover:bg-muted/50 text-muted-foreground")}>
+                  {Icon && <Icon className={cn("w-3.5 h-3.5", isActive && config.textColor)} />}
+                  <span>{config.label}</span>
+                  {isActive && <span className={cn("ml-1 text-[10px] px-1.5 py-0.5 rounded bg-background/30", config.textColor)}>{filteredBlocks.length}</span>}
+                </Button>
+              )
+            })}
+            <span className="ml-auto text-xs text-muted-foreground/60">
+              {t('session.totalMessages', { count: sessionDetail.blocks.length })}
             </span>
-            <button type="button" onClick={() => handleSearchNav('prev')} className="p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors" disabled={matchingBlockIds.length === 0}>
-              <ChevronUp className="size-3.5" />
-            </button>
-            <button type="button" onClick={() => handleSearchNav('next')} className="p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors" disabled={matchingBlockIds.length === 0}>
-              <ChevronDown className="size-3.5" />
-            </button>
-            <button type="button" onClick={() => setInlineSearch('')} className="p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors">
-              <X className="size-3.5" />
-            </button>
-          </>
-        )}
-      </div>
+          </div>
 
-      <div ref={messageScrollRef} className="min-h-0 flex-1 overflow-y-auto">
-        <div
-          className="relative w-full"
-          style={{ height: `${messageVirtualizer.getTotalSize()}px` }}
-        >
-          {virtualItems.map((virtualItem) => {
-            const block = filteredBlocks[virtualItem.index]
-            if (!block) return null
+          {/* Inline search */}
+          <div className="flex items-center gap-2 border-b border-border/50 bg-card/30 px-5 py-2 md:px-6">
+            <Search className="size-3.5 text-muted-foreground/50 shrink-0" />
+            <input
+              type="text"
+              value={inlineSearch}
+              onChange={e => setInlineSearch(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleSearchNav(e.shiftKey ? 'prev' : 'next')
+                if (e.key === 'Escape') setInlineSearch('')
+              }}
+              placeholder={t('session.search')}
+              className="min-w-0 flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none"
+            />
+            {searchNeedle && (
+              <>
+                <span className="text-[10px] text-muted-foreground/60 shrink-0">
+                  {matchingBlockIds.length > 0 ? `${currentMatchIdx + 1}/${matchingBlockIds.length}` : '0/0'}
+                </span>
+                <button type="button" onClick={() => handleSearchNav('prev')} className="p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors" disabled={matchingBlockIds.length === 0}>
+                  <ChevronUp className="size-3.5" />
+                </button>
+                <button type="button" onClick={() => handleSearchNav('next')} className="p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors" disabled={matchingBlockIds.length === 0}>
+                  <ChevronDown className="size-3.5" />
+                </button>
+                <button type="button" onClick={() => setInlineSearch('')} className="p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors">
+                  <X className="size-3.5" />
+                </button>
+              </>
+            )}
+          </div>
 
-            return (
-              <div
-                key={virtualItem.key}
-                data-index={virtualItem.index}
-                ref={messageVirtualizer.measureElement}
-                className="absolute left-0 top-0 w-full px-4 md:px-6"
-                style={{ transform: `translateY(${virtualItem.start}px)` }}
-              >
-                <MessageBlock
-                  block={block}
-                  index={virtualItem.index}
-                  onEdit={() => handleEditBlock(block)}
-                  onErase={() => handleEraseBlock(block)}
-                  onLoadExecutionOutput={() => handleLoadExecutionOutput(block)}
-                  loadingExecutionOutput={Boolean(block.editTarget && loadingExecutionTargets.has(block.editTarget))}
-                  t={t}
-                  searchHighlight={searchNeedle}
-                  isSearchMatch={matchingBlockIds.includes(block.id)}
-                  isCurrentMatch={matchingBlockIds[currentMatchIdx] === block.id}
-                />
-              </div>
-            )
-          })}
-        </div>
-      </div>
+          <div ref={messageScrollRef} className="min-h-0 flex-1 overflow-y-auto">
+            <div
+              className="relative w-full"
+              style={{ height: `${messageVirtualizer.getTotalSize()}px` }}
+            >
+              {virtualItems.map((virtualItem) => {
+                const block = filteredBlocks[virtualItem.index]
+                if (!block) return null
 
-      {/* Floating TOC */}
-      <div className="absolute bottom-5 right-5 z-20 flex flex-col items-end">
-        {tocOpen && (
-          <div className="mb-2 max-h-80 w-72 overflow-y-auto rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl">
-            <div className="sticky top-0 border-b border-border/50 bg-card/95 px-4 py-2.5">
-              <p className="text-xs font-medium text-muted-foreground">{t('session.filter.user')} · {filteredBlocks.filter(b => b.role === 'user').length}</p>
-            </div>
-            <div className="p-2 space-y-0.5">
-              {filteredBlocks.map((block, index) => {
-                if (block.role !== 'user') return null
                 return (
-                  <button
-                    key={block.id}
-                    type="button"
-                    onClick={() => {
-                      scrollToBlockIndex(index)
-                      setTocOpen(false)
-                    }}
-                    className="w-full text-left rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors truncate"
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    ref={messageVirtualizer.measureElement}
+                    className="absolute left-0 top-0 w-full px-4 md:px-6"
+                    style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
-                    <span className="text-muted-foreground/50 mr-1.5">#{index + 1}</span>
-                    {block.content.slice(0, 60).replace(/\n/g, ' ')}
-                    {block.content.length > 60 && '...'}
-                  </button>
+                    <MessageBlock
+                      block={block}
+                      index={virtualItem.index}
+                      onEdit={() => handleEditBlock(block)}
+                      onErase={() => handleEraseBlock(block)}
+                      onLoadExecutionOutput={() => handleLoadExecutionOutput(block)}
+                      loadingExecutionOutput={Boolean(block.editTarget && loadingExecutionTargets.has(block.editTarget))}
+                      t={t}
+                      searchHighlight={searchNeedle}
+                      isSearchMatch={matchingBlockIds.includes(block.id)}
+                      isCurrentMatch={matchingBlockIds[currentMatchIdx] === block.id}
+                    />
+                  </div>
                 )
               })}
             </div>
           </div>
-        )}
-        <button
-          type="button"
-          onClick={() => setTocOpen(!tocOpen)}
-          className={cn(
-            "flex size-10 items-center justify-center rounded-full shadow-lg transition-all",
-            tocOpen
-              ? "bg-primary text-primary-foreground"
-              : "bg-card/90 border border-border/80 text-muted-foreground hover:text-foreground hover:bg-card backdrop-blur-xl"
-          )}
-          title={t('session.filter.user')}
-        >
-          <List className="size-4" />
-        </button>
-      </div>
+
+          {/* Floating TOC */}
+          <div className="absolute bottom-5 right-5 z-20 flex flex-col items-end">
+            {tocOpen && (
+              <div className="mb-2 max-h-80 w-72 overflow-y-auto rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl">
+                <div className="sticky top-0 border-b border-border/50 bg-card/95 px-4 py-2.5">
+                  <p className="text-xs font-medium text-muted-foreground">{t('session.filter.user')} · {filteredBlocks.filter(b => b.role === 'user').length}</p>
+                </div>
+                <div className="p-2 space-y-0.5">
+                  {filteredBlocks.map((block, index) => {
+                    if (block.role !== 'user') return null
+                    return (
+                      <button
+                        key={block.id}
+                        type="button"
+                        onClick={() => {
+                          scrollToBlockIndex(index)
+                          setTocOpen(false)
+                        }}
+                        className="w-full text-left rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors truncate"
+                      >
+                        <span className="text-muted-foreground/50 mr-1.5">#{index + 1}</span>
+                        {block.content.slice(0, 60).replace(/\n/g, ' ')}
+                        {block.content.length > 60 && '...'}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setTocOpen(!tocOpen)}
+              className={cn(
+                "flex size-10 items-center justify-center rounded-full shadow-lg transition-all",
+                tocOpen
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-card/90 border border-border/80 text-muted-foreground hover:text-foreground hover:bg-card backdrop-blur-xl"
+              )}
+              title={t('session.filter.user')}
+            >
+              <List className="size-4" />
+            </button>
+          </div>
+        </>
+      ) : (() => {
+        const activeTerm = currentSessionTerminals.find((t) => t.id === activeTabId)
+        if (!activeTerm) return null
+        return (
+          <EmbeddedTerminalPanel
+            status={activeTerm.status}
+            title={activeTerm.title}
+            platformName={currentPlatform}
+            commandKind={activeTerm.commandKind}
+            cwd={activeTerm.cwd}
+            exitCode={activeTerm.exitCode}
+            errorMessage={activeTerm.errorMessage}
+            mockLogs={activeTerm.mockLogs}
+            onStart={() => {
+              startTerminal(sessionDetail.sessionKey, activeTerm.commandKind as "resume" | "fork", sessionDetail.commands[activeTerm.commandKind], sessionDetail.cwd)
+            }}
+            onStop={() => stopTerminal(activeTerm.id, false)}
+            onForceStop={() => stopTerminal(activeTerm.id, true)}
+            onRestart={() => restartTerminal(activeTerm.id)}
+            onOpenExternal={async () => {
+              const cmd = sessionDetail.commands[activeTerm.commandKind]
+              if (cmd) {
+                await handleOpenCommand(activeTerm.commandKind, cmd)
+              }
+            }}
+            onClose={() => closeTerminal(sessionDetail.sessionKey, activeTerm.id)}
+          />
+        )
+      })()}
 
       <ConfirmDialog {...confirmDialogProps} />
     </section>
