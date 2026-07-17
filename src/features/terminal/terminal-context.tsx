@@ -47,6 +47,7 @@ interface TerminalContextType {
   writeTerminal: (terminalId: string, data: string, binary?: boolean) => Promise<void>;
   resizeTerminal: (terminalId: string, cols: number, rows: number) => Promise<void>;
   subscribeToOutput: (terminalId: string, handler: OutputHandler) => () => void;
+  renameTerminal: (terminalId: string, newTitle: string) => void;
 }
 
 const TerminalContext = createContext<TerminalContextType | null>(null);
@@ -388,6 +389,16 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const renameTerminal = useCallback(
+    (terminalId: string, newTitle: string) => {
+      updateTerminal(terminalId, (terminal) => ({
+        ...terminal,
+        sessionTitle: newTitle,
+      }));
+    },
+    [updateTerminal]
+  );
+
   const value = useMemo<TerminalContextType>(
     () => ({
       terminals,
@@ -400,6 +411,7 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
       writeTerminal,
       resizeTerminal,
       subscribeToOutput,
+      renameTerminal,
     }),
     [
       terminals,
@@ -412,6 +424,7 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
       writeTerminal,
       resizeTerminal,
       subscribeToOutput,
+      renameTerminal,
     ]
   );
 
