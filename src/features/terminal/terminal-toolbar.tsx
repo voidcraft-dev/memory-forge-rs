@@ -63,7 +63,7 @@ export function TerminalToolbar({
   };
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/20 bg-[#0d1117] px-5 py-2.5 md:px-6">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/20 bg-[#0d1117] px-5 py-2.5 md:px-6 text-zinc-300">
       {/* Left side: status & CWD */}
       <div className="flex flex-wrap items-center gap-3 min-w-0">
         {/* Status Indicator */}
@@ -85,8 +85,8 @@ export function TerminalToolbar({
 
         {/* CWD Truncated path with Tooltip */}
         {cwd && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-            <Folder className="size-3.5 shrink-0 text-muted-foreground/60" />
+          <div className="flex items-center gap-1.5 text-xs text-zinc-400 min-w-0">
+            <Folder className="size-3.5 shrink-0 text-zinc-500" />
             <Tooltip>
               <TooltipTrigger asChild>
                 <span
@@ -140,7 +140,7 @@ export function TerminalToolbar({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-9 gap-1.5 rounded-lg border border-border/20 hover:bg-emerald-500/10 hover:text-emerald-400"
+                className="h-9 gap-1.5 rounded-lg border border-border/20 text-zinc-300 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30"
                 onClick={onRestart}
                 title={t("terminal.btn.restart")}
                 aria-label={t("terminal.btn.restart")}
@@ -159,7 +159,7 @@ export function TerminalToolbar({
                   "h-9 gap-1.5 rounded-lg border border-border/20 transition-colors",
                   status === "stopping"
                     ? "bg-red-500/20 text-red-400 hover:bg-red-500/30 border-red-500/30"
-                    : "hover:bg-red-500/10 hover:text-red-400"
+                    : "text-zinc-300 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
                 )}
                 onClick={handleStopClick}
                 title={status === "stopping" ? t("terminal.btn.forceStop") : t("terminal.btn.stop")}
@@ -180,7 +180,7 @@ export function TerminalToolbar({
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 gap-1.5 rounded-lg border border-border/20 hover:bg-primary/10 hover:text-primary"
+              className="h-9 gap-1.5 rounded-lg border border-border/20 text-zinc-300 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
               onClick={onOpenExternal}
               title={t("terminal.btn.openExternal")}
               aria-label={t("terminal.btn.openExternal")}
@@ -193,7 +193,7 @@ export function TerminalToolbar({
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 gap-1.5 rounded-lg border border-border/20 hover:bg-red-500/10 hover:text-red-400"
+              className="h-9 gap-1.5 rounded-lg border border-border/20 text-zinc-300 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
               onClick={onClose}
               title={t("terminal.btn.close")}
               aria-label={t("terminal.btn.close")}
