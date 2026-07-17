@@ -64,6 +64,7 @@ export function TerminalViewport({ terminalId, isActive }: TerminalViewportProps
           return;
         }
         const nextSize = { cols: terminal.cols, rows: terminal.rows };
+        if (nextSize.cols < 20 || nextSize.rows < 3) return;
         const previousSize = lastSizeRef.current;
         if (previousSize?.cols === nextSize.cols && previousSize.rows === nextSize.rows) return;
         lastSizeRef.current = nextSize;

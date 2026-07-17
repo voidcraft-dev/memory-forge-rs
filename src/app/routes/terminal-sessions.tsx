@@ -140,7 +140,7 @@ export default function TerminalSessionsPage() {
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Custom Terminal Tabs Bar at the top */}
           <div className="flex h-11 shrink-0 items-end justify-between border-b border-border/30 bg-muted/20 px-4">
-            <div className="flex items-end gap-1 overflow-x-auto scrollbar-none">
+            <div className="flex items-end gap-1 overflow-x-auto overflow-y-hidden scrollbar-none">
               {allTerminals.map((terminal) => {
                 const active = terminal.id === selectedTerminal?.id;
                 const statusConfig = terminalTheme.statusConfig[terminal.status];
