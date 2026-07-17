@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { SquareTerminal, Terminal, X, Bot, Code, Sparkles, Orbit, Pi as PiIcon, MousePointer2, Gem, Folder, RotateCw, Square, ExternalLink } from "lucide-react";
+import { SquareTerminal, Terminal, X, Bot, Code, Sparkles, Orbit, Pi as PiIcon, MousePointer2, Gem, Folder, RotateCw, Square, ExternalLink, Copy, PenLine } from "lucide-react";
 import { api } from "@/features/desktop/api";
 import { useDesktop } from "@/features/desktop/provider";
 import { EmbeddedTerminalPanel } from "@/features/terminal/embedded-terminal-panel";
@@ -54,6 +54,23 @@ export default function TerminalSessionsPage() {
   // States for renaming tab
   const [editingTerminalId, setEditingTerminalId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>("");
+
+  // States for context menu
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    terminal: EmbeddedTerminalSession;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setContextMenu(null);
+    };
+    window.addEventListener("click", handleGlobalClick);
+    return () => {
+      window.removeEventListener("click", handleGlobalClick);
+    };
+  }, []);
 
   const handleSaveRename = (terminalId: string) => {
     const trimmed = editingTitle.trim();
@@ -152,6 +169,14 @@ export default function TerminalSessionsPage() {
                     <button
                       type="button"
                       onClick={() => setActiveTerminal(terminal.id)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          terminal,
+                        });
+                      }}
                       className={cn(
                         "flex h-9 items-center gap-2 rounded-t-md border-t border-x px-3.5 pl-3.5 pr-8 text-xs font-semibold transition-all cursor-pointer select-none relative -mb-px z-10",
                         active
@@ -313,6 +338,108 @@ export default function TerminalSessionsPage() {
           </div>
         </div>
       )}
+
+      {contextMenu && (() => {
+        const menuWidth = 160;
+        const menuHeight = 220;
+        const x = Math.min(contextMenu.x, window.innerWidth - menuWidth - 8);
+        const y = Math.min(contextMenu.y, window.innerHeight - menuHeight - 8);
+        return (
+          <div
+            className="fixed z-50 min-w-[160px] rounded-xl border border-border/40 bg-popover/90 px-1.5 py-1.5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
+            style={{
+              top: `${y}px`,
+              left: `${x}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* rename */}
+            <button
+              onClick={() => {
+                setEditingTerminalId(contextMenu.terminal.id);
+                setEditingTitle(contextMenu.terminal.sessionTitle);
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+            >
+              <PenLine className="size-3.5 opacity-80" />
+              <span>{t("terminal.menu.rename")}</span>
+            </button>
+
+            {/* copy command */}
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(contextMenu.terminal.command);
+                  setNotice(t("copied"));
+                  setTimeout(() => setNotice(null), 2200);
+                } catch {}
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+            >
+              <Copy className="size-3.5 opacity-80" />
+              <span>{t("terminal.menu.copyCommand")}</span>
+            </button>
+
+            <div className="my-1 h-px bg-border/20" />
+
+            {/* restart */}
+            <button
+              onClick={() => {
+                restartTerminal(contextMenu.terminal.id);
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+            >
+              <RotateCw className="size-3.5 opacity-80" />
+              <span>{t("terminal.btn.restart")}</span>
+            </button>
+
+            {/* stop */}
+            <button
+              onClick={() => {
+                if (contextMenu.terminal.status === "stopping") {
+                  stopTerminal(contextMenu.terminal.id, true);
+                } else {
+                  stopTerminal(contextMenu.terminal.id, false);
+                }
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+            >
+              <Square className="size-3.5 opacity-80" />
+              <span>{contextMenu.terminal.status === "stopping" ? t("terminal.btn.forceStop") : t("terminal.btn.stop")}</span>
+            </button>
+
+            {/* open external */}
+            <button
+              onClick={() => {
+                handleOpenExternal(contextMenu.terminal);
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+            >
+              <ExternalLink className="size-3.5 opacity-80" />
+              <span>{t("terminal.btn.openExternal")}</span>
+            </button>
+
+            <div className="my-1 h-px bg-border/20" />
+
+            {/* close */}
+            <button
+              onClick={() => {
+                handleClose(contextMenu.terminal);
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors cursor-pointer"
+            >
+              <X className="size-3.5 opacity-80" />
+              <span>{t("terminal.btn.close")}</span>
+            </button>
+          </div>
+        );
+      })()}
 
       <ConfirmDialog {...dialogProps} />
     </section>
