@@ -15,6 +15,8 @@ import {
   Gem,
   Orbit,
   Pi,
+  SquareTerminal,
+  type LucideIcon,
 } from "lucide-react";
 import { AppLogo } from "@/components/logo";
 import { NavLink, Outlet, useNavigate } from "react-router";
@@ -22,18 +24,25 @@ import { useDesktop } from "@/features/desktop/provider";
 import { api } from "@/features/desktop/api";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import type { MessageKey } from "@/features/desktop/i18n";
 
-const navigation = [
+const navigation: Array<{
+  to: string;
+  labelKey: MessageKey;
+  icon: LucideIcon;
+  navigationId?: string;
+}> = [
   { to: "/", labelKey: "dashboard" as const, icon: LayoutGrid },
-  { to: "/claude", labelKey: "platformClaude" as const, icon: Bot, platformId: "claude" },
-  { to: "/codex", labelKey: "platformCodex" as const, icon: Terminal, platformId: "codex" },
-  { to: "/cursor", labelKey: "platformCursor" as const, icon: MousePointer2, platformId: "cursor" },
-  { to: "/opencode", labelKey: "platformOpencode" as const, icon: Code, platformId: "opencode" },
-  { to: "/kiro", labelKey: "platformKiro" as const, icon: Sparkles, platformId: "kiro" },
-  { to: "/kiro-ide", labelKey: "platformKiroIde" as const, icon: Sparkles, platformId: "kiro-ide" },
-  { to: "/gemini", labelKey: "platformGemini" as const, icon: Gem, platformId: "gemini" },
-  { to: "/grok", labelKey: "platformGrok" as const, icon: Orbit, platformId: "grok" },
-  { to: "/pi", labelKey: "platformPi" as const, icon: Pi, platformId: "pi" },
+  { to: "/claude", labelKey: "platformClaude", icon: Bot, navigationId: "claude" },
+  { to: "/codex", labelKey: "platformCodex", icon: Terminal, navigationId: "codex" },
+  { to: "/terminal-sessions", labelKey: "terminalSessions", icon: SquareTerminal, navigationId: "terminal-sessions" },
+  { to: "/cursor", labelKey: "platformCursor", icon: MousePointer2, navigationId: "cursor" },
+  { to: "/opencode", labelKey: "platformOpencode", icon: Code, navigationId: "opencode" },
+  { to: "/kiro", labelKey: "platformKiro", icon: Sparkles, navigationId: "kiro" },
+  { to: "/kiro-ide", labelKey: "platformKiroIde", icon: Sparkles, navigationId: "kiro-ide" },
+  { to: "/gemini", labelKey: "platformGemini", icon: Gem, navigationId: "gemini" },
+  { to: "/grok", labelKey: "platformGrok", icon: Orbit, navigationId: "grok" },
+  { to: "/pi", labelKey: "platformPi", icon: Pi, navigationId: "pi" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },
@@ -45,20 +54,21 @@ export default function ShellLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [hasUpdate, setHasUpdate] = useState(false);
-  const visiblePlatformOrder = snapshot?.settings?.visiblePlatforms ?? [
+  const visibleNavigationOrder = snapshot?.settings?.navigationItems ?? [
     "claude",
     "codex",
+    "terminal-sessions",
     "opencode",
     "grok",
     "pi",
   ];
   const visibleNavigation = [
     navigation[0],
-    ...visiblePlatformOrder.flatMap((platformId) => {
-      const item = navigation.find((candidate) => candidate.platformId === platformId);
+    ...visibleNavigationOrder.flatMap((navigationId) => {
+      const item = navigation.find((candidate) => candidate.navigationId === navigationId);
       return item ? [item] : [];
     }),
-    ...navigation.filter((item) => !item.platformId && item.to !== "/"),
+    ...navigation.filter((item) => !item.navigationId && item.to !== "/"),
   ];
 
   useEffect(() => {

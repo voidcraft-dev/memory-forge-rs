@@ -42,6 +42,8 @@ pub struct AppSettings {
     pub preferred_terminal: Option<String>,
     #[serde(default = "default_visible_platforms")]
     pub visible_platforms: Vec<String>,
+    #[serde(default)]
+    pub navigation_items: Option<Vec<String>>,
 }
 
 fn default_visible_platforms() -> Vec<String> {
@@ -52,6 +54,19 @@ fn default_visible_platforms() -> Vec<String> {
         "grok".to_string(),
         "pi".to_string(),
     ]
+}
+
+fn default_navigation_items(visible_platforms: &[String]) -> Vec<String> {
+    let mut items = visible_platforms.to_vec();
+    if !items.iter().any(|item| item == "terminal-sessions") {
+        let insert_at = items
+            .iter()
+            .position(|item| item == "codex")
+            .map(|index| index + 1)
+            .unwrap_or(items.len());
+        items.insert(insert_at, "terminal-sessions".to_string());
+    }
+    items
 }
 
 fn migrate_settings(mut settings: AppSettings) -> AppSettings {
@@ -88,6 +103,10 @@ fn migrate_settings(mut settings: AppSettings) -> AppSettings {
         settings.visible_platforms = default_visible_platforms();
     }
 
+    if settings.navigation_items.is_none() {
+        settings.navigation_items = Some(default_navigation_items(&settings.visible_platforms));
+    }
+
     settings
 }
 
@@ -111,6 +130,7 @@ impl Default for AppSettings {
             pi_home: None,
             preferred_terminal: None,
             visible_platforms: default_visible_platforms(),
+            navigation_items: Some(default_navigation_items(&default_visible_platforms())),
         }
     }
 }
@@ -135,6 +155,7 @@ pub struct AppSettingsPatch {
     pub pi_home: Option<Option<String>>,
     pub preferred_terminal: Option<Option<String>>,
     pub visible_platforms: Option<Vec<String>>,
+    pub navigation_items: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -274,6 +295,10 @@ pub fn update_settings(
 
     if let Some(visible_platforms) = patch.visible_platforms {
         settings.visible_platforms = visible_platforms;
+    }
+
+    if let Some(navigation_items) = patch.navigation_items {
+        settings.navigation_items = Some(navigation_items);
     }
 
     let autostart_supported = if let Some(launch_on_startup) = patch.launch_on_startup {

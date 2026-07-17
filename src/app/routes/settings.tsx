@@ -16,15 +16,16 @@ import type { ThemeId } from "@/features/desktop/types";
 import { cn } from "@/lib/utils";
 
 const PLATFORM_ITEMS = [
-  { id: "claude", labelKey: "platformClaude" as const },
-  { id: "codex", labelKey: "platformCodex" as const },
-  { id: "opencode", labelKey: "platformOpencode" as const },
-  { id: "grok", labelKey: "platformGrok" as const },
-  { id: "pi", labelKey: "platformPi" as const },
-  { id: "cursor", labelKey: "platformCursor" as const },
-  { id: "kiro", labelKey: "platformKiro" as const },
-  { id: "kiro-ide", labelKey: "platformKiroIde" as const },
-  { id: "gemini", labelKey: "platformGemini" as const },
+  { id: "claude", labelKey: "platformClaude" as const, isPlatform: true },
+  { id: "codex", labelKey: "platformCodex" as const, isPlatform: true },
+  { id: "terminal-sessions", labelKey: "terminalSessions" as const, isPlatform: false },
+  { id: "opencode", labelKey: "platformOpencode" as const, isPlatform: true },
+  { id: "grok", labelKey: "platformGrok" as const, isPlatform: true },
+  { id: "pi", labelKey: "platformPi" as const, isPlatform: true },
+  { id: "cursor", labelKey: "platformCursor" as const, isPlatform: true },
+  { id: "kiro", labelKey: "platformKiro" as const, isPlatform: true },
+  { id: "kiro-ide", labelKey: "platformKiroIde" as const, isPlatform: true },
+  { id: "gemini", labelKey: "platformGemini" as const, isPlatform: true },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -104,42 +105,62 @@ export default function SettingsPage() {
     "grok",
     "pi",
   ];
+  const navigationItems = snapshot.settings.navigationItems ?? [
+    "claude",
+    "codex",
+    "terminal-sessions",
+    "opencode",
+    "grok",
+    "pi",
+  ];
   const orderedPlatformItems = [
-    ...visiblePlatforms.flatMap((platformId) => {
-      const item = PLATFORM_ITEMS.find(({ id }) => id === platformId);
+    ...navigationItems.flatMap((navigationId) => {
+      const item = PLATFORM_ITEMS.find(({ id }) => id === navigationId);
       return item ? [item] : [];
     }),
-    ...PLATFORM_ITEMS.filter(({ id }) => !visiblePlatforms.includes(id)),
+    ...PLATFORM_ITEMS.filter(({ id }) => !navigationItems.includes(id)),
   ];
 
   const togglePlatformVisible = async (
     platformId: string,
     enabled: boolean
   ) => {
-    const next = enabled
-      ? [...visiblePlatforms, platformId]
-      : visiblePlatforms.filter((p) => p !== platformId);
-    await updateSettings({ visiblePlatforms: next });
+    const item = PLATFORM_ITEMS.find(({ id }) => id === platformId);
+    const nextNavigationItems = enabled
+      ? [...navigationItems, platformId]
+      : navigationItems.filter((itemId) => itemId !== platformId);
+    const patch = { navigationItems: nextNavigationItems } as {
+      navigationItems: string[];
+      visiblePlatforms?: string[];
+    };
+    if (item?.isPlatform) {
+      patch.visiblePlatforms = enabled
+        ? visiblePlatforms.includes(platformId)
+          ? visiblePlatforms
+          : [...visiblePlatforms, platformId]
+        : visiblePlatforms.filter((itemId) => itemId !== platformId);
+    }
+    await updateSettings(patch);
   };
 
   const reorderPlatform = async (sourceId: string, targetId: string) => {
-    const sourceIndex = visiblePlatforms.indexOf(sourceId);
-    const targetIndex = visiblePlatforms.indexOf(targetId);
+    const sourceIndex = navigationItems.indexOf(sourceId);
+    const targetIndex = navigationItems.indexOf(targetId);
     if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
 
-    const next = [...visiblePlatforms];
+    const next = [...navigationItems];
     const [moved] = next.splice(sourceIndex, 1);
     next.splice(targetIndex, 0, moved);
     setDraggingPlatformId(null);
     setDragOverPlatformId(null);
-    await updateSettings({ visiblePlatforms: next });
+    await updateSettings({ navigationItems: next });
   };
 
   const movePlatform = async (platformId: string, direction: -1 | 1) => {
-    const sourceIndex = visiblePlatforms.indexOf(platformId);
+    const sourceIndex = navigationItems.indexOf(platformId);
     const targetIndex = sourceIndex + direction;
-    if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= visiblePlatforms.length) return;
-    await reorderPlatform(platformId, visiblePlatforms[targetIndex]);
+    if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= navigationItems.length) return;
+    await reorderPlatform(platformId, navigationItems[targetIndex]);
   };
 
   return (
@@ -301,8 +322,8 @@ export default function SettingsPage() {
           />
           <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
             {orderedPlatformItems.map(({ id, labelKey }) => {
-              const enabled = visiblePlatforms.includes(id);
-              const priority = visiblePlatforms.indexOf(id);
+              const enabled = navigationItems.includes(id);
+              const priority = navigationItems.indexOf(id);
               return (
                 <div
                   className={cn(

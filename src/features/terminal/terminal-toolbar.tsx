@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   RotateCcw,
   Square,
@@ -45,6 +45,10 @@ export function TerminalToolbar({
 
   const statusConfig = terminalTheme.statusConfig[status] || terminalTheme.statusConfig.idle;
 
+  useEffect(() => {
+    if (status !== "stopping") setShowForceStopConfirm(false);
+  }, [status]);
+
   const handleStopClick = () => {
     if (status === "stopping") {
       setShowForceStopConfirm(true);
@@ -70,7 +74,7 @@ export function TerminalToolbar({
             statusConfig.color
           )}
         >
-          <span className={cn("size-1.5 rounded-full", statusConfig.dot)} />
+          <span className={cn("size-1.5 rounded-full motion-reduce:animate-none", statusConfig.dot)} />
           <span className="capitalize">{t(`terminal.status.${status}` as any)}</span>
         </div>
 
@@ -85,7 +89,10 @@ export function TerminalToolbar({
             <Folder className="size-3.5 shrink-0 text-muted-foreground/60" />
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="truncate max-w-[140px] sm:max-w-[220px] md:max-w-[340px] lg:max-w-[480px] cursor-help border-b border-dashed border-muted-foreground/30 hover:text-foreground hover:border-foreground/45 transition-colors">
+                <span
+                  className="max-w-[140px] cursor-help truncate border-b border-dashed border-muted-foreground/30 transition-colors hover:border-foreground/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-[220px] md:max-w-[340px] lg:max-w-[480px]"
+                  tabIndex={0}
+                >
                   {cwd}
                 </span>
               </TooltipTrigger>
@@ -100,7 +107,10 @@ export function TerminalToolbar({
       {/* Right side: controls */}
       <div className="flex flex-wrap items-center gap-2">
         {showForceStopConfirm ? (
-          <div className="flex items-center gap-1 bg-red-500/10 border border-red-500/20 rounded-lg p-0.5 animate-in fade-in zoom-in-95 duration-200">
+          <div
+            className="flex items-center gap-1 rounded-lg border border-red-500/20 bg-red-500/10 p-0.5 animate-in fade-in zoom-in-95 duration-200 motion-reduce:animate-none"
+            role="alert"
+          >
             <span className="flex items-center gap-1 px-2 text-[10px] font-bold text-red-400">
               <AlertTriangle className="size-3 shrink-0" />
               {t("terminal.btn.confirmForceStop")}
@@ -108,7 +118,7 @@ export function TerminalToolbar({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs text-muted-foreground hover:bg-muted"
+              className="h-8 text-xs text-muted-foreground hover:bg-muted"
               onClick={() => setShowForceStopConfirm(false)}
             >
               {t("terminal.btn.cancel")}
@@ -116,7 +126,7 @@ export function TerminalToolbar({
             <Button
               variant="destructive"
               size="sm"
-              className="h-7 text-xs px-2.5 gap-1"
+              className="h-8 gap-1 px-2.5 text-xs"
               onClick={handleForceStopConfirm}
             >
               <Flame className="size-3" />
@@ -130,7 +140,7 @@ export function TerminalToolbar({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 gap-1.5 hover:bg-emerald-500/10 hover:text-emerald-400 rounded-lg border border-border/20"
+                className="h-9 gap-1.5 rounded-lg border border-border/20 hover:bg-emerald-500/10 hover:text-emerald-400"
                 onClick={onRestart}
                 title={t("terminal.btn.restart")}
                 aria-label={t("terminal.btn.restart")}
@@ -146,7 +156,7 @@ export function TerminalToolbar({
                 variant={status === "stopping" ? "destructive" : "ghost"}
                 size="sm"
                 className={cn(
-                  "h-8 gap-1.5 rounded-lg border border-border/20 transition-all",
+                  "h-9 gap-1.5 rounded-lg border border-border/20 transition-colors",
                   status === "stopping"
                     ? "bg-red-500/20 text-red-400 hover:bg-red-500/30 border-red-500/30"
                     : "hover:bg-red-500/10 hover:text-red-400"
@@ -170,7 +180,7 @@ export function TerminalToolbar({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 gap-1.5 hover:bg-primary/10 hover:text-primary rounded-lg border border-border/20"
+              className="h-9 gap-1.5 rounded-lg border border-border/20 hover:bg-primary/10 hover:text-primary"
               onClick={onOpenExternal}
               title={t("terminal.btn.openExternal")}
               aria-label={t("terminal.btn.openExternal")}
@@ -183,7 +193,7 @@ export function TerminalToolbar({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 gap-1.5 hover:bg-red-500/10 hover:text-red-400 rounded-lg border border-border/20"
+              className="h-9 gap-1.5 rounded-lg border border-border/20 hover:bg-red-500/10 hover:text-red-400"
               onClick={onClose}
               title={t("terminal.btn.close")}
               aria-label={t("terminal.btn.close")}

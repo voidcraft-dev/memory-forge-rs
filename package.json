@@ -26,6 +26,8 @@
     "@tauri-apps/plugin-dialog": "^2.7.0",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.3.3",
+    "@xterm/addon-fit": "0.12.0-beta.290",
+    "@xterm/xterm": "6.1.0-beta.290",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.7.0",

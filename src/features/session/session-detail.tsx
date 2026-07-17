@@ -13,8 +13,7 @@ import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { useTerminal } from '@/features/terminal/terminal-context'
-import { TerminalTabStrip } from '@/features/terminal/terminal-tab-strip'
-import { EmbeddedTerminalPanel } from '@/features/terminal/embedded-terminal-panel'
+import { useNavigate } from 'react-router'
 
 const PAGE_SIZE = 50
 const TOOL_INPUT_EXPORT_LIMIT = 8192
@@ -73,6 +72,7 @@ const getEditorIcon = (id: string) => {
 }
 
 export function SessionDetail() {
+  const navigate = useNavigate()
   const { t, state, dispatch } = useDesktop()
   const currentPlatform = state.currentPlatform
   const sessionDetail = state.sessionDetail
@@ -83,25 +83,7 @@ export function SessionDetail() {
   const sessionStatus = state.sessionStatus
   const globalSearchQuery = state.searchQuery
 
-  const {
-    terminals,
-    activeTabIds,
-    setActiveTab,
-    startTerminal,
-    restartTerminal,
-    stopTerminal,
-    closeTerminal,
-  } = useTerminal()
-
-  const currentSessionTerminals = useMemo(() => {
-    if (!sessionDetail?.sessionKey) return []
-    return terminals[sessionDetail.sessionKey] ?? []
-  }, [terminals, sessionDetail?.sessionKey])
-
-  const activeTabId = useMemo(() => {
-    if (!sessionDetail?.sessionKey) return 'record'
-    return activeTabIds[sessionDetail.sessionKey] || 'record'
-  }, [activeTabIds, sessionDetail?.sessionKey])
+  const { startTerminal } = useTerminal()
 
   const [aliasTitle, setAliasTitle] = useState('')
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
@@ -485,6 +467,30 @@ export function SessionDetail() {
     } finally {
       setOpeningKey((current) => current === operationKey ? null : current)
     }
+  }
+
+  const handleStartEmbeddedTerminal = async (
+    commandKind: 'resume' | 'fork',
+    command: string,
+  ) => {
+    const terminalId = await startTerminal(
+      sessionDetail.sessionKey,
+      commandKind,
+      command,
+      sessionDetail.cwd || null,
+      {
+        platform: currentPlatform,
+        sessionTitle: sessionDetail.aliasTitle || sessionDetail.title || sessionDetail.sessionId,
+      },
+    )
+    if (!terminalId) {
+      dispatch({
+        type: 'setSessionStatus',
+        payload: { tone: 'error', message: t('terminal.tabs.maxWarning') },
+      })
+      return
+    }
+    navigate('/terminal-sessions')
   }
 
   const handleOpenWorkspace = async (target: EditorTarget | null) => {
@@ -873,7 +879,7 @@ export function SessionDetail() {
                               type="button"
                               onClick={() => {
                                 setTerminalMenuOpen(false)
-                                startTerminal(sessionDetail.sessionKey, label as "resume" | "fork", command, sessionDetail.cwd || null)
+                                void handleStartEmbeddedTerminal(label as 'resume' | 'fork', command)
                               }}
                               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors cursor-pointer"
                             >
@@ -1070,18 +1076,7 @@ export function SessionDetail() {
         </div>
       </header>
 
-      <TerminalTabStrip
-        activeTab={activeTabId}
-        onTabChange={(tabId) => setActiveTab(sessionDetail.sessionKey, tabId)}
-        terminals={currentSessionTerminals}
-        onCloseTab={(termId, e) => {
-          e.stopPropagation()
-          closeTerminal(sessionDetail.sessionKey, termId)
-        }}
-      />
-
-      {activeTabId === 'record' ? (
-        <>
+      <>
           <div className="flex flex-wrap items-center gap-2 border-b bg-card/30 px-5 py-3 md:px-6">
             {(['all', 'user', 'assistant', 'thinking'] as const).map((filter) => {
               const isActive = roleFilter === filter
@@ -1217,36 +1212,7 @@ export function SessionDetail() {
               <List className="size-4" />
             </button>
           </div>
-        </>
-      ) : (() => {
-        const activeTerm = currentSessionTerminals.find((t) => t.id === activeTabId)
-        if (!activeTerm) return null
-        return (
-          <EmbeddedTerminalPanel
-            status={activeTerm.status}
-            title={activeTerm.title}
-            platformName={currentPlatform}
-            commandKind={activeTerm.commandKind}
-            cwd={activeTerm.cwd}
-            exitCode={activeTerm.exitCode}
-            errorMessage={activeTerm.errorMessage}
-            mockLogs={activeTerm.mockLogs}
-            onStart={() => {
-              startTerminal(sessionDetail.sessionKey, activeTerm.commandKind as "resume" | "fork", sessionDetail.commands[activeTerm.commandKind], sessionDetail.cwd)
-            }}
-            onStop={() => stopTerminal(activeTerm.id, false)}
-            onForceStop={() => stopTerminal(activeTerm.id, true)}
-            onRestart={() => restartTerminal(activeTerm.id)}
-            onOpenExternal={async () => {
-              const cmd = sessionDetail.commands[activeTerm.commandKind]
-              if (cmd) {
-                await handleOpenCommand(activeTerm.commandKind, cmd)
-              }
-            }}
-            onClose={() => closeTerminal(sessionDetail.sessionKey, activeTerm.id)}
-          />
-        )
-      })()}
+      </>
 
       <ConfirmDialog {...confirmDialogProps} />
     </section>

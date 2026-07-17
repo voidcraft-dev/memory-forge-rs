@@ -402,15 +402,7 @@ fn build_windows_cwd_command_str(path: &str) -> String {
 
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 fn escape_windows_batch_value(value: &str) -> String {
-    value
-        .replace('^', "^^")
-        .replace('%', "%%")
-        .replace('&', "^&")
-        .replace('|', "^|")
-        .replace('<', "^<")
-        .replace('>', "^>")
-        .replace('(', "^(")
-        .replace(')', "^)")
+    value.replace('%', "%%")
 }
 
 fn launcher_suffix() -> String {
@@ -453,7 +445,7 @@ mod tests {
 
         assert_eq!(
             command,
-            "pushd \"\\\\server\\share\\100%%^&^(test^)\" || exit /b 1\r\n"
+            "pushd \"\\\\server\\share\\100%%&(test)\" || exit /b 1\r\n"
         );
     }
 }

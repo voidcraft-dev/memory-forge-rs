@@ -4,6 +4,7 @@ import SettingsPage from "@/app/routes/settings";
 import PromptsPage from "@/app/routes/prompts";
 import AboutPage from "@/app/routes/about";
 import PlatformPage from "@/app/routes/platform";
+import TerminalSessionsPage from "@/app/routes/terminal-sessions";
 import ShellLayout from "@/components/layout/shell-layout";
 
 const createAppRouter = () =>
@@ -16,6 +17,7 @@ const createAppRouter = () =>
         { path: "settings", element: <SettingsPage /> },
         { path: "prompts", element: <PromptsPage /> },
         { path: "about", element: <AboutPage /> },
+        { path: "terminal-sessions", element: <TerminalSessionsPage /> },
         { path: ":platform", element: <PlatformPage /> },
       ],
     },

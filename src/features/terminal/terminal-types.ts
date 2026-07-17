@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 export type TerminalUiStatus =
   | "idle"
   | "starting"
@@ -6,23 +8,32 @@ export type TerminalUiStatus =
   | "exited"
   | "failed";
 
+export type TerminalCommandKind = "resume" | "fork" | "shell";
+
 export interface EmbeddedTerminalSession {
   id: string;
   sessionKey: string;
   title: string;
   status: TerminalUiStatus;
-  commandKind: "resume" | "fork" | "shell";
+  commandKind: TerminalCommandKind;
+  command: string;
   cwd: string | null;
+  platform: string | null;
+  sessionTitle: string;
+  createdAt: number;
+  processId?: number | null;
   exitCode?: number | null;
   errorMessage?: string | null;
-  mockLogs: string[];
 }
+
+export type EmbeddedTerminalEvent =
+  | { type: "output"; terminalId: string; data: string }
+  | { type: "exit"; terminalId: string; exitCode: number | null }
+  | { type: "error"; terminalId: string; message: string };
 
 export interface EmbeddedTerminalPanelProps {
   status: TerminalUiStatus;
-  title: string;
-  platformName: string;
-  commandKind: "resume" | "fork" | "shell";
+  commandKind: TerminalCommandKind;
   cwd: string | null;
   exitCode?: number | null;
   errorMessage?: string | null;
@@ -32,6 +43,5 @@ export interface EmbeddedTerminalPanelProps {
   onRestart: () => void;
   onOpenExternal: () => void;
   onClose: () => void;
-  mockLogs?: string[];
-  children?: React.ReactNode;
+  children?: ReactNode;
 }

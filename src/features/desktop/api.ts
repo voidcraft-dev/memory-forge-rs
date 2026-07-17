@@ -37,6 +37,14 @@ const defaultSettings = {
   piHome: null,
   preferredTerminal: null,
   visiblePlatforms: ["claude", "codex", "opencode", "grok", "pi"] as string[],
+  navigationItems: [
+    "claude",
+    "codex",
+    "terminal-sessions",
+    "opencode",
+    "grok",
+    "pi",
+  ] as string[],
 };
 
 function isTauriRuntime() {
@@ -250,6 +258,22 @@ export async function importPrompts(
 
 const API_BASE = "/api";
 
+export interface StartEmbeddedTerminalRequest {
+  terminalId: string;
+  sessionKey: string;
+  command: string;
+  commandKind: "resume" | "fork" | "shell";
+  cwd: string | null;
+  cols: number;
+  rows: number;
+}
+
+export interface EmbeddedTerminalStarted {
+  terminalId: string;
+  cwd: string;
+  processId?: number | null;
+}
+
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...options,
@@ -318,6 +342,44 @@ export const api = {
       return invoke<boolean>("launch_session_terminal", { command, cwd: cwd ?? null });
     }
     throw new Error("Terminal launch is not supported in web preview");
+  },
+
+  async startEmbeddedTerminal(
+    request: StartEmbeddedTerminalRequest
+  ): Promise<EmbeddedTerminalStarted> {
+    if (isTauriRuntime()) {
+      return invoke<EmbeddedTerminalStarted>("start_embedded_terminal", { request });
+    }
+    throw new Error("Embedded terminals are only available in the desktop app");
+  },
+
+  async writeEmbeddedTerminal(
+    terminalId: string,
+    data: string,
+    binary = false
+  ): Promise<void> {
+    if (isTauriRuntime()) {
+      return invoke<void>("write_embedded_terminal", { terminalId, data, binary });
+    }
+    throw new Error("Embedded terminals are only available in the desktop app");
+  },
+
+  async resizeEmbeddedTerminal(
+    terminalId: string,
+    cols: number,
+    rows: number
+  ): Promise<void> {
+    if (isTauriRuntime()) {
+      return invoke<void>("resize_embedded_terminal", { terminalId, cols, rows });
+    }
+    throw new Error("Embedded terminals are only available in the desktop app");
+  },
+
+  async stopEmbeddedTerminal(terminalId: string, force: boolean): Promise<void> {
+    if (isTauriRuntime()) {
+      return invoke<void>("stop_embedded_terminal", { terminalId, force });
+    }
+    throw new Error("Embedded terminals are only available in the desktop app");
   },
 
   async listEditorTargets(): Promise<EditorTarget[]> {

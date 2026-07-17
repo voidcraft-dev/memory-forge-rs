@@ -1,265 +1,425 @@
-import React, { createContext, useContext, useState, useRef } from "react";
-import type { TerminalUiStatus, EmbeddedTerminalSession } from "./terminal-types";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { isTauri } from "@tauri-apps/api/core";
+import { api } from "@/features/desktop/api";
+import type {
+  EmbeddedTerminalEvent,
+  EmbeddedTerminalSession,
+  TerminalCommandKind,
+  TerminalUiStatus,
+} from "./terminal-types";
+
+const TERMINAL_EVENT_NAME = "embedded-terminal-event";
+const MAX_TERMINALS_PER_SESSION = 5;
+const MAX_OUTPUT_HISTORY_BYTES = 4 * 1024 * 1024;
+
+type OutputHandler = (data: Uint8Array) => void;
+type TerminalMap = Record<string, EmbeddedTerminalSession[]>;
+
+interface PendingOutput {
+  chunks: Uint8Array[];
+  bytes: number;
+}
 
 interface TerminalContextType {
-  terminals: Record<string, EmbeddedTerminalSession[]>;
-  activeTabIds: Record<string, string>;
-  setActiveTab: (sessionKey: string, tabId: string) => void;
-  startTerminal: (sessionKey: string, commandKind: "resume" | "fork", command: string, cwd: string | null) => string;
-  restartTerminal: (terminalId: string) => void;
-  stopTerminal: (terminalId: string, force: boolean) => void;
-  closeTerminal: (sessionKey: string, terminalId: string) => void;
-  setTerminalStatus: (terminalId: string, status: TerminalUiStatus, exitCode?: number | null, error?: string | null) => void;
+  terminals: TerminalMap;
+  activeTerminalId: string | null;
+  setActiveTerminal: (terminalId: string | null) => void;
+  startTerminal: (
+    sessionKey: string,
+    commandKind: "resume" | "fork",
+    command: string,
+    cwd: string | null,
+    metadata?: { platform?: string | null; sessionTitle?: string }
+  ) => Promise<string | null>;
+  restartTerminal: (terminalId: string) => Promise<string | null>;
+  stopTerminal: (terminalId: string, force: boolean) => Promise<void>;
+  closeTerminal: (sessionKey: string, terminalId: string) => Promise<void>;
+  writeTerminal: (terminalId: string, data: string, binary?: boolean) => Promise<void>;
+  resizeTerminal: (terminalId: string, cols: number, rows: number) => Promise<void>;
+  subscribeToOutput: (terminalId: string, handler: OutputHandler) => () => void;
 }
 
 const TerminalContext = createContext<TerminalContextType | null>(null);
 
-const MOCK_STARTUP_LOGS_RESUME = [
-  "\x1b[1;36m[Phase 0 Mock] Memory Forge Embedded PTY Engine Initialized.\x1b[0m",
-  "\x1b[33m[Phase 0 Mock] System Host: Windows ConPTY integration ready.\x1b[0m",
-  "\x1b[90m[Phase 0 Mock] Spawning PTY session worker thread...\x1b[0m",
-  "",
-  "\x1b[1;32m> Executing command:\x1b[0m {command}",
-  "\x1b[1;32m> Working directory:\x1b[0m {cwd}",
-  "",
-  "----------------------------------------------------------------",
-  "\x1b[1;35mWelcome to Memory Forge Embedded Terminal (Phase 0 UI Shell)\x1b[0m",
-  "\x1b[36mThis is a visual preview mock. Real xterm.js terminal is not connected.\x1b[0m",
-  "\x1b[36mBackend hooks will be connected in Phase 1.\x1b[0m",
-  "----------------------------------------------------------------",
-  "",
-  "\x1b[1mCodex CLI v1.4.2 starting...\x1b[0m",
-  "Reading local sqlite database schema...",
-  "Scanning workspace filesystem directories...",
-  "Loading active context: 14 messages (approx. 2480 tokens).",
-  "\x1b[32m✔ Context loaded successfully.\x1b[0m",
-  "",
-  "\x1b[33m[Codex] Ready. Enter code or command to prompt AI.\x1b[0m",
-  "codex-session-bash$ \x1b[5m█\x1b[0m"
-];
+function createTerminalId() {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return `terminal_${uuid.replace(/-/g, "_")}`;
+  return `terminal_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+}
 
-const MOCK_STARTUP_LOGS_FORK = [
-  "\x1b[1;36m[Phase 0 Mock] Memory Forge Embedded PTY Engine Initialized.\x1b[0m",
-  "\x1b[33m[Phase 0 Mock] System Host: Windows ConPTY integration ready.\x1b[0m",
-  "\x1b[90m[Phase 0 Mock] Spawning PTY session worker thread...\x1b[0m",
-  "",
-  "\x1b[1;34m> Executing command (FORK):\x1b[0m {command}",
-  "\x1b[1;34m> Working directory:\x1b[0m {cwd}",
-  "",
-  "----------------------------------------------------------------",
-  "\x1b[1;35mWelcome to Memory Forge Embedded Terminal (Phase 0 UI Shell)\x1b[0m",
-  "\x1b[36mThis is a visual preview mock. Real xterm.js terminal is not connected.\x1b[0m",
-  "\x1b[36mBackend hooks will be connected in Phase 1.\x1b[0m",
-  "----------------------------------------------------------------",
-  "",
-  "\x1b[1mForking session into new branch context...\x1b[0m",
-  "Cloning session message blocks up to last verified state...",
-  "Creating branch metadata in DB...",
-  "\x1b[32m✔ Branch created: session_fork_2026_07_17\x1b[0m",
-  "",
-  "\x1b[33m[Codex Fork] Branch active. Interactive terminal session ready.\x1b[0m",
-  "codex-fork-bash$ \x1b[5m█\x1b[0m"
-];
+function decodeBase64(value: string) {
+  const binary = globalThis.atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
 
-export function TerminalProvider({ children }: { children: React.ReactNode }) {
-  const [terminals, setTerminals] = useState<Record<string, EmbeddedTerminalSession[]>>({});
-  const [activeTabIds, setActiveTabIds] = useState<Record<string, string>>({});
-  const timersRef = useRef<Record<string, number>>({});
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 
-  const setActiveTab = (sessionKey: string, tabId: string) => {
-    setActiveTabIds((prev) => ({ ...prev, [sessionKey]: tabId }));
-  };
+export function TerminalProvider({ children }: { children: ReactNode }) {
+  const [terminals, setTerminals] = useState<TerminalMap>({});
+  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
+  const terminalsRef = useRef<TerminalMap>({});
+  const outputSubscribersRef = useRef<Map<string, Set<OutputHandler>>>(new Map());
+  const pendingOutputRef = useRef<Map<string, PendingOutput>>(new Map());
 
-  const setTerminalStatus = (
-    terminalId: string,
-    status: TerminalUiStatus,
-    exitCode?: number | null,
-    error?: string | null
-  ) => {
-    setTerminals((prev) => {
-      const next = { ...prev };
-      for (const key of Object.keys(next)) {
-        const list = next[key];
-        const idx = list.findIndex((t) => t.id === terminalId);
-        if (idx !== -1) {
-          const updated = [...list];
-          updated[idx] = {
-            ...updated[idx],
-            status,
-            ...(exitCode !== undefined && { exitCode }),
-            ...(error !== undefined && { errorMessage: error }),
-          };
-          next[key] = updated;
-          break;
+  const mutateTerminals = useCallback((updater: (current: TerminalMap) => TerminalMap) => {
+    const next = updater(terminalsRef.current);
+    terminalsRef.current = next;
+    setTerminals(next);
+  }, []);
+
+  const updateTerminal = useCallback(
+    (
+      terminalId: string,
+      updater: (terminal: EmbeddedTerminalSession) => EmbeddedTerminalSession
+    ) => {
+      mutateTerminals((current) => {
+        for (const [sessionKey, sessionTerminals] of Object.entries(current)) {
+          const index = sessionTerminals.findIndex((terminal) => terminal.id === terminalId);
+          if (index === -1) continue;
+          const updated = [...sessionTerminals];
+          updated[index] = updater(updated[index]);
+          return { ...current, [sessionKey]: updated };
         }
-      }
-      return next;
-    });
-  };
-
-  const startTerminal = (
-    sessionKey: string,
-    commandKind: "resume" | "fork",
-    command: string,
-    cwd: string | null
-  ): string => {
-    const list = terminals[sessionKey] ?? [];
-    if (list.length >= 5) {
-      alert("终端页签已达上限 (最多5个)");
-      return activeTabIds[sessionKey] || "record";
-    }
-
-    const terminalId = `term-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const title = commandKind === "resume" ? "Resume" : "Fork";
-
-    // Detect if we should simulate failure
-    const isFailSimulated = command.toLowerCase().includes("fail") || cwd === "failed";
-    const status: TerminalUiStatus = "starting";
-
-    // Generate mock logs with command and cwd interpolated
-    const logTemplate = commandKind === "resume" ? MOCK_STARTUP_LOGS_RESUME : MOCK_STARTUP_LOGS_FORK;
-    const mockLogs = logTemplate.map((line) =>
-      line
-        .replace("{command}", command || "N/A")
-        .replace("{cwd}", cwd || "N/A")
-    );
-
-    const newTerm: EmbeddedTerminalSession = {
-      id: terminalId,
-      sessionKey,
-      title,
-      status,
-      commandKind,
-      cwd,
-      mockLogs: isFailSimulated ? ["\x1b[1;31m[Phase 0 Error Mock] Failed to start terminal child process.\x1b[0m", `\x1b[31mError details: Command execution error for command: "${command}"\x1b[0m`] : mockLogs,
-    };
-
-    setTerminals((prev) => ({
-      ...prev,
-      [sessionKey]: [...(prev[sessionKey] ?? []), newTerm],
-    }));
-
-    setActiveTab(sessionKey, terminalId);
-
-    // Simulate startup delays
-    if (timersRef.current[terminalId]) {
-      window.clearTimeout(timersRef.current[terminalId]);
-    }
-
-    timersRef.current[terminalId] = window.setTimeout(() => {
-      if (isFailSimulated) {
-        setTerminalStatus(terminalId, "failed", null, "Executable file not found in %PATH% or permission denied.");
-      } else {
-        setTerminalStatus(terminalId, "running");
-      }
-    }, 1000);
-
-    return terminalId;
-  };
-
-  const restartTerminal = (terminalId: string) => {
-    setTerminals((prev) => {
-      const next = { ...prev };
-      for (const key of Object.keys(next)) {
-        const list = next[key];
-        const idx = list.findIndex((t) => t.id === terminalId);
-        if (idx !== -1) {
-          const updated = [...list];
-          const term = updated[idx];
-          
-          updated[idx] = {
-            ...term,
-            status: "starting",
-            exitCode: null,
-            errorMessage: null,
-          };
-          next[key] = updated;
-
-          if (timersRef.current[terminalId]) {
-            window.clearTimeout(timersRef.current[terminalId]);
-          }
-
-          const isFailSimulated = (term.cwd === "failed");
-          timersRef.current[terminalId] = window.setTimeout(() => {
-            if (isFailSimulated) {
-              setTerminalStatus(terminalId, "failed", null, "Executable file not found in %PATH% or permission denied.");
-            } else {
-              setTerminalStatus(terminalId, "running");
-            }
-          }, 1000);
-          break;
-        }
-      }
-      return next;
-    });
-  };
-
-  const stopTerminal = (terminalId: string, force: boolean) => {
-    if (timersRef.current[terminalId]) {
-      window.clearTimeout(timersRef.current[terminalId]);
-    }
-
-    if (force) {
-      setTerminalStatus(terminalId, "exited", -1, null);
-      return;
-    }
-
-    setTerminalStatus(terminalId, "stopping");
-
-    timersRef.current[terminalId] = window.setTimeout(() => {
-      setTerminalStatus(terminalId, "exited", 130, null);
-    }, 800);
-  };
-
-  const closeTerminal = (sessionKey: string, terminalId: string) => {
-    if (timersRef.current[terminalId]) {
-      window.clearTimeout(timersRef.current[terminalId]);
-      delete timersRef.current[terminalId];
-    }
-
-    setTerminals((prev) => {
-      const list = prev[sessionKey] ?? [];
-      const updated = list.filter((t) => t.id !== terminalId);
-      return {
-        ...prev,
-        [sessionKey]: updated,
-      };
-    });
-
-    setActiveTabIds((prev) => {
-      const currentActive = prev[sessionKey];
-      if (currentActive === terminalId) {
-        return {
-          ...prev,
-          [sessionKey]: "record",
-        };
-      }
-      return prev;
-    });
-  };
-
-  return (
-    <TerminalContext.Provider
-      value={{
-        terminals,
-        activeTabIds,
-        setActiveTab,
-        startTerminal,
-        restartTerminal,
-        stopTerminal,
-        closeTerminal,
-        setTerminalStatus,
-      }}
-    >
-      {children}
-    </TerminalContext.Provider>
+        return current;
+      });
+    },
+    [mutateTerminals]
   );
+
+  const setTerminalStatus = useCallback(
+    (
+      terminalId: string,
+      status: TerminalUiStatus,
+      details?: { exitCode?: number | null; errorMessage?: string | null }
+    ) => {
+      updateTerminal(terminalId, (terminal) => ({
+        ...terminal,
+        status,
+        ...(details?.exitCode !== undefined ? { exitCode: details.exitCode } : {}),
+        ...(details?.errorMessage !== undefined
+          ? { errorMessage: details.errorMessage }
+          : {}),
+      }));
+    },
+    [updateTerminal]
+  );
+
+  const queuePendingOutput = useCallback((terminalId: string, data: Uint8Array) => {
+    const pending = pendingOutputRef.current.get(terminalId) ?? { chunks: [], bytes: 0 };
+    pending.chunks.push(data);
+    pending.bytes += data.byteLength;
+    while (pending.bytes > MAX_OUTPUT_HISTORY_BYTES && pending.chunks.length > 1) {
+      const removed = pending.chunks.shift();
+      if (removed) pending.bytes -= removed.byteLength;
+    }
+    pendingOutputRef.current.set(terminalId, pending);
+  }, []);
+
+  const handleTerminalEvent = useCallback(
+    (event: EmbeddedTerminalEvent) => {
+      if (event.type === "output") {
+        let data: Uint8Array;
+        try {
+          data = decodeBase64(event.data);
+        } catch (error) {
+          setTerminalStatus(event.terminalId, "failed", {
+            errorMessage: `Failed to decode terminal output: ${errorMessage(error)}`,
+          });
+          return;
+        }
+
+        queuePendingOutput(event.terminalId, data);
+        const subscribers = outputSubscribersRef.current.get(event.terminalId);
+        if (!subscribers || subscribers.size === 0) return;
+        for (const subscriber of subscribers) subscriber(data);
+        return;
+      }
+
+      if (event.type === "exit") {
+        setTerminalStatus(event.terminalId, "exited", {
+          exitCode: event.exitCode,
+          errorMessage: null,
+        });
+        return;
+      }
+
+      setTerminalStatus(event.terminalId, "failed", {
+        errorMessage: event.message,
+      });
+    },
+    [queuePendingOutput, setTerminalStatus]
+  );
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let disposed = false;
+    let unlisten: UnlistenFn | undefined;
+
+    void listen<EmbeddedTerminalEvent>(TERMINAL_EVENT_NAME, ({ payload }) => {
+      handleTerminalEvent(payload);
+    }).then((disposeListener) => {
+      if (disposed) disposeListener();
+      else unlisten = disposeListener;
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+      outputSubscribersRef.current.clear();
+      pendingOutputRef.current.clear();
+    };
+  }, [handleTerminalEvent]);
+
+  const setActiveTerminal = useCallback((terminalId: string | null) => {
+    setActiveTerminalId(terminalId);
+  }, []);
+
+  const addStartingTerminal = useCallback(
+    (input: {
+      terminalId: string;
+      sessionKey: string;
+      commandKind: TerminalCommandKind;
+      command: string;
+      cwd: string | null;
+      platform?: string | null;
+      sessionTitle?: string;
+    }) => {
+      const currentList = terminalsRef.current[input.sessionKey] ?? [];
+      if (currentList.length >= MAX_TERMINALS_PER_SESSION) return false;
+
+      const sameKindCount = currentList.filter(
+        (terminal) => terminal.commandKind === input.commandKind
+      ).length;
+      const title = `${input.commandKind === "resume" ? "Resume" : "Fork"}${
+        sameKindCount > 0 ? ` ${sameKindCount + 1}` : ""
+      }`;
+      const terminal: EmbeddedTerminalSession = {
+        id: input.terminalId,
+        sessionKey: input.sessionKey,
+        title,
+        status: "starting",
+        commandKind: input.commandKind,
+        command: input.command,
+        cwd: input.cwd,
+        platform: input.platform ?? null,
+        sessionTitle: input.sessionTitle?.trim() || input.sessionKey,
+        createdAt: Date.now(),
+        exitCode: null,
+        errorMessage: null,
+      };
+
+      mutateTerminals((current) => ({
+        ...current,
+        [input.sessionKey]: [...(current[input.sessionKey] ?? []), terminal],
+      }));
+      setActiveTerminal(input.terminalId);
+      return true;
+    },
+    [mutateTerminals, setActiveTerminal]
+  );
+
+  const startTerminal = useCallback(
+    async (
+      sessionKey: string,
+      commandKind: "resume" | "fork",
+      command: string,
+      cwd: string | null,
+      metadata?: { platform?: string | null; sessionTitle?: string }
+    ) => {
+      const terminalId = createTerminalId();
+      if (!addStartingTerminal({
+        terminalId,
+        sessionKey,
+        commandKind,
+        command,
+        cwd,
+        platform: metadata?.platform,
+        sessionTitle: metadata?.sessionTitle,
+      })) {
+        return null;
+      }
+
+      try {
+        const started = await api.startEmbeddedTerminal({
+          terminalId,
+          sessionKey,
+          command,
+          commandKind,
+          cwd,
+          cols: 100,
+          rows: 30,
+        });
+        updateTerminal(terminalId, (terminal) => ({
+          ...terminal,
+          status: "running",
+          cwd: started.cwd,
+          processId: started.processId,
+          errorMessage: null,
+        }));
+      } catch (error) {
+        setTerminalStatus(terminalId, "failed", {
+          errorMessage: errorMessage(error),
+        });
+      }
+      return terminalId;
+    },
+    [addStartingTerminal, setTerminalStatus, updateTerminal]
+  );
+
+  const stopTerminal = useCallback(
+    async (terminalId: string, force: boolean) => {
+      setTerminalStatus(terminalId, "stopping", { errorMessage: null });
+      try {
+        await api.stopEmbeddedTerminal(terminalId, force);
+      } catch (error) {
+        // A process may have exited between the UI action and the command.
+        const stillPresent = Object.values(terminalsRef.current)
+          .flat()
+          .some((terminal) => terminal.id === terminalId);
+        if (stillPresent) {
+          setTerminalStatus(terminalId, "failed", {
+            errorMessage: errorMessage(error),
+          });
+        }
+      }
+    },
+    [setTerminalStatus]
+  );
+
+  const removeTerminalUi = useCallback(
+    (sessionKey: string, terminalId: string) => {
+      const currentList = terminalsRef.current[sessionKey] ?? [];
+      const updated = currentList.filter((terminal) => terminal.id !== terminalId);
+      mutateTerminals((current) => ({ ...current, [sessionKey]: updated }));
+      pendingOutputRef.current.delete(terminalId);
+      outputSubscribersRef.current.delete(terminalId);
+      setActiveTerminalId((current) => {
+        if (current !== terminalId) return current;
+        return Object.values(terminalsRef.current)
+          .flat()
+          .sort((a, b) => b.createdAt - a.createdAt)[0]?.id ?? null;
+      });
+    },
+    [mutateTerminals]
+  );
+
+  const closeTerminal = useCallback(
+    async (sessionKey: string, terminalId: string) => {
+      const terminal = (terminalsRef.current[sessionKey] ?? []).find(
+        (candidate) => candidate.id === terminalId
+      );
+      if (terminal && !["exited", "failed", "idle"].includes(terminal.status)) {
+        try {
+          await api.stopEmbeddedTerminal(terminalId, true);
+        } catch {
+          // The backend may already have removed a naturally exited process.
+        }
+      }
+      removeTerminalUi(sessionKey, terminalId);
+    },
+    [removeTerminalUi]
+  );
+
+  const restartTerminal = useCallback(
+    async (terminalId: string) => {
+      const terminal = Object.values(terminalsRef.current)
+        .flat()
+        .find((candidate) => candidate.id === terminalId);
+      if (!terminal || terminal.commandKind === "shell") return null;
+
+      try {
+        await api.stopEmbeddedTerminal(terminalId, true);
+      } catch {
+        // It is valid to restart an already exited terminal.
+      }
+      removeTerminalUi(terminal.sessionKey, terminalId);
+      return startTerminal(
+        terminal.sessionKey,
+        terminal.commandKind,
+        terminal.command,
+        terminal.cwd,
+        { platform: terminal.platform, sessionTitle: terminal.sessionTitle }
+      );
+    },
+    [removeTerminalUi, startTerminal]
+  );
+
+  const writeTerminal = useCallback(async (terminalId: string, data: string, binary = false) => {
+    await api.writeEmbeddedTerminal(terminalId, data, binary);
+  }, []);
+
+  const resizeTerminal = useCallback(
+    async (terminalId: string, cols: number, rows: number) => {
+      await api.resizeEmbeddedTerminal(terminalId, cols, rows);
+    },
+    []
+  );
+
+  const subscribeToOutput = useCallback((terminalId: string, handler: OutputHandler) => {
+    const subscribers = outputSubscribersRef.current.get(terminalId) ?? new Set<OutputHandler>();
+    subscribers.add(handler);
+    outputSubscribersRef.current.set(terminalId, subscribers);
+
+    const pending = pendingOutputRef.current.get(terminalId);
+    if (pending) {
+      for (const chunk of pending.chunks) handler(chunk);
+    }
+
+    return () => {
+      const current = outputSubscribersRef.current.get(terminalId);
+      current?.delete(handler);
+      if (current?.size === 0) outputSubscribersRef.current.delete(terminalId);
+    };
+  }, []);
+
+  const value = useMemo<TerminalContextType>(
+    () => ({
+      terminals,
+      activeTerminalId,
+      setActiveTerminal,
+      startTerminal,
+      restartTerminal,
+      stopTerminal,
+      closeTerminal,
+      writeTerminal,
+      resizeTerminal,
+      subscribeToOutput,
+    }),
+    [
+      terminals,
+      activeTerminalId,
+      setActiveTerminal,
+      startTerminal,
+      restartTerminal,
+      stopTerminal,
+      closeTerminal,
+      writeTerminal,
+      resizeTerminal,
+      subscribeToOutput,
+    ]
+  );
+
+  return <TerminalContext.Provider value={value}>{children}</TerminalContext.Provider>;
 }
 
 export function useTerminal() {
   const context = useContext(TerminalContext);
-  if (!context) {
-    throw new Error("useTerminal must be used within a TerminalProvider");
-  }
+  if (!context) throw new Error("useTerminal must be used within a TerminalProvider");
   return context;
 }

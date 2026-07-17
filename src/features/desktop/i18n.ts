@@ -9,6 +9,7 @@ export type MessageKey =
   | "settings"
   | "prompts"
   | "about"
+  | "terminalSessions"
   // Platforms
   | "platforms"
   | "platformClaude"
@@ -292,7 +293,20 @@ export type MessageKey =
   | "terminal.failed.copy"
   | "terminal.failed.external"
   | "terminal.cwd"
-  | "terminal.tabs.maxWarning";
+  | "terminal.tabs.maxWarning"
+  | "terminal.tabsLabel"
+  | "terminal.viewportLabel"
+  | "terminal.closeRunningTitle"
+  | "terminal.closeRunningDesc"
+  | "terminal.workspace.title"
+  | "terminal.workspace.subtitle"
+  | "terminal.workspace.collection"
+  | "terminal.workspace.emptyTitle"
+  | "terminal.workspace.emptyDesc"
+  | "terminal.workspace.runningCount"
+  | "terminal.workspace.openedAt"
+  | "terminal.workspace.source"
+  | "terminal.workspace.externalFailed";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -302,6 +316,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     settings: "设置",
     prompts: "提示词库",
     about: "关于",
+    terminalSessions: "会话",
     platforms: "平台",
     platformClaude: "Claude",
     platformCodex: "Codex",
@@ -502,8 +517,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "sidebar.enableToReorder": "启用后可调整顺序",
     "sidebar.showPlatform": "显示 {platform}",
     "sidebar.hidePlatform": "隐藏 {platform}",
-    sidebarSection: "平台显示",
-    sidebarSectionDesc: "选择在侧边栏显示的平台；拖动已启用平台可调整菜单优先级。总览/提示词/设置/关于始终显示。",
+    sidebarSection: "菜单显示与排序",
+    sidebarSectionDesc: "选择侧边栏中的平台与会话入口；拖动已启用项目可调整优先级。总览/提示词/设置/关于始终显示。",
     "platformPaths": "平台路径",
     "platformPathsDesc": "自定义各平台的数据目录。留空则使用默认路径。",
     "claudeHomePath": "Claude 数据目录",
@@ -558,7 +573,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.status.starting": "正在启动",
     "terminal.status.running": "运行中",
     "terminal.status.stopping": "正在停止",
-    "terminal.status.exited": "已退出 ({code})",
+    "terminal.status.exited": "已退出",
     "terminal.status.failed": "启动失败",
     "terminal.btn.restart": "重启",
     "terminal.btn.stop": "停止",
@@ -566,7 +581,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.btn.confirmForceStop": "确认强制停止？",
     "terminal.btn.cancel": "取消",
     "terminal.btn.openExternal": "外部打开",
-    "terminal.btn.close": "关闭页签",
+    "terminal.btn.close": "关闭会话",
     "terminal.idle.title": "终端尚未启动",
     "terminal.idle.desc": "在内嵌终端中恢复此会话。支持交互式命令行、ANSI 颜色与光标控制。",
     "terminal.idle.btn": "启动内嵌终端",
@@ -577,7 +592,20 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.failed.copy": "复制命令",
     "terminal.failed.external": "外部打开",
     "terminal.cwd": "当前目录",
-    "terminal.tabs.maxWarning": "终端页签已达上限",
+    "terminal.tabs.maxWarning": "这个历史会话打开的终端已达上限",
+    "terminal.tabsLabel": "终端会话列表",
+    "terminal.viewportLabel": "交互式内嵌终端",
+    "terminal.closeRunningTitle": "关闭正在运行的终端？",
+    "terminal.closeRunningDesc": "关闭会话会立即停止其中正在运行的命令，此操作无法撤销。",
+    "terminal.workspace.title": "终端会话",
+    "terminal.workspace.subtitle": "集中管理已打开的内嵌终端。切换到其他页面时，运行中的命令不会停止。",
+    "terminal.workspace.collection": "会话集合",
+    "terminal.workspace.emptyTitle": "还没有打开终端会话",
+    "terminal.workspace.emptyDesc": "进入任意历史会话，从终端菜单选择“内嵌恢复”或“内嵌分支”，这里就会自动接管。",
+    "terminal.workspace.runningCount": "{running}/{total} 运行中",
+    "terminal.workspace.openedAt": "打开于 {time}",
+    "terminal.workspace.source": "来源：{platform}",
+    "terminal.workspace.externalFailed": "外部终端启动失败，命令已复制到剪贴板。",
   },
   en: {
     appName: "Memory Forge",
@@ -585,6 +613,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     dashboard: "Overview",
     settings: "Settings",
     prompts: "Prompt Library",
+    terminalSessions: "Sessions",
     about: "About",
     platforms: "Platforms",
     platformClaude: "Claude",
@@ -786,8 +815,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "sidebar.enableToReorder": "Enable to reorder",
     "sidebar.showPlatform": "Show {platform}",
     "sidebar.hidePlatform": "Hide {platform}",
-    sidebarSection: "Platform Visibility",
-    sidebarSectionDesc: "Choose sidebar platforms and drag enabled items to set their navigation priority. Dashboard, Prompts, Settings & About are always visible.",
+    sidebarSection: "Menu Visibility & Order",
+    sidebarSectionDesc: "Choose platforms and the terminal sessions entry shown in the sidebar. Drag enabled items to set priority. Dashboard, Prompts, Settings & About are always visible.",
     "platformPaths": "Platform Paths",
     "platformPathsDesc": "Customize data directories for each platform. Leave empty to use defaults.",
     "claudeHomePath": "Claude Home Directory",
@@ -842,7 +871,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.status.starting": "Starting",
     "terminal.status.running": "Running",
     "terminal.status.stopping": "Stopping",
-    "terminal.status.exited": "Exited ({code})",
+    "terminal.status.exited": "Exited",
     "terminal.status.failed": "Failed",
     "terminal.btn.restart": "Restart",
     "terminal.btn.stop": "Stop",
@@ -850,7 +879,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.btn.confirmForceStop": "Confirm Force Stop?",
     "terminal.btn.cancel": "Cancel",
     "terminal.btn.openExternal": "Open External",
-    "terminal.btn.close": "Close Tab",
+    "terminal.btn.close": "Close Session",
     "terminal.idle.title": "Terminal Idle",
     "terminal.idle.desc": "Restore this session in an embedded terminal. Supports interactive CLI, ANSI colors, and cursor controls.",
     "terminal.idle.btn": "Start Embedded Terminal",
@@ -861,7 +890,20 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.failed.copy": "Copy Command",
     "terminal.failed.external": "Open Externally",
     "terminal.cwd": "Working Dir",
-    "terminal.tabs.maxWarning": "Terminal tabs limit reached",
+    "terminal.tabs.maxWarning": "This history session has reached its terminal limit",
+    "terminal.tabsLabel": "Terminal session list",
+    "terminal.viewportLabel": "Interactive embedded terminal",
+    "terminal.closeRunningTitle": "Close the running terminal?",
+    "terminal.closeRunningDesc": "Closing this session immediately stops its running command. This cannot be undone.",
+    "terminal.workspace.title": "Terminal Sessions",
+    "terminal.workspace.subtitle": "Manage opened embedded terminals in one place. Running commands continue when you visit other pages.",
+    "terminal.workspace.collection": "Session Collection",
+    "terminal.workspace.emptyTitle": "No terminal sessions yet",
+    "terminal.workspace.emptyDesc": "Open any history session and choose Embedded Resume or Embedded Fork from its terminal menu. It will appear here automatically.",
+    "terminal.workspace.runningCount": "{running}/{total} running",
+    "terminal.workspace.openedAt": "Opened at {time}",
+    "terminal.workspace.source": "Source: {platform}",
+    "terminal.workspace.externalFailed": "Could not open an external terminal. The command was copied to the clipboard.",
   },
 };
 

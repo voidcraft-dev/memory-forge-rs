@@ -21,6 +21,7 @@ export type DesktopSettings = {
   piHome: string | null;
   preferredTerminal: string | null;
   visiblePlatforms: string[];
+  navigationItems: string[];
 };
 
 export type DesktopSettingsPatch = Partial<DesktopSettings>;

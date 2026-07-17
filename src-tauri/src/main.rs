@@ -3,6 +3,7 @@
 
 mod database;
 mod editor_targets;
+mod embedded_terminal;
 mod platforms;
 mod session_service;
 mod session_transfer;
@@ -387,6 +388,7 @@ fn prompt_import(
 
 fn main() {
     tauri::Builder::default()
+        .manage(embedded_terminal::EmbeddedTerminalState::default())
         .manage(SharedSettingsState::default())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             shell::show_main_window(app);
@@ -418,6 +420,11 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                window
+                    .state::<embedded_terminal::EmbeddedTerminalState>()
+                    .stop_all();
+            }
             shell::handle_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
@@ -433,6 +440,10 @@ fn main() {
             session_execution_output,
             session_execution_outputs,
             launch_session_terminal,
+            embedded_terminal::start_embedded_terminal,
+            embedded_terminal::write_embedded_terminal,
+            embedded_terminal::resize_embedded_terminal,
+            embedded_terminal::stop_embedded_terminal,
             list_editor_targets,
             open_path_in_editor,
             session_set_alias,
