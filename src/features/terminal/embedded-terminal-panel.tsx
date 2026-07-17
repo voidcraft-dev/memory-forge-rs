@@ -9,17 +9,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { useDesktop } from "@/features/desktop/provider";
 import type { EmbeddedTerminalPanelProps } from "./terminal-types";
-import { TerminalToolbar } from "./terminal-toolbar";
-
 export function EmbeddedTerminalPanel({
   status,
-  commandKind,
-  cwd,
   exitCode,
   errorMessage,
   onStart,
-  onStop,
-  onForceStop,
   onRestart,
   onOpenExternal,
   onClose,
@@ -28,20 +22,8 @@ export function EmbeddedTerminalPanel({
   const { t } = useDesktop();
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <TerminalToolbar
-        status={status}
-        commandKind={commandKind}
-        cwd={cwd}
-        onRestart={onRestart}
-        onStop={onStop}
-        onForceStop={onForceStop}
-        onOpenExternal={onOpenExternal}
-        onClose={onClose}
-      />
-
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0d1117]">
-        {children ?? <div className="min-h-0 flex-1" />}
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0d1117]">
+      {children ?? <div className="min-h-0 flex-1" />}
 
         {status === "idle" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background p-8 text-center">
@@ -140,7 +122,6 @@ export function EmbeddedTerminalPanel({
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

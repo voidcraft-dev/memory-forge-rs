@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { SquareTerminal, Terminal, X, Bot, Code, Sparkles, Orbit, Pi as PiIcon, MousePointer2, Gem } from "lucide-react";
+import { SquareTerminal, Terminal, X, Bot, Code, Sparkles, Orbit, Pi as PiIcon, MousePointer2, Gem, Folder, RotateCw, Square, ExternalLink } from "lucide-react";
 import { api } from "@/features/desktop/api";
 import { useDesktop } from "@/features/desktop/provider";
 import { EmbeddedTerminalPanel } from "@/features/terminal/embedded-terminal-panel";
@@ -8,6 +8,7 @@ import { terminalTheme } from "@/features/terminal/terminal-theme";
 import type { EmbeddedTerminalSession } from "@/features/terminal/terminal-types";
 import { TerminalViewport } from "@/features/terminal/terminal-viewport";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_STATUSES = new Set(["starting", "running", "stopping"]);
@@ -208,16 +209,77 @@ export default function TerminalSessionsPage() {
               })}
             </div>
             
-            {/* Quick stats on the right side of tab bar */}
-            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground tabular-nums select-none shrink-0 pl-4">
-              <span className="size-2 rounded-full bg-emerald-500" />
-              <span>
-                {t("terminal.workspace.runningCount", {
-                  running: runningCount,
-                  total: allTerminals.length,
-                })}
-              </span>
-            </div>
+            {/* Compact Toolbar on the right side of tab bar */}
+            {selectedTerminal && (
+              <div className="flex items-center gap-3 shrink-0 h-9 mb-1 pl-4 ml-auto">
+                {/* Active Terminal Status Badge & CWD */}
+                {selectedTerminal.cwd && (
+                  <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 select-all">
+                    <Folder className="size-3.5 shrink-0 text-muted-foreground/60" />
+                    <span
+                      className="max-w-[200px] truncate font-mono text-[11px]"
+                      title={selectedTerminal.cwd}
+                    >
+                      {selectedTerminal.cwd}
+                    </span>
+                  </div>
+                )}
+
+                {selectedTerminal.cwd && <div className="h-4 w-px bg-border/20 hidden lg:block" />}
+
+                {/* Actions */}
+                <div className="flex items-center gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 rounded-md text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400"
+                    onClick={() => restartTerminal(selectedTerminal.id)}
+                    title={t("terminal.btn.restart")}
+                  >
+                    <RotateCw className="size-3.5" />
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      "size-7 rounded-md transition-colors",
+                      selectedTerminal.status === "stopping"
+                        ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                        : "text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
+                    )}
+                    onClick={() => {
+                      if (selectedTerminal.status === "stopping") {
+                        stopTerminal(selectedTerminal.id, true);
+                      } else {
+                        stopTerminal(selectedTerminal.id, false);
+                      }
+                    }}
+                    title={selectedTerminal.status === "stopping" ? t("terminal.btn.forceStop") : t("terminal.btn.stop")}
+                  >
+                    <Square className="size-3.5" />
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                    onClick={() => handleOpenExternal(selectedTerminal)}
+                    title={t("terminal.btn.openExternal")}
+                  >
+                    <ExternalLink className="size-3.5" />
+                  </Button>
+
+                  <div className="h-4 w-px bg-border/20 mx-1" />
+
+                  {/* Running Count Stat */}
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground select-none pr-1">
+                    <span className={cn("size-1.5 rounded-full", runningCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-zinc-500")} />
+                    <span className="tabular-nums">{runningCount}/{allTerminals.length}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Viewports Container */}
