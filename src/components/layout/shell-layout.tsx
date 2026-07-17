@@ -54,6 +54,18 @@ export default function ShellLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [hasUpdate, setHasUpdate] = useState(false);
+  const [terminalMaximized, setTerminalMaximized] = useState(false);
+
+  useEffect(() => {
+    const handleToggle = (e: Event) => {
+      setTerminalMaximized((e as CustomEvent<boolean>).detail);
+    };
+    window.addEventListener("toggle-terminal-maximize", handleToggle);
+    return () => {
+      window.removeEventListener("toggle-terminal-maximize", handleToggle);
+    };
+  }, []);
+
   const visibleNavigationOrder = snapshot?.settings?.navigationItems ?? [
     "claude",
     "codex",
@@ -97,7 +109,7 @@ export default function ShellLayout() {
       )}
 
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-card/90 backdrop-blur-xl border-b border-border/50 flex items-center px-4 gap-3">
+      <div className={cn("lg:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-card/90 backdrop-blur-xl border-b border-border/50 flex items-center px-4 gap-3", terminalMaximized && "hidden")}>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center hover:bg-muted transition-colors"
@@ -121,9 +133,11 @@ export default function ShellLayout() {
       <div
         className={cn(
           "relative grid h-full gap-2.5 p-2.5 pt-[4.5rem] lg:pt-2.5 transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-          sidebarCollapsed
-            ? "lg:grid-cols-[68px_minmax(0,1fr)]"
-            : "lg:grid-cols-[220px_minmax(0,1fr)]"
+          terminalMaximized
+            ? "lg:grid-cols-1 p-0 gap-0 pt-0 lg:pt-0"
+            : sidebarCollapsed
+              ? "lg:grid-cols-[68px_minmax(0,1fr)]"
+              : "lg:grid-cols-[220px_minmax(0,1fr)]"
         )}
       >
         {/* Sidebar */}
@@ -131,7 +145,8 @@ export default function ShellLayout() {
           className={cn(
             "panel-surface fixed inset-y-2.5 left-2.5 z-50 flex h-[calc(100vh-1.25rem)] w-[220px] flex-col overflow-hidden rounded-[24px] p-5 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:static lg:h-full lg:translate-x-0",
             sidebarCollapsed ? "lg:w-auto lg:p-3" : "lg:w-auto lg:p-5",
-            mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+            mobileMenuOpen ? "translate-x-0" : "-translate-x-full",
+            terminalMaximized ? "hidden lg:hidden" : "flex"
           )}
         >
           <div className="absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_70%)]" />
@@ -241,7 +256,10 @@ export default function ShellLayout() {
         </aside>
 
         {/* Main Content */}
-        <main className="panel-surface relative min-h-0 min-w-0 overflow-hidden rounded-[24px] p-2 md:p-3">
+        <main className={cn(
+          "panel-surface relative min-h-0 min-w-0 overflow-hidden transition-all duration-500",
+          terminalMaximized ? "rounded-none p-0 border-none m-0 h-full w-full bg-background" : "rounded-[24px] p-2 md:p-3"
+        )}>
           <Outlet />
         </main>
       </div>

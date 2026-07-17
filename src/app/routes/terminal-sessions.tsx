@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { SquareTerminal, Terminal, X, Bot, Code, Sparkles, Orbit, Pi as PiIcon, MousePointer2, Gem, Folder, RotateCw, Square, ExternalLink, Copy, PenLine } from "lucide-react";
+import { SquareTerminal, Terminal, X, Bot, Code, Sparkles, Orbit, Pi as PiIcon, MousePointer2, Gem, Folder, RotateCw, Square, ExternalLink, Copy, PenLine, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/features/desktop/api";
 import { useDesktop } from "@/features/desktop/provider";
 import { EmbeddedTerminalPanel } from "@/features/terminal/embedded-terminal-panel";
@@ -62,6 +62,15 @@ export default function TerminalSessionsPage() {
     terminal: EmbeddedTerminalSession;
   } | null>(null);
 
+  // States for maximize mode
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  const toggleMaximize = () => {
+    const next = !isMaximized;
+    setIsMaximized(next);
+    window.dispatchEvent(new CustomEvent("toggle-terminal-maximize", { detail: next }));
+  };
+
   useEffect(() => {
     const handleGlobalClick = () => {
       setContextMenu(null);
@@ -69,6 +78,12 @@ export default function TerminalSessionsPage() {
     window.addEventListener("click", handleGlobalClick);
     return () => {
       window.removeEventListener("click", handleGlobalClick);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      window.dispatchEvent(new CustomEvent("toggle-terminal-maximize", { detail: false }));
     };
   }, []);
 
@@ -131,7 +146,10 @@ export default function TerminalSessionsPage() {
 
 
   return (
-    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] border border-border/60 bg-background">
+    <section className={cn(
+      "flex h-full min-h-0 flex-col overflow-hidden bg-background transition-all",
+      isMaximized ? "rounded-none border-none" : "rounded-[22px] border border-border/60"
+    )}>
       {notice && (
         <div
           className="shrink-0 border-b border-amber-500/20 bg-amber-500/8 px-5 py-2.5 text-xs font-medium text-amber-500 md:px-6"
@@ -293,6 +311,20 @@ export default function TerminalSessionsPage() {
                     title={t("terminal.btn.openExternal")}
                   >
                     <ExternalLink className="size-3.5" />
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                    onClick={toggleMaximize}
+                    title={isMaximized ? "恢复窗口 (Restore Layout)" : "最大化吃满窗口 (Maximize Layout)"}
+                  >
+                    {isMaximized ? (
+                      <Minimize2 className="size-3.5" />
+                    ) : (
+                      <Maximize2 className="size-3.5" />
+                    )}
                   </Button>
 
                   <div className="h-4 w-px bg-border/20 mx-1" />
