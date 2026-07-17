@@ -27,6 +27,14 @@ function platformLabel(platform: string | null) {
   return platform ? labels[platform] ?? platform : "CLI";
 }
 
+function formatSessionTitle(title: string) {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(title);
+  if (isUuid) {
+    return title.split("-")[0];
+  }
+  return title;
+}
+
 export default function TerminalSessionsPage() {
   const { t } = useDesktop();
   const {
@@ -117,25 +125,25 @@ export default function TerminalSessionsPage() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Custom Terminal Tabs Bar at the top */}
-          <div className="flex h-11 shrink-0 items-center justify-between border-b border-border/30 bg-[#090c10] px-4">
-            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-1">
+          <div className="flex h-11 shrink-0 items-end justify-between border-b border-border/30 bg-[#090c10] px-4">
+            <div className="flex items-end gap-1 overflow-x-auto scrollbar-none">
               {allTerminals.map((terminal) => {
                 const active = terminal.id === selectedTerminal?.id;
                 const statusConfig = terminalTheme.statusConfig[terminal.status];
                 return (
-                  <div key={terminal.id} className="relative flex items-center group">
+                  <div key={terminal.id} className="relative flex items-end group">
                     <button
                       type="button"
                       onClick={() => setActiveTerminal(terminal.id)}
                       className={cn(
-                        "flex h-8 items-center gap-2 rounded-t-lg border-t border-x px-3 pl-3 pr-8 text-xs font-semibold transition-all cursor-pointer select-none",
+                        "flex h-9 items-center gap-2 rounded-t-md border-t border-x px-3.5 pl-3.5 pr-8 text-xs font-semibold transition-all cursor-pointer select-none relative -mb-px z-10",
                         active
-                          ? "bg-[#0d1117] text-emerald-400 border-border/40 border-b-[#0d1117]"
-                          : "bg-[#090c10]/80 text-muted-foreground border-transparent hover:bg-[#161b22] hover:text-foreground"
+                          ? "bg-[#0d1117] text-emerald-400 border-border/40 border-b-transparent"
+                          : "bg-[#090c10]/80 text-muted-foreground border-transparent hover:bg-[#161b22]/50 hover:text-foreground h-8 mb-0"
                       )}
                     >
                       <Terminal className="size-3.5 shrink-0 opacity-80" />
-                      <span className="max-w-[120px] truncate">{terminal.sessionTitle}</span>
+                      <span className="max-w-[120px] truncate">{formatSessionTitle(terminal.sessionTitle)}</span>
                       <span className="text-[10px] text-muted-foreground/60">({platformLabel(terminal.platform)})</span>
                       <span className={cn("size-1.5 shrink-0 rounded-full", statusConfig.dot)} />
                     </button>

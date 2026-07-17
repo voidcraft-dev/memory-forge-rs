@@ -63,7 +63,7 @@ export function TerminalToolbar({
   };
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card/20 px-5 py-3 md:px-6">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/20 bg-[#0d1117] px-5 py-2.5 md:px-6">
       {/* Left side: status & CWD */}
       <div className="flex flex-wrap items-center gap-3 min-w-0">
         {/* Status Indicator */}
