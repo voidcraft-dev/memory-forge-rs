@@ -2163,7 +2163,7 @@ dependencies = [
 
 [[package]]
 name = "memory-forge"
-version = "3.3.7"
+version = "3.4.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
