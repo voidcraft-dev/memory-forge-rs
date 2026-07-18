@@ -33,13 +33,9 @@ export type EmbeddedTerminalEvent =
 
 export interface EmbeddedTerminalPanelProps {
   status: TerminalUiStatus;
-  commandKind: TerminalCommandKind;
-  cwd: string | null;
   exitCode?: number | null;
   errorMessage?: string | null;
   onStart: () => void;
-  onStop: () => void;
-  onForceStop: () => void;
   onRestart: () => void;
   onOpenExternal: () => void;
   onClose: () => void;

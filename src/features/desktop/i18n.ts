@@ -283,8 +283,12 @@ export type MessageKey =
   | "terminal.btn.cancel"
   | "terminal.btn.openExternal"
   | "terminal.btn.close"
+  | "terminal.btn.maximize"
+  | "terminal.btn.restoreLayout"
   | "terminal.menu.rename"
   | "terminal.menu.copyCommand"
+  | "terminal.renameHint"
+  | "terminal.forceStopDesc"
   | "terminal.idle.title"
   | "terminal.idle.desc"
   | "terminal.idle.btn"
@@ -584,8 +588,12 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.btn.cancel": "取消",
     "terminal.btn.openExternal": "外部打开",
     "terminal.btn.close": "关闭会话",
-    "terminal.menu.rename": "重命名会话",
-    "terminal.menu.copyCommand": "复制恢复命令",
+    "terminal.btn.maximize": "最大化终端工作区",
+    "terminal.btn.restoreLayout": "恢复应用布局",
+    "terminal.menu.rename": "重命名终端会话",
+    "terminal.menu.copyCommand": "复制终端命令",
+    "terminal.renameHint": "双击重命名",
+    "terminal.forceStopDesc": "强制停止会立即终止当前终端进程，尚未保存的命令状态可能丢失。",
     "terminal.idle.title": "终端尚未启动",
     "terminal.idle.desc": "在内嵌终端中恢复此会话。支持交互式命令行、ANSI 颜色与光标控制。",
     "terminal.idle.btn": "启动内嵌终端",
@@ -884,8 +892,12 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.btn.cancel": "Cancel",
     "terminal.btn.openExternal": "Open External",
     "terminal.btn.close": "Close Session",
-    "terminal.menu.rename": "Rename Session",
-    "terminal.menu.copyCommand": "Copy Restore Command",
+    "terminal.btn.maximize": "Maximize Terminal Workspace",
+    "terminal.btn.restoreLayout": "Restore App Layout",
+    "terminal.menu.rename": "Rename Terminal Session",
+    "terminal.menu.copyCommand": "Copy Terminal Command",
+    "terminal.renameHint": "Double-click to rename",
+    "terminal.forceStopDesc": "Force stop immediately terminates the terminal process. Unsaved command state may be lost.",
     "terminal.idle.title": "Terminal Idle",
     "terminal.idle.desc": "Restore this session in an embedded terminal. Supports interactive CLI, ANSI colors, and cursor controls.",
     "terminal.idle.btn": "Start Embedded Terminal",

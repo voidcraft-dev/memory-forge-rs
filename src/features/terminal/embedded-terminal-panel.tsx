@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useDesktop } from "@/features/desktop/provider";
 import type { EmbeddedTerminalPanelProps } from "./terminal-types";
+
 export function EmbeddedTerminalPanel({
   status,
   exitCode,
@@ -25,7 +26,7 @@ export function EmbeddedTerminalPanel({
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0d1117]">
       {children ?? <div className="min-h-0 flex-1" />}
 
-        {status === "idle" && (
+      {status === "idle" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background p-8 text-center">
             <div className="mb-4 rounded-2xl border border-primary/10 bg-primary/5 p-4">
               <Terminal className="size-8 text-primary" />
@@ -39,9 +40,9 @@ export function EmbeddedTerminalPanel({
               {t("terminal.idle.btn")}
             </Button>
           </div>
-        )}
+      )}
 
-        {status === "starting" && (
+      {status === "starting" && (
           <div
             className="absolute inset-0 flex flex-col items-center justify-center bg-background/90 p-8 text-center backdrop-blur-sm"
             role="status"
@@ -52,9 +53,9 @@ export function EmbeddedTerminalPanel({
               {t("terminal.starting.title")}
             </h3>
           </div>
-        )}
+      )}
 
-        {status === "stopping" && (
+      {status === "stopping" && (
           <div
             className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full border border-amber-500/30 bg-background/90 px-3 py-1.5 text-xs font-medium text-amber-400 shadow-lg backdrop-blur"
             role="status"
@@ -62,9 +63,9 @@ export function EmbeddedTerminalPanel({
           >
             {t("terminal.status.stopping")}
           </div>
-        )}
+      )}
 
-        {status === "exited" && (
+      {status === "exited" && (
           <div
             className="absolute inset-x-3 bottom-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-background/95 px-4 py-3 shadow-xl backdrop-blur"
             role="status"
@@ -88,9 +89,9 @@ export function EmbeddedTerminalPanel({
               </Button>
             </div>
           </div>
-        )}
+      )}
 
-        {status === "failed" && (
+      {status === "failed" && (
           <div
             className="absolute inset-0 flex flex-col items-center justify-center bg-background/95 p-8 text-center backdrop-blur-sm"
             role="alert"
@@ -121,7 +122,7 @@ export function EmbeddedTerminalPanel({
               </Button>
             </div>
           </div>
-        )}
+      )}
     </div>
   );
 }

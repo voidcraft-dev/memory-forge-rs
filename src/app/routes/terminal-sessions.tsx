@@ -1,6 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { SquareTerminal, Terminal, X, Bot, Code, Sparkles, Orbit, Pi as PiIcon, MousePointer2, Gem, Folder, RotateCw, Square, ExternalLink, Copy, PenLine, Maximize2, Minimize2 } from "lucide-react";
+import {
+  Bot,
+  Code,
+  Copy,
+  ExternalLink,
+  Folder,
+  Gem,
+  Maximize2,
+  Minimize2,
+  MousePointer2,
+  Orbit,
+  PenLine,
+  Pi as PiIcon,
+  RotateCw,
+  Sparkles,
+  Square,
+  SquareTerminal,
+  Terminal,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { api } from "@/features/desktop/api";
+import type { MessageKey } from "@/features/desktop/i18n";
 import { useDesktop } from "@/features/desktop/provider";
 import { EmbeddedTerminalPanel } from "@/features/terminal/embedded-terminal-panel";
 import { useTerminal } from "@/features/terminal/terminal-context";
@@ -21,7 +42,10 @@ function formatSessionTitle(title: string) {
   return title;
 }
 
-const platformConfigs: Record<string, { label: string; icon: any; color: string; hoverColor: string }> = {
+const platformConfigs: Record<
+  string,
+  { label: string; icon: LucideIcon; color: string; hoverColor: string }
+> = {
   claude: { label: "Claude", icon: Bot, color: "text-amber-400", hoverColor: "group-hover:text-amber-300" },
   codex: { label: "Codex", icon: Terminal, color: "text-blue-400", hoverColor: "group-hover:text-blue-300" },
   cursor: { label: "Cursor", icon: MousePointer2, color: "text-sky-400", hoverColor: "group-hover:text-sky-300" },
@@ -75,9 +99,14 @@ export default function TerminalSessionsPage() {
     const handleGlobalClick = () => {
       setContextMenu(null);
     };
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContextMenu(null);
+    };
     window.addEventListener("click", handleGlobalClick);
+    window.addEventListener("keydown", handleGlobalKeyDown);
     return () => {
       window.removeEventListener("click", handleGlobalClick);
+      window.removeEventListener("keydown", handleGlobalKeyDown);
     };
   }, []);
 
@@ -109,6 +138,12 @@ export default function TerminalSessionsPage() {
   const runningCount = allTerminals.filter((terminal) =>
     ACTIVE_STATUSES.has(terminal.status)
   ).length;
+  const canRestart = selectedTerminal
+    ? ["running", "exited", "failed"].includes(selectedTerminal.status)
+    : false;
+  const canStop = selectedTerminal
+    ? ACTIVE_STATUSES.has(selectedTerminal.status)
+    : false;
 
   useEffect(() => {
     if (selectedTerminal && selectedTerminal.id !== activeTerminalId) {
@@ -128,6 +163,22 @@ export default function TerminalSessionsPage() {
       if (!accepted) return;
     }
     await closeTerminal(terminal.sessionKey, terminal.id);
+  };
+
+  const handleStop = async (terminal: EmbeddedTerminalSession) => {
+    if (terminal.status === "stopping") {
+      const accepted = await confirm({
+        title: t("terminal.btn.confirmForceStop"),
+        description: t("terminal.forceStopDesc"),
+        variant: "danger",
+      });
+      if (!accepted) return;
+      await stopTerminal(terminal.id, true);
+      return;
+    }
+    if (terminal.status === "starting" || terminal.status === "running") {
+      await stopTerminal(terminal.id, false);
+    }
   };
 
   const handleOpenExternal = async (terminal: EmbeddedTerminalSession) => {
@@ -165,10 +216,10 @@ export default function TerminalSessionsPage() {
           <div className="mb-5 flex size-16 items-center justify-center rounded-[22px] border border-emerald-500/15 bg-emerald-500/8 text-emerald-400">
             <SquareTerminal className="size-7" />
           </div>
-          <h3 className="text-base font-bold text-white">
+          <h3 className="text-base font-bold text-foreground">
             {t("terminal.workspace.emptyTitle")}
           </h3>
-          <p className="mt-2 max-w-lg text-sm leading-6 text-zinc-400">
+          <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
             {t("terminal.workspace.emptyDesc")}
           </p>
         </div>
@@ -176,34 +227,34 @@ export default function TerminalSessionsPage() {
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Custom Terminal Tabs Bar at the top */}
           <div className="flex h-11 shrink-0 items-end justify-between border-b border-border/30 bg-muted/20 px-4">
-            <div className="flex items-end gap-1 overflow-x-auto overflow-y-hidden scrollbar-none">
+            <div
+              className="flex items-end gap-1 overflow-x-auto overflow-y-hidden scrollbar-none"
+              role="tablist"
+              aria-label={t("terminal.tabsLabel")}
+            >
               {allTerminals.map((terminal) => {
                 const active = terminal.id === selectedTerminal?.id;
                 const statusConfig = terminalTheme.statusConfig[terminal.status];
                 const config = getPlatformConfig(terminal.platform);
                 const PlatformIcon = config.icon;
+                const statusLabel = t(
+                  `terminal.status.${terminal.status}` as MessageKey
+                );
+                const displayTitle = formatSessionTitle(terminal.sessionTitle);
                 return (
-                  <div key={terminal.id} className="relative flex items-end group">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTerminal(terminal.id)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setContextMenu({
-                          x: e.clientX,
-                          y: e.clientY,
-                          terminal,
-                        });
-                      }}
-                      className={cn(
-                        "flex h-9 items-center gap-2 rounded-t-md border-t border-x px-3.5 pl-3.5 pr-8 text-xs font-semibold transition-all cursor-pointer select-none relative -mb-px z-10",
-                        active
-                          ? "bg-background text-emerald-400 border-border/40 border-b-transparent"
-                          : "bg-transparent text-muted-foreground border-transparent hover:bg-muted/10 hover:text-foreground h-8 mb-0"
-                      )}
-                    >
-                      <PlatformIcon className={cn("size-3.5 shrink-0 transition-colors duration-200", active ? config.color : "text-muted-foreground/80 " + config.hoverColor)} />
-                      {editingTerminalId === terminal.id ? (
+                  <div key={terminal.id} className="group relative flex shrink-0 items-end">
+                    {editingTerminalId === terminal.id ? (
+                      <div
+                        className={cn(
+                          "relative z-10 -mb-px flex h-9 items-center gap-2 rounded-t-md border-x border-t px-3.5 pr-10 text-xs font-semibold",
+                          active
+                            ? "border-border/40 border-b-transparent bg-background text-emerald-400"
+                            : "border-border/30 bg-muted/10 text-foreground"
+                        )}
+                      >
+                        <PlatformIcon
+                          className={cn("size-3.5 shrink-0", config.color)}
+                        />
                         <input
                           type="text"
                           value={editingTitle}
@@ -215,35 +266,108 @@ export default function TerminalSessionsPage() {
                           }}
                           className="h-5 w-24 rounded border border-emerald-500/30 bg-background px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                           autoFocus
-                          onClick={(e) => e.stopPropagation()}
+                          aria-label={t("terminal.menu.rename")}
                         />
-                      ) : (
+                        <span className={cn("shrink-0 text-[10px] font-bold", config.color)}>
+                          ({config.label})
+                        </span>
+                        <span className={cn("size-1.5 shrink-0 rounded-full", statusConfig.dot)} />
+                      </div>
+                    ) : (
+                      <button
+                        id={`terminal-tab-${terminal.id}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        aria-controls={`terminal-panel-${terminal.id}`}
+                        aria-label={`${displayTitle} (${config.label}) · ${statusLabel}`}
+                        onClick={() => setActiveTerminal(terminal.id)}
+                        onDoubleClick={() => {
+                          setActiveTerminal(terminal.id);
+                          setEditingTerminalId(terminal.id);
+                          setEditingTitle(terminal.sessionTitle);
+                        }}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          setContextMenu({
+                            x: event.clientX,
+                            y: event.clientY,
+                            terminal,
+                          });
+                        }}
+                        onKeyDown={(event) => {
+                          if (
+                            event.key === "ContextMenu" ||
+                            (event.shiftKey && event.key === "F10")
+                          ) {
+                            event.preventDefault();
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            setContextMenu({
+                              x: rect.left,
+                              y: rect.bottom + 4,
+                              terminal,
+                            });
+                            return;
+                          }
+                          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                          event.preventDefault();
+                          const index = allTerminals.findIndex(
+                            (candidate) => candidate.id === terminal.id
+                          );
+                          const offset = event.key === "ArrowRight" ? 1 : -1;
+                          const next =
+                            allTerminals[
+                              (index + offset + allTerminals.length) % allTerminals.length
+                            ];
+                          setActiveTerminal(next.id);
+                          requestAnimationFrame(() => {
+                            document.getElementById(`terminal-tab-${next.id}`)?.focus();
+                          });
+                        }}
+                        className={cn(
+                          "relative z-10 -mb-px flex h-9 cursor-pointer select-none items-center gap-2 rounded-t-md border-x border-t px-3.5 pr-10 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-inset",
+                          active
+                            ? "border-border/40 border-b-transparent bg-background text-emerald-400"
+                            : "mb-0 h-8 border-transparent bg-transparent text-muted-foreground hover:bg-muted/10 hover:text-foreground"
+                        )}
+                      >
+                        <PlatformIcon
+                          className={cn(
+                            "size-3.5 shrink-0 transition-colors duration-200",
+                            active
+                              ? config.color
+                              : `text-muted-foreground/80 ${config.hoverColor}`
+                          )}
+                        />
                         <span
                           className="max-w-[120px] truncate cursor-text hover:underline decoration-dotted decoration-zinc-500/45"
-                          onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTerminalId(terminal.id);
-                            setEditingTitle(terminal.sessionTitle);
-                          }}
-                          title="双击重命名 (Double-click to rename)"
+                          title={t("terminal.renameHint")}
                         >
-                          {formatSessionTitle(terminal.sessionTitle)}
+                          {displayTitle}
                         </span>
-                      )}
-                      <span className={cn("text-[10px] font-bold shrink-0 opacity-80", active ? config.color : "text-muted-foreground/60 " + config.hoverColor)}>
-                        ({config.label})
-                      </span>
-                      <span className={cn("size-1.5 shrink-0 rounded-full", statusConfig.dot)} />
-                    </button>
+                        <span
+                          className={cn(
+                            "shrink-0 text-[10px] font-bold opacity-80",
+                            active
+                              ? config.color
+                              : `text-muted-foreground/60 ${config.hoverColor}`
+                          )}
+                        >
+                          ({config.label})
+                        </span>
+                        <span className={cn("size-1.5 shrink-0 rounded-full", statusConfig.dot)} />
+                      </button>
+                    )}
                     {/* Close Tab Button */}
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleClose(terminal);
+                        void handleClose(terminal);
                       }}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded-md text-muted-foreground/40 hover:bg-red-500/10 hover:text-red-400 transition-colors cursor-pointer"
+                      className="absolute right-0.5 top-1/2 z-20 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-red-500/10 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/45"
                       title={t("terminal.btn.close")}
+                      aria-label={`${t("terminal.btn.close")}: ${displayTitle}`}
                     >
                       <X className="size-3" />
                     </button>
@@ -272,43 +396,44 @@ export default function TerminalSessionsPage() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 rounded-md text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400"
-                    onClick={() => restartTerminal(selectedTerminal.id)}
-                    title={t("terminal.btn.restart")}
-                  >
-                    <RotateCw className="size-3.5" />
-                  </Button>
+                  {canRestart && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 rounded-md text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400"
+                      onClick={() => void restartTerminal(selectedTerminal.id)}
+                      title={t("terminal.btn.restart")}
+                      aria-label={t("terminal.btn.restart")}
+                    >
+                      <RotateCw className="size-3.5" />
+                    </Button>
+                  )}
                   
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "size-7 rounded-md transition-colors",
-                      selectedTerminal.status === "stopping"
-                        ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                        : "text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
-                    )}
-                    onClick={() => {
-                      if (selectedTerminal.status === "stopping") {
-                        stopTerminal(selectedTerminal.id, true);
-                      } else {
-                        stopTerminal(selectedTerminal.id, false);
-                      }
-                    }}
-                    title={selectedTerminal.status === "stopping" ? t("terminal.btn.forceStop") : t("terminal.btn.stop")}
-                  >
-                    <Square className="size-3.5" />
-                  </Button>
+                  {canStop && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "size-7 rounded-md transition-colors",
+                        selectedTerminal.status === "stopping"
+                          ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                          : "text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
+                      )}
+                      onClick={() => void handleStop(selectedTerminal)}
+                      title={selectedTerminal.status === "stopping" ? t("terminal.btn.forceStop") : t("terminal.btn.stop")}
+                      aria-label={selectedTerminal.status === "stopping" ? t("terminal.btn.forceStop") : t("terminal.btn.stop")}
+                    >
+                      <Square className="size-3.5" />
+                    </Button>
+                  )}
                   
                   <Button
                     variant="ghost"
                     size="icon"
                     className="size-7 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                    onClick={() => handleOpenExternal(selectedTerminal)}
+                    onClick={() => void handleOpenExternal(selectedTerminal)}
                     title={t("terminal.btn.openExternal")}
+                    aria-label={t("terminal.btn.openExternal")}
                   >
                     <ExternalLink className="size-3.5" />
                   </Button>
@@ -318,7 +443,9 @@ export default function TerminalSessionsPage() {
                     size="icon"
                     className="size-7 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary"
                     onClick={toggleMaximize}
-                    title={isMaximized ? "恢复窗口 (Restore Layout)" : "最大化吃满窗口 (Maximize Layout)"}
+                    title={isMaximized ? t("terminal.btn.restoreLayout") : t("terminal.btn.maximize")}
+                    aria-label={isMaximized ? t("terminal.btn.restoreLayout") : t("terminal.btn.maximize")}
+                    aria-pressed={isMaximized}
                   >
                     {isMaximized ? (
                       <Minimize2 className="size-3.5" />
@@ -330,7 +457,14 @@ export default function TerminalSessionsPage() {
                   <div className="h-4 w-px bg-border/20 mx-1" />
 
                   {/* Running Count Stat */}
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground select-none pr-1">
+                  <div
+                    className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground select-none pr-1"
+                    role="status"
+                    aria-label={t("terminal.workspace.runningCount", {
+                      running: runningCount,
+                      total: allTerminals.length,
+                    })}
+                  >
                     <span className={cn("size-1.5 rounded-full", runningCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-zinc-500")} />
                     <span className="tabular-nums">{runningCount}/{allTerminals.length}</span>
                   </div>
@@ -346,18 +480,17 @@ export default function TerminalSessionsPage() {
               return (
                 <div
                   key={terminal.id}
+                  id={`terminal-panel-${terminal.id}`}
+                  role="tabpanel"
+                  aria-labelledby={`terminal-tab-${terminal.id}`}
                   className={cn("absolute inset-0 min-h-0", active ? "flex" : "hidden")}
                   aria-hidden={!active}
                 >
                   <EmbeddedTerminalPanel
                     status={terminal.status}
-                    commandKind={terminal.commandKind}
-                    cwd={terminal.cwd}
                     exitCode={terminal.exitCode}
                     errorMessage={terminal.errorMessage}
                     onStart={() => void restartTerminal(terminal.id)}
-                    onStop={() => void stopTerminal(terminal.id, false)}
-                    onForceStop={() => void stopTerminal(terminal.id, true)}
                     onRestart={() => void restartTerminal(terminal.id)}
                     onOpenExternal={() => void handleOpenExternal(terminal)}
                     onClose={() => void handleClose(terminal)}
@@ -379,19 +512,26 @@ export default function TerminalSessionsPage() {
         return (
           <div
             className="fixed z-50 min-w-[160px] rounded-xl border border-border/40 bg-popover/90 px-1.5 py-1.5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
+            role="menu"
+            aria-label={contextMenu.terminal.sessionTitle}
+            tabIndex={-1}
             style={{
               top: `${y}px`,
               left: `${x}px`,
             }}
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
           >
             {/* rename */}
             <button
+              type="button"
               onClick={() => {
+                setActiveTerminal(contextMenu.terminal.id);
                 setEditingTerminalId(contextMenu.terminal.id);
                 setEditingTitle(contextMenu.terminal.sessionTitle);
                 setContextMenu(null);
               }}
+              role="menuitem"
               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
             >
               <PenLine className="size-3.5 opacity-80" />
@@ -400,14 +540,18 @@ export default function TerminalSessionsPage() {
 
             {/* copy command */}
             <button
+              type="button"
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(contextMenu.terminal.command);
                   setNotice(t("copied"));
                   setTimeout(() => setNotice(null), 2200);
-                } catch {}
+                } catch (error) {
+                  console.error("Failed to copy terminal command:", error);
+                }
                 setContextMenu(null);
               }}
+              role="menuitem"
               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
             >
               <Copy className="size-3.5 opacity-80" />
@@ -418,10 +562,12 @@ export default function TerminalSessionsPage() {
 
             {/* restart */}
             <button
+              type="button"
               onClick={() => {
-                restartTerminal(contextMenu.terminal.id);
+                void restartTerminal(contextMenu.terminal.id);
                 setContextMenu(null);
               }}
+              role="menuitem"
               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
             >
               <RotateCw className="size-3.5 opacity-80" />
@@ -430,15 +576,14 @@ export default function TerminalSessionsPage() {
 
             {/* stop */}
             <button
+              type="button"
               onClick={() => {
-                if (contextMenu.terminal.status === "stopping") {
-                  stopTerminal(contextMenu.terminal.id, true);
-                } else {
-                  stopTerminal(contextMenu.terminal.id, false);
-                }
+                void handleStop(contextMenu.terminal);
                 setContextMenu(null);
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+              role="menuitem"
+              disabled={!ACTIVE_STATUSES.has(contextMenu.terminal.status)}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Square className="size-3.5 opacity-80" />
               <span>{contextMenu.terminal.status === "stopping" ? t("terminal.btn.forceStop") : t("terminal.btn.stop")}</span>
@@ -446,10 +591,12 @@ export default function TerminalSessionsPage() {
 
             {/* open external */}
             <button
+              type="button"
               onClick={() => {
-                handleOpenExternal(contextMenu.terminal);
+                void handleOpenExternal(contextMenu.terminal);
                 setContextMenu(null);
               }}
+              role="menuitem"
               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
             >
               <ExternalLink className="size-3.5 opacity-80" />
@@ -460,10 +607,12 @@ export default function TerminalSessionsPage() {
 
             {/* close */}
             <button
+              type="button"
               onClick={() => {
-                handleClose(contextMenu.terminal);
+                void handleClose(contextMenu.terminal);
                 setContextMenu(null);
               }}
+              role="menuitem"
               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors cursor-pointer"
             >
               <X className="size-3.5 opacity-80" />

@@ -14,7 +14,7 @@ interface TerminalViewportProps {
 function encodeBinaryString(value: string) {
   let binary = "";
   for (let index = 0; index < value.length; index += 1) {
-    binary += String.fromCharCode(value.charCodeAt(index) & 0xff);
+    binary += String.fromCharCode(value.charCodeAt(index) % 256);
   }
   return globalThis.btoa(binary);
 }
@@ -150,6 +150,7 @@ export function TerminalViewport({ terminalId, isActive }: TerminalViewportProps
         ref={hostRef}
         className="h-full min-h-0 w-full overflow-hidden"
         aria-label={t("terminal.viewportLabel")}
+        role="application"
       />
     </div>
   );
