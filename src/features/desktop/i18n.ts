@@ -95,6 +95,10 @@ export type MessageKey =
   | "remoteStopped"
   | "remoteCopyLink"
   | "remoteLinkCopied"
+  | "remoteShowQr"
+  | "remoteQrTitle"
+  | "remoteQrDescription"
+  | "remoteQrSecret"
   | "toggleOn"
   | "toggleOff"
   // Prompts
@@ -428,6 +432,10 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     remoteStopped: "服务未运行",
     remoteCopyLink: "复制手机链接",
     remoteLinkCopied: "手机链接已复制",
+    remoteShowQr: "手机扫码",
+    remoteQrTitle: "扫描连接主机",
+    remoteQrDescription: "使用手机相机或浏览器扫描，直接打开记忆锻造远程页面。",
+    remoteQrSecret: "二维码包含访问令牌，只在可信设备上扫描，请勿截图或公开分享。",
     toggleOn: "开启",
     toggleOff: "关闭",
     promptLibrary: "提示词库",
@@ -755,6 +763,10 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     remoteStopped: "Service stopped",
     remoteCopyLink: "Copy phone link",
     remoteLinkCopied: "Phone link copied",
+    remoteShowQr: "Scan with phone",
+    remoteQrTitle: "Scan to connect",
+    remoteQrDescription: "Scan with your phone camera or browser to open Memory Forge Remote.",
+    remoteQrSecret: "This QR code contains the access token. Scan it only on trusted devices and do not share screenshots.",
     toggleOn: "On",
     toggleOff: "Off",
     promptLibrary: "Prompt Library",

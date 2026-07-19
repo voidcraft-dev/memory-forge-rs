@@ -1,24 +1,34 @@
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Check,
+  CheckCircle,
+  Copy,
   FolderOpen,
   GripVertical,
   Languages,
+  QrCode,
+  RefreshCw,
   Rocket,
   SlidersHorizontal,
   Sparkles,
   Terminal,
+  TriangleAlert,
   Wifi,
-  RefreshCw,
-  Copy,
-  CheckCircle,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { type ComponentType, useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { getRemoteServerStatus, restartRemoteServer } from "@/features/desktop/api";
 import { localeCatalog, themeCatalog } from "@/features/desktop/catalog";
 import { useDesktop } from "@/features/desktop/provider";
-import type { ThemeId } from "@/features/desktop/types";
-import type { RemoteServerStatus } from "@/features/desktop/types";
-import { getRemoteServerStatus, restartRemoteServer } from "@/features/desktop/api";
+import type { RemoteServerStatus, ThemeId } from "@/features/desktop/types";
 import { cn } from "@/lib/utils";
 
 const PLATFORM_ITEMS = [
@@ -97,6 +107,7 @@ export default function SettingsPage() {
   const [remoteStatus, setRemoteStatus] = useState<RemoteServerStatus | null>(null);
   const [remoteBusy, setRemoteBusy] = useState(false);
   const [remoteLinkCopied, setRemoteLinkCopied] = useState(false);
+  const [remoteQrOpen, setRemoteQrOpen] = useState(false);
   const [remotePortDraft, setRemotePortDraft] = useState("7331");
 
   useEffect(() => {
@@ -373,16 +384,26 @@ export default function SettingsPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {snapshot.settings.remoteBindMode === "lan" && remotePhoneLink && (
-                    <button
-                      type="button"
-                      onClick={() => void copyRemoteLink()}
-                      className="flex min-h-11 items-center gap-2 rounded-xl border border-primary/25 bg-primary/8 px-3 text-xs font-semibold text-primary hover:bg-primary/12"
-                    >
-                      {remoteLinkCopied ? <CheckCircle className="size-4" /> : <Copy className="size-4" />}
-                      {t(remoteLinkCopied ? "remoteLinkCopied" : "remoteCopyLink")}
-                    </button>
+                    <>
+                      <button
+                        className="flex min-h-11 items-center gap-2 rounded-xl border border-primary/25 bg-primary/8 px-3 font-semibold text-primary text-xs hover:bg-primary/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        onClick={() => setRemoteQrOpen(true)}
+                        type="button"
+                      >
+                        <QrCode className="size-4" />
+                        {t("remoteShowQr")}
+                      </button>
+                      <button
+                        className="flex min-h-11 items-center gap-2 rounded-xl border border-primary/25 bg-primary/8 px-3 font-semibold text-primary text-xs hover:bg-primary/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        onClick={() => void copyRemoteLink()}
+                        type="button"
+                      >
+                        {remoteLinkCopied ? <CheckCircle className="size-4" /> : <Copy className="size-4" />}
+                        {t(remoteLinkCopied ? "remoteLinkCopied" : "remoteCopyLink")}
+                      </button>
+                    </>
                   )}
                   <button
                     type="button"
@@ -665,6 +686,51 @@ export default function SettingsPage() {
           </div>
         </section>}
       </div>
+
+      <Dialog onOpenChange={setRemoteQrOpen} open={remoteQrOpen}>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-[390px] border-border/70 bg-card/98">
+          <DialogHeader className="p-5 pr-14">
+            <DialogTitle className="flex items-center gap-2.5 text-lg">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-primary/12 text-primary">
+                <QrCode className="size-4.5" />
+              </span>
+              {t("remoteQrTitle")}
+            </DialogTitle>
+            <DialogDescription className="mt-2 leading-6">
+              {t("remoteQrDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-4 p-5">
+            <div className="mx-auto aspect-square w-full max-w-[280px] rounded-2xl border border-black/8 bg-white p-3 shadow-[0_16px_44px_rgba(30,38,58,0.12)]">
+              {remotePhoneLink && (
+                <QRCodeSVG
+                  bgColor="#ffffff"
+                  className="h-auto w-full"
+                  fgColor="#17191f"
+                  imageSettings={{
+                    src: "/memory-forge.svg",
+                    height: 36,
+                    width: 36,
+                    excavate: true,
+                  }}
+                  level="H"
+                  marginSize={2}
+                  size={256}
+                  title={t("remoteQrTitle")}
+                  value={remotePhoneLink}
+                />
+              )}
+            </div>
+            <p className="break-all rounded-xl border border-border/50 bg-muted/30 px-3 py-2.5 text-center font-mono text-[11px] text-quiet leading-5">
+              {remoteBaseUrl}
+            </p>
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3.5 py-3 text-amber-700 text-xs leading-5 dark:text-amber-300">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <p>{t("remoteQrSecret")}</p>
+            </div>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
