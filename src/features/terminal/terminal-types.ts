@@ -41,3 +41,9 @@ export interface EmbeddedTerminalPanelProps {
   onClose: () => void;
   children?: ReactNode;
 }
+
+export interface TerminalTransport {
+  writeTerminal: (terminalId: string, data: string, binary?: boolean) => Promise<void>;
+  resizeTerminal: (terminalId: string, cols: number, rows: number) => Promise<void>;
+  subscribeToOutput: (terminalId: string, handler: (data: Uint8Array) => void) => () => void;
+}

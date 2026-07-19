@@ -20,6 +20,8 @@ import type {
   EditMessageMutation,
   RemoteBootstrap,
   RemoteCapabilities,
+  RemoteTerminalOutput,
+  RemoteTerminalSnapshot,
   RestoreMessageMutation,
 } from "@/features/remote/protocol";
 
@@ -59,6 +61,7 @@ const defaultSettings = {
   remoteBindMode: "loopback" as const,
   remotePort: 7331,
   remoteMutationsEnabled: false,
+  remoteTerminalEnabled: false,
 };
 
 export function isTauriRuntime() {
@@ -568,6 +571,95 @@ export const api = {
       return invoke<void>("stop_embedded_terminal", { terminalId, force });
     }
     throw new Error("Embedded terminals are only available in the desktop app");
+  },
+
+  async remoteListTerminals(): Promise<RemoteTerminalSnapshot[]> {
+    assertRemoteCapability("terminal");
+    const params = new URLSearchParams({ deviceId: remoteDeviceId() });
+    return fetchJSON<RemoteTerminalSnapshot[]>(`${API_BASE}/terminals?${params}`);
+  },
+
+  async remoteStartTerminal(input: {
+    terminalId: string;
+    platform: string;
+    sessionKey: string;
+    commandKind: "resume" | "fork";
+    cols: number;
+    rows: number;
+  }): Promise<RemoteTerminalSnapshot> {
+    assertRemoteCapability("terminal");
+    return fetchJSON<RemoteTerminalSnapshot>(`${API_BASE}/terminals`, {
+      method: "POST",
+      body: JSON.stringify({ ...input, deviceId: remoteDeviceId() }),
+    });
+  },
+
+  async remoteReadTerminal(
+    terminalId: string,
+    cursor = 0,
+    limit = 128,
+  ): Promise<RemoteTerminalOutput> {
+    assertRemoteCapability("terminal");
+    const params = new URLSearchParams({
+      deviceId: remoteDeviceId(),
+      cursor: String(Math.max(0, cursor)),
+      limit: String(Math.min(256, Math.max(1, limit))),
+    });
+    return fetchJSON<RemoteTerminalOutput>(
+      `${API_BASE}/terminals/${encodeURIComponent(terminalId)}/output?${params}`,
+    );
+  },
+
+  async remoteWriteTerminal(
+    terminalId: string,
+    data: string,
+    binary = false,
+  ): Promise<RemoteTerminalSnapshot> {
+    assertRemoteCapability("terminal");
+    return fetchJSON<RemoteTerminalSnapshot>(
+      `${API_BASE}/terminals/${encodeURIComponent(terminalId)}/input`,
+      {
+        method: "POST",
+        body: JSON.stringify({ deviceId: remoteDeviceId(), data, binary }),
+      },
+    );
+  },
+
+  async remoteResizeTerminal(
+    terminalId: string,
+    cols: number,
+    rows: number,
+  ): Promise<RemoteTerminalSnapshot> {
+    assertRemoteCapability("terminal");
+    return fetchJSON<RemoteTerminalSnapshot>(
+      `${API_BASE}/terminals/${encodeURIComponent(terminalId)}/resize`,
+      {
+        method: "POST",
+        body: JSON.stringify({ deviceId: remoteDeviceId(), cols, rows }),
+      },
+    );
+  },
+
+  async remoteStopTerminal(
+    terminalId: string,
+    force: boolean,
+  ): Promise<RemoteTerminalSnapshot> {
+    assertRemoteCapability("terminal");
+    return fetchJSON<RemoteTerminalSnapshot>(
+      `${API_BASE}/terminals/${encodeURIComponent(terminalId)}/stop`,
+      {
+        method: "POST",
+        body: JSON.stringify({ deviceId: remoteDeviceId(), force }),
+      },
+    );
+  },
+
+  async remoteCloseTerminal(terminalId: string): Promise<void> {
+    assertRemoteCapability("terminal");
+    const params = new URLSearchParams({ deviceId: remoteDeviceId() });
+    await fetchJSON(`${API_BASE}/terminals/${encodeURIComponent(terminalId)}?${params}`, {
+      method: "DELETE",
+    });
   },
 
   async listEditorTargets(): Promise<EditorTarget[]> {

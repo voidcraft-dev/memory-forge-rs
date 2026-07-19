@@ -76,9 +76,15 @@ fn remote_server_restart(
         server_version: app.package_info().version.to_string(),
         web_root: remote_web_root(&app),
         mutation_enabled: config.enable_mutations,
+        terminal_enabled: config.enable_terminal,
         mutation_lock: std::sync::Arc::new(std::sync::Mutex::new(())),
         auth_required: config.require_auth,
         access_token: config.access_token.clone(),
+        terminal_state: app
+            .state::<embedded_terminal::EmbeddedTerminalState>()
+            .inner()
+            .clone(),
+        app_handle: Some(app.clone()),
     };
     remote_state.start(config, context)
 }
@@ -101,6 +107,7 @@ fn remote_server_config(
     };
     config.port = settings.remote_port;
     config.enable_mutations = settings.remote_mutations_enabled;
+    config.enable_terminal = settings.remote_terminal_enabled;
     config.require_auth = lan_mode;
     config.access_token = access_token;
     Ok(config)
@@ -521,9 +528,15 @@ fn main() {
                 server_version: app.package_info().version.to_string(),
                 web_root: remote_web_root(app.handle()),
                 mutation_enabled: remote_config.enable_mutations,
+                terminal_enabled: remote_config.enable_terminal,
                 mutation_lock: std::sync::Arc::new(std::sync::Mutex::new(())),
                 auth_required: remote_config.require_auth,
                 access_token: remote_config.access_token.clone(),
+                terminal_state: app
+                    .state::<embedded_terminal::EmbeddedTerminalState>()
+                    .inner()
+                    .clone(),
+                app_handle: Some(app.handle().clone()),
             };
             if let Err(error) = remote_state.start(remote_config, remote_context) {
                 eprintln!("[remote] daemon did not start: {error}");

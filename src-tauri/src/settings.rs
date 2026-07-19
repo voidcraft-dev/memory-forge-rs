@@ -51,6 +51,8 @@ pub struct AppSettings {
     pub remote_port: u16,
     #[serde(default)]
     pub remote_mutations_enabled: bool,
+    #[serde(default)]
+    pub remote_terminal_enabled: bool,
 }
 
 fn default_remote_bind_mode() -> String {
@@ -156,6 +158,7 @@ impl Default for AppSettings {
             remote_bind_mode: default_remote_bind_mode(),
             remote_port: default_remote_port(),
             remote_mutations_enabled: false,
+            remote_terminal_enabled: false,
         }
     }
 }
@@ -184,6 +187,7 @@ pub struct AppSettingsPatch {
     pub remote_bind_mode: Option<String>,
     pub remote_port: Option<u16>,
     pub remote_mutations_enabled: Option<bool>,
+    pub remote_terminal_enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -350,6 +354,10 @@ pub fn update_settings(
 
     if let Some(remote_mutations_enabled) = patch.remote_mutations_enabled {
         settings.remote_mutations_enabled = remote_mutations_enabled;
+    }
+
+    if let Some(remote_terminal_enabled) = patch.remote_terminal_enabled {
+        settings.remote_terminal_enabled = remote_terminal_enabled;
     }
 
     let autostart_supported = if let Some(launch_on_startup) = patch.launch_on_startup {

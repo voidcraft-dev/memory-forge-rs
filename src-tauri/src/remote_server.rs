@@ -5,13 +5,14 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{DefaultBodyLimit, Query, Request, State};
+use axum::extract::{DefaultBodyLimit, Path as AxumPath, Query, Request, State};
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE, HOST, WWW_AUTHENTICATE};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -22,9 +23,15 @@ use uuid::Uuid;
 
 use crate::atomic_file::write_file_atomic;
 use crate::database::{self, DbState};
+use crate::embedded_terminal::{
+    EmbeddedTerminalState, RemoteTerminalOutput, RemoteTerminalSnapshot,
+    StartEmbeddedTerminalRequest,
+};
 use crate::remote_protocol::{
     ApiError, ApiSuccess, EditMessageMutation, RemoteAuthInfo, RemoteBootstrap, RemoteCapabilities,
-    RemotePlatformInfo, RestoreMessageMutation, REMOTE_API_PREFIX, REMOTE_PROTOCOL_VERSION,
+    RemotePlatformInfo, RemoteTerminalInputRequest, RemoteTerminalResizeRequest,
+    RemoteTerminalStartRequest, RemoteTerminalStopRequest, RestoreMessageMutation,
+    REMOTE_API_PREFIX, REMOTE_PROTOCOL_VERSION,
 };
 use crate::session_service;
 use crate::settings::AppSettings;
@@ -34,6 +41,7 @@ const REQUEST_ID_HEADER: &str = "x-request-id";
 const MAX_PAGE_SIZE: usize = 200;
 const MAX_MUTATION_CONTENT_BYTES: usize = 4 * 1024 * 1024;
 const MAX_MUTATION_BODY_BYTES: usize = MAX_MUTATION_CONTENT_BYTES + 64 * 1024;
+const MAX_TERMINAL_INPUT_BYTES: usize = 64 * 1024;
 const REMOTE_SESSION_NOT_FOUND: &str = "REMOTE_SESSION_NOT_FOUND";
 const REMOTE_MUTATION_UNSUPPORTED_PLATFORM: &str = "kiro-ide";
 
@@ -42,6 +50,7 @@ pub struct RemoteServerConfig {
     pub bind_address: IpAddr,
     pub port: u16,
     pub enable_mutations: bool,
+    pub enable_terminal: bool,
     pub require_auth: bool,
     pub access_token: Option<String>,
 }
@@ -52,6 +61,7 @@ impl RemoteServerConfig {
             bind_address: IpAddr::V4(Ipv4Addr::LOCALHOST),
             port: DEFAULT_REMOTE_PORT,
             enable_mutations: false,
+            enable_terminal: false,
             require_auth: false,
             access_token: None,
         }
@@ -63,6 +73,7 @@ impl RemoteServerConfig {
             bind_address: IpAddr::V4(Ipv4Addr::LOCALHOST),
             port: 0,
             enable_mutations: false,
+            enable_terminal: false,
             require_auth: false,
             access_token: None,
         }
@@ -78,9 +89,12 @@ pub struct RemoteServerContext {
     pub server_version: String,
     pub web_root: Option<PathBuf>,
     pub mutation_enabled: bool,
+    pub terminal_enabled: bool,
     pub mutation_lock: Arc<Mutex<()>>,
     pub auth_required: bool,
     pub access_token: Option<String>,
+    pub terminal_state: EmbeddedTerminalState,
+    pub app_handle: Option<tauri::AppHandle>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -92,6 +106,7 @@ pub struct RemoteServerStatus {
     pub url: String,
     pub protocol_version: u16,
     pub read_only: bool,
+    pub terminal_enabled: bool,
     pub auth_required: bool,
     pub lan_urls: Vec<String>,
     pub access_token: Option<String>,
@@ -107,6 +122,7 @@ impl Default for RemoteServerStatus {
             url: format!("http://{}:{DEFAULT_REMOTE_PORT}", Ipv4Addr::LOCALHOST),
             protocol_version: REMOTE_PROTOCOL_VERSION,
             read_only: true,
+            terminal_enabled: false,
             auth_required: false,
             lan_urls: Vec::new(),
             access_token: None,
@@ -179,6 +195,7 @@ impl RemoteServerState {
             .local_addr()
             .map_err(|error| format!("failed to read remote server address: {error}"))?;
         context.mutation_enabled = config.enable_mutations;
+        context.terminal_enabled = config.enable_terminal;
         context.auth_required = config.require_auth;
         context.access_token = config.access_token.clone();
         let router = build_router(context, bound_address);
@@ -202,6 +219,7 @@ impl RemoteServerState {
             },
             protocol_version: REMOTE_PROTOCOL_VERSION,
             read_only: !config.enable_mutations,
+            terminal_enabled: config.enable_terminal,
             auth_required: config.require_auth,
             lan_urls,
             access_token: config
@@ -296,6 +314,7 @@ impl RemoteServerState {
             url: format_http_url(SocketAddr::new(config.bind_address, config.port)),
             protocol_version: REMOTE_PROTOCOL_VERSION,
             read_only: true,
+            terminal_enabled: config.enable_terminal,
             auth_required: config.require_auth,
             lan_urls: Vec::new(),
             access_token: config
@@ -419,6 +438,20 @@ struct SessionQuery {
     session_key: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RemoteTerminalListQuery {
+    device_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RemoteTerminalOutputQuery {
+    device_id: String,
+    cursor: Option<u64>,
+    limit: Option<usize>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 struct RemoteMutationResult {
@@ -451,6 +484,15 @@ fn build_router(context: RemoteServerContext, address: SocketAddr) -> Router {
         .route("/edit-log", get(edit_log))
         .route("/mutations/session-edit", post(session_edit_mutation))
         .route("/mutations/session-restore", post(session_restore_mutation))
+        .route("/terminals", get(terminal_list).post(terminal_start))
+        .route(
+            "/terminals/{terminal_id}",
+            get(terminal_snapshot).delete(terminal_close),
+        )
+        .route("/terminals/{terminal_id}/output", get(terminal_output))
+        .route("/terminals/{terminal_id}/input", post(terminal_input))
+        .route("/terminals/{terminal_id}/resize", post(terminal_resize))
+        .route("/terminals/{terminal_id}/stop", post(terminal_stop))
         .layer(DefaultBodyLimit::max(MAX_MUTATION_BODY_BYTES));
     let host_policy = HostPolicy {
         allowed: Arc::new(allowed_hosts(address)),
@@ -467,7 +509,7 @@ fn build_router(context: RemoteServerContext, address: SocketAddr) -> Router {
             HeaderValue::from_static("http://localhost:1430"),
             HeaderValue::from_static("http://127.0.0.1:1430"),
         ])
-        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])
         .allow_headers([CONTENT_TYPE, AUTHORIZATION, request_id]);
 
     let mut router = Router::new()
@@ -476,7 +518,7 @@ fn build_router(context: RemoteServerContext, address: SocketAddr) -> Router {
         .with_state(app_state);
     if let Some(web_root) = web_root {
         router = router.fallback_service(
-            ServeDir::new(&web_root).not_found_service(ServeFile::new(web_root.join("index.html"))),
+            ServeDir::new(&web_root).fallback(ServeFile::new(web_root.join("index.html"))),
         );
     }
 
@@ -644,11 +686,10 @@ async fn bootstrap(
         server_name: state.context.server_name,
         server_version: state.context.server_version,
         server_time: Utc::now().to_rfc3339(),
-        capabilities: if state.context.mutation_enabled {
-            RemoteCapabilities::read_write()
-        } else {
-            RemoteCapabilities::read_only()
-        },
+        capabilities: RemoteCapabilities::configured(
+            state.context.mutation_enabled,
+            state.context.terminal_enabled,
+        ),
         auth: RemoteAuthInfo {
             required: state.context.auth_required,
             pairing_supported: false,
@@ -749,6 +790,265 @@ async fn edit_log(
     .await
     .map_err(|error| service_error(&request_id, error))?;
     Ok(Json(ApiSuccess::new(request_id, result)))
+}
+
+async fn terminal_list(
+    State(state): State<RemoteAppState>,
+    headers: HeaderMap,
+    Query(query): Query<RemoteTerminalListQuery>,
+) -> Result<Json<ApiSuccess<Vec<RemoteTerminalSnapshot>>>, RemoteHttpError> {
+    let request_id = request_id(&headers);
+    ensure_terminal_capability(&request_id, &state)?;
+    validate_id(&query.device_id, "deviceId")
+        .map_err(|error| invalid_request_error(&request_id, error))?;
+    let terminals = state
+        .context
+        .terminal_state
+        .remote_list(&query.device_id)
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    Ok(Json(ApiSuccess::new(request_id, terminals)))
+}
+
+async fn terminal_start(
+    State(state): State<RemoteAppState>,
+    headers: HeaderMap,
+    payload: Result<Json<RemoteTerminalStartRequest>, JsonRejection>,
+) -> Result<Json<ApiSuccess<RemoteTerminalSnapshot>>, RemoteHttpError> {
+    let request_id = request_id(&headers);
+    ensure_terminal_capability(&request_id, &state)?;
+    let Json(request) = payload.map_err(|error| {
+        invalid_request_error(&request_id, format!("invalid terminal start body: {error}"))
+    })?;
+    validate_terminal_start(&request_id, &request)?;
+
+    if let Ok(existing) = state
+        .context
+        .terminal_state
+        .remote_snapshot(&request.terminal_id, &request.device_id)
+    {
+        return Ok(Json(ApiSuccess::new(request_id, existing)));
+    }
+
+    let platform = request.platform.clone();
+    let session_key = request.session_key.clone();
+    let command_kind = request.command_kind.clone();
+    let detail = run_snapshot(state.clone(), move |db, settings| {
+        ensure_known_session(settings, &platform, &session_key)?;
+        session_service::session_detail(db, settings, &platform, &session_key)
+    })
+    .await
+    .map_err(|error| service_error(&request_id, error))?;
+    let command = detail
+        .commands
+        .get(&command_kind)
+        .cloned()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            invalid_request_error(
+                &request_id,
+                format!("the selected session does not support {command_kind}"),
+            )
+        })?;
+    let app = state
+        .context
+        .app_handle
+        .clone()
+        .ok_or_else(|| internal_error(&request_id, "Terminal host is unavailable"))?;
+    let terminal_state = state.context.terminal_state.clone();
+    let launch = StartEmbeddedTerminalRequest {
+        terminal_id: request.terminal_id,
+        session_key: request.session_key,
+        command,
+        command_kind: request.command_kind,
+        cwd: (!detail.cwd.trim().is_empty()).then_some(detail.cwd),
+        cols: request.cols,
+        rows: request.rows,
+        owner_device_id: Some(request.device_id),
+        platform: Some(request.platform),
+        session_title: Some(if detail.alias_title.trim().is_empty() {
+            detail.title
+        } else {
+            detail.alias_title
+        }),
+    };
+    let snapshot = tokio::task::spawn_blocking(move || terminal_state.start_remote(&app, launch))
+        .await
+        .map_err(|error| {
+            internal_error(
+                &request_id,
+                &format!("remote terminal start task failed: {error}"),
+            )
+        })?
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    Ok(Json(ApiSuccess::new(request_id, snapshot)))
+}
+
+async fn terminal_snapshot(
+    State(state): State<RemoteAppState>,
+    headers: HeaderMap,
+    AxumPath(terminal_id): AxumPath<String>,
+    Query(query): Query<RemoteTerminalListQuery>,
+) -> Result<Json<ApiSuccess<RemoteTerminalSnapshot>>, RemoteHttpError> {
+    let request_id = request_id(&headers);
+    ensure_terminal_capability(&request_id, &state)?;
+    validate_terminal_owner(&request_id, &terminal_id, &query.device_id)?;
+    let terminal = state
+        .context
+        .terminal_state
+        .remote_snapshot(&terminal_id, &query.device_id)
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    Ok(Json(ApiSuccess::new(request_id, terminal)))
+}
+
+async fn terminal_output(
+    State(state): State<RemoteAppState>,
+    headers: HeaderMap,
+    AxumPath(terminal_id): AxumPath<String>,
+    Query(query): Query<RemoteTerminalOutputQuery>,
+) -> Result<Json<ApiSuccess<RemoteTerminalOutput>>, RemoteHttpError> {
+    let request_id = request_id(&headers);
+    ensure_terminal_capability(&request_id, &state)?;
+    validate_terminal_owner(&request_id, &terminal_id, &query.device_id)?;
+    let output = state
+        .context
+        .terminal_state
+        .remote_output(
+            &terminal_id,
+            &query.device_id,
+            query.cursor.unwrap_or_default(),
+            query.limit.unwrap_or(128),
+        )
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    Ok(Json(ApiSuccess::new(request_id, output)))
+}
+
+async fn terminal_input(
+    State(state): State<RemoteAppState>,
+    headers: HeaderMap,
+    AxumPath(terminal_id): AxumPath<String>,
+    payload: Result<Json<RemoteTerminalInputRequest>, JsonRejection>,
+) -> Result<Json<ApiSuccess<RemoteTerminalSnapshot>>, RemoteHttpError> {
+    let request_id = request_id(&headers);
+    ensure_terminal_capability(&request_id, &state)?;
+    let Json(input) = payload.map_err(|error| {
+        invalid_request_error(&request_id, format!("invalid terminal input body: {error}"))
+    })?;
+    validate_terminal_owner(&request_id, &terminal_id, &input.device_id)?;
+    let data = if input.binary {
+        BASE64_STANDARD.decode(input.data).map_err(|error| {
+            invalid_request_error(
+                &request_id,
+                format!("invalid base64 terminal input: {error}"),
+            )
+        })?
+    } else {
+        input.data.into_bytes()
+    };
+    if data.len() > MAX_TERMINAL_INPUT_BYTES {
+        return Err(invalid_request_error(
+            &request_id,
+            "terminal input exceeds the 64 KiB limit",
+        ));
+    }
+    state
+        .context
+        .terminal_state
+        .remote_write(&terminal_id, &input.device_id, &data)
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    let terminal = state
+        .context
+        .terminal_state
+        .remote_snapshot(&terminal_id, &input.device_id)
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    Ok(Json(ApiSuccess::new(request_id, terminal)))
+}
+
+async fn terminal_resize(
+    State(state): State<RemoteAppState>,
+    headers: HeaderMap,
+    AxumPath(terminal_id): AxumPath<String>,
+    payload: Result<Json<RemoteTerminalResizeRequest>, JsonRejection>,
+) -> Result<Json<ApiSuccess<RemoteTerminalSnapshot>>, RemoteHttpError> {
+    let request_id = request_id(&headers);
+    ensure_terminal_capability(&request_id, &state)?;
+    let Json(resize) = payload.map_err(|error| {
+        invalid_request_error(
+            &request_id,
+            format!("invalid terminal resize body: {error}"),
+        )
+    })?;
+    validate_terminal_owner(&request_id, &terminal_id, &resize.device_id)?;
+    validate_terminal_size(&request_id, resize.cols, resize.rows)?;
+    state
+        .context
+        .terminal_state
+        .remote_resize(&terminal_id, &resize.device_id, resize.cols, resize.rows)
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    let terminal = state
+        .context
+        .terminal_state
+        .remote_snapshot(&terminal_id, &resize.device_id)
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    Ok(Json(ApiSuccess::new(request_id, terminal)))
+}
+
+async fn terminal_stop(
+    State(state): State<RemoteAppState>,
+    headers: HeaderMap,
+    AxumPath(terminal_id): AxumPath<String>,
+    payload: Result<Json<RemoteTerminalStopRequest>, JsonRejection>,
+) -> Result<Json<ApiSuccess<RemoteTerminalSnapshot>>, RemoteHttpError> {
+    let request_id = request_id(&headers);
+    ensure_terminal_capability(&request_id, &state)?;
+    let Json(stop) = payload.map_err(|error| {
+        invalid_request_error(&request_id, format!("invalid terminal stop body: {error}"))
+    })?;
+    validate_terminal_owner(&request_id, &terminal_id, &stop.device_id)?;
+    let terminal_state = state.context.terminal_state.clone();
+    let owner = stop.device_id.clone();
+    let id = terminal_id.clone();
+    tokio::task::spawn_blocking(move || terminal_state.remote_stop(&id, &owner, stop.force))
+        .await
+        .map_err(|error| {
+            internal_error(
+                &request_id,
+                &format!("remote terminal stop task failed: {error}"),
+            )
+        })?
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    let terminal = state
+        .context
+        .terminal_state
+        .remote_snapshot(&terminal_id, &stop.device_id)
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    Ok(Json(ApiSuccess::new(request_id, terminal)))
+}
+
+async fn terminal_close(
+    State(state): State<RemoteAppState>,
+    headers: HeaderMap,
+    AxumPath(terminal_id): AxumPath<String>,
+    Query(query): Query<RemoteTerminalListQuery>,
+) -> Result<Json<ApiSuccess<serde_json::Value>>, RemoteHttpError> {
+    let request_id = request_id(&headers);
+    ensure_terminal_capability(&request_id, &state)?;
+    validate_terminal_owner(&request_id, &terminal_id, &query.device_id)?;
+    let terminal_state = state.context.terminal_state.clone();
+    let owner = query.device_id;
+    let id = terminal_id.clone();
+    tokio::task::spawn_blocking(move || terminal_state.remote_close(&id, &owner))
+        .await
+        .map_err(|error| {
+            internal_error(
+                &request_id,
+                &format!("remote terminal close task failed: {error}"),
+            )
+        })?
+        .map_err(|error| terminal_service_error(&request_id, error))?;
+    Ok(Json(ApiSuccess::new(
+        request_id,
+        serde_json::json!({ "terminalId": terminal_id, "closed": true }),
+    )))
 }
 
 async fn session_edit_mutation(
@@ -1085,6 +1385,105 @@ fn validate_restore_mutation(
     Ok(())
 }
 
+fn ensure_terminal_capability(
+    request_id: &str,
+    state: &RemoteAppState,
+) -> Result<(), RemoteHttpError> {
+    if state.context.terminal_enabled {
+        Ok(())
+    } else {
+        Err(capability_error(request_id, "terminal"))
+    }
+}
+
+fn validate_terminal_start(
+    request_id: &str,
+    request: &RemoteTerminalStartRequest,
+) -> Result<(), RemoteHttpError> {
+    validate_id(&request.device_id, "deviceId")
+        .map_err(|error| invalid_request_error(request_id, error))?;
+    crate::embedded_terminal::validate_remote_terminal_id(&request.terminal_id)
+        .map_err(|error| invalid_request_error(request_id, error))?;
+    validate_platform(request_id, &request.platform)?;
+    if request.platform == REMOTE_MUTATION_UNSUPPORTED_PLATFORM {
+        return Err(invalid_request_error(
+            request_id,
+            "remote terminal is not supported for Kiro IDE",
+        ));
+    }
+    validate_opaque(&request.session_key, "sessionKey", 4096)
+        .map_err(|error| invalid_request_error(request_id, error))?;
+    if !matches!(request.command_kind.as_str(), "resume" | "fork") {
+        return Err(invalid_request_error(
+            request_id,
+            "commandKind must be resume or fork",
+        ));
+    }
+    validate_terminal_size(request_id, request.cols, request.rows)
+}
+
+fn validate_terminal_owner(
+    request_id: &str,
+    terminal_id: &str,
+    device_id: &str,
+) -> Result<(), RemoteHttpError> {
+    crate::embedded_terminal::validate_remote_terminal_id(terminal_id)
+        .map_err(|error| invalid_request_error(request_id, error))?;
+    validate_id(device_id, "deviceId").map_err(|error| invalid_request_error(request_id, error))
+}
+
+fn validate_terminal_size(request_id: &str, cols: u16, rows: u16) -> Result<(), RemoteHttpError> {
+    if !(20..=500).contains(&cols) || !(3..=300).contains(&rows) {
+        return Err(invalid_request_error(
+            request_id,
+            "terminal size must be between 20x3 and 500x300",
+        ));
+    }
+    Ok(())
+}
+
+fn terminal_service_error(request_id: &str, error: String) -> RemoteHttpError {
+    let lower = error.to_ascii_lowercase();
+    if lower.contains("not found") {
+        return RemoteHttpError {
+            status: StatusCode::NOT_FOUND,
+            body: ApiError::new(
+                request_id.to_string(),
+                "NOT_FOUND",
+                "Remote terminal not found",
+                false,
+            ),
+        };
+    }
+    if lower.contains("limit reached") {
+        return RemoteHttpError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            body: ApiError::new(
+                request_id.to_string(),
+                "TERMINAL_LIMIT_REACHED",
+                error,
+                true,
+            ),
+        };
+    }
+    if lower.contains("invalid")
+        || lower.contains("required")
+        || lower.contains("too large")
+        || lower.contains("unsupported")
+        || lower.contains("already exists")
+    {
+        return invalid_request_error(request_id, error);
+    }
+    if lower.contains("closed") || lower.contains("stopping") {
+        return RemoteHttpError {
+            status: StatusCode::CONFLICT,
+            body: ApiError::new(request_id.to_string(), "TERMINAL_NOT_RUNNING", error, true),
+        };
+    }
+    eprintln!("[remote] terminal request {request_id} failed: {error}");
+    internal_error(request_id, "The remote terminal request failed")
+}
+
 fn invalid_request_error(request_id: &str, message: impl Into<String>) -> RemoteHttpError {
     RemoteHttpError {
         status: StatusCode::BAD_REQUEST,
@@ -1350,9 +1749,12 @@ mod tests {
             server_version: "test".to_string(),
             web_root: Some(dir.0.join("web")),
             mutation_enabled: false,
+            terminal_enabled: false,
             mutation_lock: Arc::new(Mutex::new(())),
             auth_required: false,
             access_token: None,
+            terminal_state: EmbeddedTerminalState::default(),
+            app_handle: None,
         }
     }
 
@@ -1544,6 +1946,16 @@ mod tests {
         assert!(web.headers().contains_key("content-security-policy"));
         assert_eq!(web.text().expect("web app body"), "<h1>Memory Forge</h1>");
 
+        let deep_link = client
+            .get(format!("{}/terminal-sessions", status.url))
+            .send()
+            .expect("request SPA deep link");
+        assert_eq!(deep_link.status(), reqwest::StatusCode::OK);
+        assert_eq!(
+            deep_link.text().expect("SPA deep-link body"),
+            "<h1>Memory Forge</h1>"
+        );
+
         let bootstrap: serde_json::Value = client
             .get(format!("{}/api/v1/bootstrap", status.url))
             .header(REQUEST_ID_HEADER, "request-1")
@@ -1556,6 +1968,21 @@ mod tests {
         assert_eq!(bootstrap["protocolVersion"], REMOTE_PROTOCOL_VERSION);
         assert_eq!(bootstrap["requestId"], "request-1");
         assert_eq!(bootstrap["data"]["capabilities"]["sessionEdit"], false);
+        assert_eq!(bootstrap["data"]["capabilities"]["terminal"], false);
+
+        let terminal_disabled = client
+            .get(format!("{}/api/v1/terminals", status.url))
+            .query(&[("deviceId", "phone-disabled")])
+            .send()
+            .expect("request disabled terminal route");
+        assert_eq!(terminal_disabled.status(), reqwest::StatusCode::FORBIDDEN);
+        let terminal_disabled_body: serde_json::Value = terminal_disabled
+            .json()
+            .expect("disabled terminal error json");
+        assert_eq!(
+            terminal_disabled_body["error"]["code"],
+            "REMOTE_CAPABILITY_UNAVAILABLE"
+        );
 
         let dashboard: serde_json::Value = client
             .get(format!("{}/api/v1/dashboard", status.url))
@@ -1634,6 +2061,188 @@ mod tests {
 
         let stopped = server.stop().expect("stop remote server");
         assert!(!stopped.running);
+    }
+
+    #[test]
+    fn terminal_routes_enforce_auth_capability_ownership_and_input_limits() {
+        let dir = TestDir::new();
+        let terminal_id = "remote_http_owner";
+        let owner_device_id = "phone-owner";
+        let other_device_id = "phone-other";
+        let token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let context = test_context(&dir);
+        context
+            .terminal_state
+            .seed_remote_for_test(terminal_id, owner_device_id)
+            .expect("seed remote terminal record");
+
+        let server = RemoteServerState::default();
+        let mut config = RemoteServerConfig::loopback_ephemeral();
+        config.enable_terminal = true;
+        config.require_auth = true;
+        config.access_token = Some(token.to_string());
+        let status = server
+            .start(config, context)
+            .expect("start authenticated terminal server");
+        assert!(status.terminal_enabled);
+        assert!(status.auth_required);
+        let client = reqwest::blocking::Client::new();
+        (0..50)
+            .find_map(
+                |_| match client.get(format!("{}/health", status.url)).send() {
+                    Ok(response) => Some(response),
+                    Err(_) => {
+                        thread::sleep(Duration::from_millis(10));
+                        None
+                    }
+                },
+            )
+            .expect("remote terminal server becomes ready");
+
+        let bootstrap: serde_json::Value = client
+            .get(format!("{}/api/v1/bootstrap", status.url))
+            .send()
+            .expect("public terminal bootstrap")
+            .error_for_status()
+            .expect("terminal bootstrap status")
+            .json()
+            .expect("terminal bootstrap json");
+        assert_eq!(bootstrap["data"]["capabilities"]["terminal"], true);
+        assert_eq!(bootstrap["data"]["auth"]["required"], true);
+
+        let unauthorized = client
+            .get(format!("{}/api/v1/terminals", status.url))
+            .query(&[("deviceId", owner_device_id)])
+            .send()
+            .expect("unauthorized terminal list");
+        assert_eq!(unauthorized.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+        let owner_list: serde_json::Value = client
+            .get(format!("{}/api/v1/terminals", status.url))
+            .bearer_auth(token)
+            .query(&[("deviceId", owner_device_id)])
+            .send()
+            .expect("owner terminal list")
+            .error_for_status()
+            .expect("owner terminal list status")
+            .json()
+            .expect("owner terminal list json");
+        assert_eq!(owner_list["data"].as_array().map(Vec::len), Some(1));
+        assert_eq!(owner_list["data"][0]["terminalId"], terminal_id);
+
+        let other_list: serde_json::Value = client
+            .get(format!("{}/api/v1/terminals", status.url))
+            .bearer_auth(token)
+            .query(&[("deviceId", other_device_id)])
+            .send()
+            .expect("other device terminal list")
+            .error_for_status()
+            .expect("other device terminal list status")
+            .json()
+            .expect("other device terminal list json");
+        assert_eq!(other_list["data"], serde_json::json!([]));
+
+        let other_output = client
+            .get(format!(
+                "{}/api/v1/terminals/{terminal_id}/output",
+                status.url
+            ))
+            .bearer_auth(token)
+            .query(&[("deviceId", other_device_id)])
+            .send()
+            .expect("other device terminal output");
+        assert_eq!(other_output.status(), reqwest::StatusCode::NOT_FOUND);
+
+        let other_close = client
+            .delete(format!("{}/api/v1/terminals/{terminal_id}", status.url))
+            .bearer_auth(token)
+            .query(&[("deviceId", other_device_id)])
+            .send()
+            .expect("other device terminal close");
+        assert_eq!(other_close.status(), reqwest::StatusCode::NOT_FOUND);
+
+        let owner_output: serde_json::Value = client
+            .get(format!(
+                "{}/api/v1/terminals/{terminal_id}/output",
+                status.url
+            ))
+            .bearer_auth(token)
+            .query(&[("deviceId", owner_device_id), ("cursor", "0")])
+            .send()
+            .expect("owner terminal output")
+            .error_for_status()
+            .expect("owner terminal output status")
+            .json()
+            .expect("owner terminal output json");
+        assert_eq!(
+            owner_output["data"]["chunks"].as_array().map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(owner_output["data"]["truncated"], false);
+
+        let oversized_input = client
+            .post(format!(
+                "{}/api/v1/terminals/{terminal_id}/input",
+                status.url
+            ))
+            .bearer_auth(token)
+            .json(&serde_json::json!({
+                "deviceId": owner_device_id,
+                "data": "x".repeat(MAX_TERMINAL_INPUT_BYTES + 1),
+                "binary": false,
+            }))
+            .send()
+            .expect("oversized terminal input");
+        assert_eq!(oversized_input.status(), reqwest::StatusCode::BAD_REQUEST);
+        let oversized_body: serde_json::Value =
+            oversized_input.json().expect("oversized input error json");
+        assert_eq!(oversized_body["error"]["code"], "INVALID_REQUEST");
+
+        let arbitrary_command = client
+            .post(format!("{}/api/v1/terminals", status.url))
+            .bearer_auth(token)
+            .json(&serde_json::json!({
+                "deviceId": owner_device_id,
+                "terminalId": "remote_arbitrary_command",
+                "platform": "claude",
+                "sessionKey": "claude:test-session",
+                "commandKind": "shell",
+                "cols": 80,
+                "rows": 24,
+            }))
+            .send()
+            .expect("arbitrary terminal command");
+        assert_eq!(arbitrary_command.status(), reqwest::StatusCode::BAD_REQUEST);
+        let arbitrary_body: serde_json::Value = arbitrary_command
+            .json()
+            .expect("arbitrary command error json");
+        assert_eq!(arbitrary_body["error"]["code"], "INVALID_REQUEST");
+
+        let owner_close: serde_json::Value = client
+            .delete(format!("{}/api/v1/terminals/{terminal_id}", status.url))
+            .bearer_auth(token)
+            .query(&[("deviceId", owner_device_id)])
+            .send()
+            .expect("owner terminal close")
+            .error_for_status()
+            .expect("owner terminal close status")
+            .json()
+            .expect("owner terminal close json");
+        assert_eq!(owner_close["data"]["closed"], true);
+
+        let empty_owner_list: serde_json::Value = client
+            .get(format!("{}/api/v1/terminals", status.url))
+            .bearer_auth(token)
+            .query(&[("deviceId", owner_device_id)])
+            .send()
+            .expect("empty owner terminal list")
+            .error_for_status()
+            .expect("empty owner terminal list status")
+            .json()
+            .expect("empty owner terminal list json");
+        assert_eq!(empty_owner_list["data"], serde_json::json!([]));
+
+        server.stop().expect("stop terminal server");
     }
 
     #[test]

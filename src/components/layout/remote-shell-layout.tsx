@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
   Terminal,
+  SquareTerminal,
   Wifi,
   X,
   type LucideIcon,
@@ -42,6 +43,7 @@ const REMOTE_PLATFORMS: RemotePlatformItem[] = [
   { id: "gemini", labelKey: "platformGemini", icon: Gem },
   { id: "grok", labelKey: "platformGrok", icon: Orbit },
   { id: "pi", labelKey: "platformPi", icon: Pi },
+  { id: "terminal-sessions", labelKey: "terminalSessions", icon: SquareTerminal },
 ];
 
 export default function RemoteShellLayout() {
@@ -52,6 +54,7 @@ export default function RemoteShellLayout() {
     t,
     isReadOnlyRemote,
     remoteBootstrap,
+    remoteCapabilities,
     state,
     dispatch,
   } = useDesktop();
@@ -68,8 +71,11 @@ export default function RemoteShellLayout() {
     const available = new Set(
       remoteBootstrap?.platforms
         .filter((platform) => platform.available)
-        .map((platform) => platform.id) ?? [],
+         .map((platform) => platform.id) ?? [],
     );
+    if (remoteBootstrap?.capabilities.terminal === true) {
+      available.add("terminal-sessions");
+    }
     const configured = snapshot?.settings.navigationItems ?? [];
     const orderedIds = [
       ...configured.filter((id) => available.has(id)),
@@ -81,8 +87,8 @@ export default function RemoteShellLayout() {
     });
   }, [remoteBootstrap?.platforms, snapshot?.settings.navigationItems]);
 
-  const activePlatform = visiblePlatforms.find((item) => item.id === state.currentPlatform)
-    ?? visiblePlatforms.find((item) => location.pathname === `/${item.id}`)
+  const activePlatform = visiblePlatforms.find((item) => location.pathname === `/${item.id}`)
+    ?? visiblePlatforms.find((item) => item.id === state.currentPlatform)
     ?? visiblePlatforms[0];
   const hasSelectedSession = Boolean(state.selectedSessionKey);
 
@@ -279,10 +285,26 @@ export default function RemoteShellLayout() {
           </nav>
 
           <div className="remote-drawer-footer">
-            {isReadOnlyRemote ? <Eye className="size-4" /> : <ShieldCheck className="size-4" />}
+            {remoteCapabilities?.terminal === true
+              ? <Terminal className="size-4" />
+              : isReadOnlyRemote
+                ? <Eye className="size-4" />
+                : <ShieldCheck className="size-4" />}
             <div>
-              <strong>{isReadOnlyRemote ? t("remoteReadOnly") : t("remoteEditsEnabled")}</strong>
-              <span>{isReadOnlyRemote ? t("remoteSourceOnHost") : t("remoteRevisionProtected")}</span>
+              <strong>
+                {remoteCapabilities?.terminal === true
+                  ? t("remoteTerminalControl")
+                  : isReadOnlyRemote
+                    ? t("remoteReadOnly")
+                    : t("remoteEditsEnabled")}
+              </strong>
+              <span>
+                {remoteCapabilities?.terminal === true
+                  ? t("remoteTerminalControlHint")
+                  : isReadOnlyRemote
+                    ? t("remoteSourceOnHost")
+                    : t("remoteRevisionProtected")}
+              </span>
             </div>
           </div>
         </aside>

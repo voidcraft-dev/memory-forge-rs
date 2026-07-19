@@ -374,6 +374,16 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              <div className="mt-4 border-t border-border/40 pt-4">
+                <ToggleRow
+                  checked={snapshot.settings.remoteTerminalEnabled}
+                  description={t("remoteAllowTerminalDesc")}
+                  disabled={remoteBusy}
+                  label={t("remoteAllowTerminal")}
+                  onToggle={(enabled) => applyRemoteSettings({ remoteTerminalEnabled: enabled })}
+                />
+              </div>
+
               <div className="mt-5 flex flex-col gap-3 border-t border-border/40 pt-5 sm:flex-row sm:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-2.5">
                   <span className={cn("size-2.5 shrink-0 rounded-full", remoteStatus?.running ? "bg-emerald-500" : "bg-red-400")} />

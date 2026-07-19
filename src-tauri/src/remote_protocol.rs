@@ -32,6 +32,14 @@ impl RemoteCapabilities {
             ..Self::read_only()
         }
     }
+
+    pub fn configured(session_edit: bool, terminal: bool) -> Self {
+        Self {
+            session_edit,
+            terminal,
+            ..Self::read_only()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -139,6 +147,43 @@ pub struct RestoreMessageMutation {
     pub session_key: String,
     pub edit_log_id: i64,
     pub expected_revision: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RemoteTerminalStartRequest {
+    pub device_id: String,
+    pub terminal_id: String,
+    pub platform: String,
+    pub session_key: String,
+    pub command_kind: String,
+    pub cols: u16,
+    pub rows: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RemoteTerminalInputRequest {
+    pub device_id: String,
+    pub data: String,
+    #[serde(default)]
+    pub binary: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RemoteTerminalResizeRequest {
+    pub device_id: String,
+    pub cols: u16,
+    pub rows: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RemoteTerminalStopRequest {
+    pub device_id: String,
+    #[serde(default)]
+    pub force: bool,
 }
 
 #[cfg(test)]

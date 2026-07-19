@@ -25,9 +25,11 @@ import type { MessageKey } from "@/features/desktop/i18n";
 import { useDesktop } from "@/features/desktop/provider";
 import { EmbeddedTerminalPanel } from "@/features/terminal/embedded-terminal-panel";
 import { useTerminal } from "@/features/terminal/terminal-context";
+import { useRemoteTerminal } from "@/features/terminal/remote-terminal-context";
 import { terminalTheme } from "@/features/terminal/terminal-theme";
 import type { EmbeddedTerminalSession } from "@/features/terminal/terminal-types";
 import { TerminalViewport } from "@/features/terminal/terminal-viewport";
+import { RemoteTerminalComposer } from "@/features/terminal/remote-terminal-composer";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -62,7 +64,9 @@ function getPlatformConfig(platform: string | null) {
 }
 
 export default function TerminalSessionsPage() {
-  const { t } = useDesktop();
+  const { t, isRemote } = useDesktop();
+  const localTerminal = useTerminal();
+  const remoteTerminal = useRemoteTerminal();
   const {
     terminals,
     activeTerminalId,
@@ -71,7 +75,7 @@ export default function TerminalSessionsPage() {
     stopTerminal,
     closeTerminal,
     renameTerminal,
-  } = useTerminal();
+  } = isRemote ? remoteTerminal : localTerminal;
   const { confirm, dialogProps } = useConfirmDialog();
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -197,10 +201,14 @@ export default function TerminalSessionsPage() {
 
 
   return (
-    <section className={cn(
+    <section
+      data-terminal-status={selectedTerminal?.status ?? "idle"}
+      className={cn(
       "flex h-full min-h-0 flex-col overflow-hidden bg-background transition-all",
+      isRemote && "remote-terminal-workspace",
       isMaximized ? "rounded-none border-none" : "rounded-[22px] border border-border/60"
-    )}>
+      )}
+    >
       {notice && (
         <div
           className="shrink-0 border-b border-amber-500/20 bg-amber-500/8 px-5 py-2.5 text-xs font-medium text-amber-500 md:px-6"
@@ -226,9 +234,9 @@ export default function TerminalSessionsPage() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Custom Terminal Tabs Bar at the top */}
-          <div className="flex h-11 shrink-0 items-end justify-between border-b border-border/30 bg-muted/20 px-4">
+          <div className="terminal-workspace-tabs flex h-11 shrink-0 items-end justify-between border-b border-border/30 bg-muted/20 px-4">
             <div
-              className="flex items-end gap-1 overflow-x-auto overflow-y-hidden scrollbar-none"
+              className="terminal-workspace-tablist flex items-end gap-1 overflow-x-auto overflow-y-hidden scrollbar-none"
               role="tablist"
               aria-label={t("terminal.tabsLabel")}
             >
@@ -378,7 +386,7 @@ export default function TerminalSessionsPage() {
             
             {/* Compact Toolbar on the right side of tab bar */}
             {selectedTerminal && (
-              <div className="flex items-center gap-3 shrink-0 h-9 mb-1 pl-4 ml-auto">
+              <div className="terminal-workspace-toolbar flex items-center gap-3 shrink-0 h-9 mb-1 pl-4 ml-auto">
                 {/* Active Terminal Status Badge & CWD */}
                 {selectedTerminal.cwd && (
                   <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 select-all">
@@ -427,16 +435,18 @@ export default function TerminalSessionsPage() {
                     </Button>
                   )}
                   
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                    onClick={() => void handleOpenExternal(selectedTerminal)}
-                    title={t("terminal.btn.openExternal")}
-                    aria-label={t("terminal.btn.openExternal")}
-                  >
-                    <ExternalLink className="size-3.5" />
-                  </Button>
+                   {!isRemote && (
+                     <Button
+                       variant="ghost"
+                       size="icon"
+                       className="size-7 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                       onClick={() => void handleOpenExternal(selectedTerminal)}
+                       title={t("terminal.btn.openExternal")}
+                       aria-label={t("terminal.btn.openExternal")}
+                     >
+                       <ExternalLink className="size-3.5" />
+                     </Button>
+                   )}
 
                   <Button
                     variant="ghost"
@@ -474,7 +484,7 @@ export default function TerminalSessionsPage() {
           </div>
 
           {/* Viewports Container */}
-          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#0d1117]">
+          <div className="terminal-workspace-viewports relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#0d1117]">
             {allTerminals.map((terminal) => {
               const active = terminal.id === selectedTerminal?.id;
               return (
@@ -495,12 +505,23 @@ export default function TerminalSessionsPage() {
                     onOpenExternal={() => void handleOpenExternal(terminal)}
                     onClose={() => void handleClose(terminal)}
                   >
-                    <TerminalViewport terminalId={terminal.id} isActive={active} />
+                     <TerminalViewport
+                       terminalId={terminal.id}
+                       isActive={active}
+                       transport={isRemote ? remoteTerminal : undefined}
+                     />
                   </EmbeddedTerminalPanel>
                 </div>
               );
             })}
           </div>
+          {isRemote && selectedTerminal && (
+            <RemoteTerminalComposer
+              terminalId={selectedTerminal.id}
+              transport={remoteTerminal}
+              disabled={selectedTerminal.status !== "running"}
+            />
+          )}
         </div>
       )}
 
@@ -589,19 +610,23 @@ export default function TerminalSessionsPage() {
               <span>{contextMenu.terminal.status === "stopping" ? t("terminal.btn.forceStop") : t("terminal.btn.stop")}</span>
             </button>
 
-            {/* open external */}
-            <button
-              type="button"
-              onClick={() => {
-                void handleOpenExternal(contextMenu.terminal);
-                setContextMenu(null);
-              }}
-              role="menuitem"
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
-            >
-              <ExternalLink className="size-3.5 opacity-80" />
-              <span>{t("terminal.btn.openExternal")}</span>
-            </button>
+            {!isRemote && (
+              <>
+                {/* open external */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleOpenExternal(contextMenu.terminal);
+                    setContextMenu(null);
+                  }}
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                >
+                  <ExternalLink className="size-3.5 opacity-80" />
+                  <span>{t("terminal.btn.openExternal")}</span>
+                </button>
+              </>
+            )}
 
             <div className="my-1 h-px bg-border/20" />
 

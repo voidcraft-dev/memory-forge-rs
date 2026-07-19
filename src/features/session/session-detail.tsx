@@ -8,11 +8,12 @@ import { useDesktop } from '@/features/desktop/provider'
 import { api, isSessionRevisionConflict } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
 import type { EditorTarget, TimelineBlock } from '@/features/desktop/types'
-import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play, FolderOpen, MousePointer2, Code, Sparkles, ArrowLeft, Eye } from 'lucide-react'
+import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play, GitFork, FolderOpen, MousePointer2, Code, Sparkles, ArrowLeft, Eye } from 'lucide-react'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { useTerminal } from '@/features/terminal/terminal-context'
+import { useRemoteTerminal } from '@/features/terminal/remote-terminal-context'
 import { useLocation, useNavigate } from 'react-router'
 
 const PAGE_SIZE = 50
@@ -85,6 +86,7 @@ export function SessionDetail() {
   const globalSearchQuery = state.searchQuery
 
   const { startTerminal } = useTerminal()
+  const { startTerminal: startRemoteTerminal } = useRemoteTerminal()
 
   const [aliasTitle, setAliasTitle] = useState('')
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
@@ -505,16 +507,24 @@ export function SessionDetail() {
     commandKind: 'resume' | 'fork',
     command: string,
   ) => {
-    const terminalId = await startTerminal(
-      sessionDetail.sessionKey,
-      commandKind,
-      command,
-      sessionDetail.cwd || null,
-      {
-        platform: currentPlatform,
-        sessionTitle: sessionDetail.aliasTitle || sessionDetail.title || sessionDetail.sessionId,
-      },
-    )
+    const sessionTitle = sessionDetail.aliasTitle || sessionDetail.title || sessionDetail.sessionId
+    const terminalId = isRemote
+      ? await startRemoteTerminal({
+          sessionKey: sessionDetail.sessionKey,
+          commandKind,
+          platform: currentPlatform,
+          sessionTitle,
+        })
+      : await startTerminal(
+          sessionDetail.sessionKey,
+          commandKind,
+          command,
+          sessionDetail.cwd || null,
+          {
+            platform: currentPlatform,
+            sessionTitle,
+          },
+        )
     if (!terminalId) {
       dispatch({
         type: 'setSessionStatus',
@@ -700,6 +710,10 @@ export function SessionDetail() {
   const detailLoading = selectedSessionKey !== sessionDetail.sessionKey
 
   if (isRemote) {
+    const remoteTerminalCommands = (['resume', 'fork'] as const).flatMap((commandKind) => {
+      const command = sessionDetail.commands?.[commandKind]
+      return command ? [{ commandKind, command }] : []
+    })
     const revisedTargets = new Set(state.editLog.map((entry) => entry.editTarget))
     const closeSession = () => {
       dispatch({ type: 'setSelectedSessionKey', payload: null })
@@ -744,6 +758,66 @@ export function SessionDetail() {
             <span>{t('session.totalMessages', { count: sessionDetail.blocks.length })}</span>
           </div>
           <div className="remote-detail-actions">
+            {remoteCapabilities?.terminal === true && remoteTerminalCommands.length > 0 && (
+              <div className="remote-terminal-launch" ref={terminalMenuRef}>
+                <button
+                  type="button"
+                  className={cn(
+                    'remote-icon-button remote-terminal-launch-button',
+                    terminalMenuOpen && 'remote-icon-button-active',
+                  )}
+                  onClick={() => setTerminalMenuOpen((open) => !open)}
+                  title={t('remoteOpenTerminal')}
+                  aria-label={t('remoteOpenTerminal')}
+                  aria-haspopup="menu"
+                  aria-expanded={terminalMenuOpen}
+                >
+                  <Terminal className="size-4" />
+                  <span className="remote-terminal-launch-label">{t('remoteOpenTerminal')}</span>
+                </button>
+
+                {terminalMenuOpen && (
+                  <div
+                    className="remote-terminal-launch-menu"
+                    role="menu"
+                    aria-label={t('remoteOpenTerminal')}
+                  >
+                    <div className="remote-terminal-launch-heading">
+                      <span aria-hidden="true" />
+                      <div>
+                        <strong>{t('remoteOpenTerminal')}</strong>
+                        <small>{t('remoteTerminalControlHint')}</small>
+                      </div>
+                    </div>
+                    <div className="remote-terminal-launch-options">
+                      {remoteTerminalCommands.map(({ commandKind, command }) => {
+                        const isResume = commandKind === 'resume'
+                        const Icon = isResume ? Play : GitFork
+                        return (
+                          <button
+                            key={commandKind}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setTerminalMenuOpen(false)
+                              void handleStartEmbeddedTerminal(commandKind, command)
+                            }}
+                          >
+                            <span className="remote-terminal-launch-option-icon">
+                              <Icon className="size-4" />
+                            </span>
+                            <span>
+                              <strong>{t(isResume ? 'terminal.resumeEmbedded' : 'terminal.forkEmbedded')}</strong>
+                              <small>{t(isResume ? 'remoteTerminalResumeHint' : 'remoteTerminalForkHint')}</small>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <button
               type="button"
               className={cn('remote-icon-button', refreshDone && 'remote-icon-button-success')}
@@ -1041,7 +1115,7 @@ export function SessionDetail() {
             )}
 
             {/* Geek Terminal Dropdown Button */}
-            {!isReadOnlyRemote && remoteCapabilities?.terminal !== false && (() => {
+            {(!isRemote || remoteCapabilities?.terminal === true) && (() => {
               const availableCommands = ['resume', 'fork'].filter(label => sessionDetail.commands?.[label])
               if (availableCommands.length === 0) return null
               return (
@@ -1056,7 +1130,7 @@ export function SessionDetail() {
                     onClick={() => setTerminalMenuOpen(!terminalMenuOpen)}
                   >
                     <Terminal className="w-4 h-4 text-emerald-400" />
-                    <span className="hidden sm:inline">终端指令 (Terminal)</span>
+                    <span className={cn(!isRemote && "hidden sm:inline")}>{isRemote ? t('remoteOpenTerminal') : '终端指令 (Terminal)'}</span>
                     <ChevronDown className="w-3 h-3 opacity-60" />
                   </Button>
                   {terminalMenuOpen && (
@@ -1086,38 +1160,42 @@ export function SessionDetail() {
                               <span>{t(isResume ? 'terminal.resumeEmbedded' : 'terminal.forkEmbedded')}</span>
                             </button>
 
-                            {/* External option */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTerminalMenuOpen(false)
-                                handleOpenCommand(label, command)
-                              }}
-                              disabled={openingKey === operationKey}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-50 cursor-pointer"
-                            >
-                              {openingKey === operationKey ? (
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />
-                              ) : (
-                                <Play className="w-3.5 h-3.5 shrink-0 text-primary" />
-                              )}
-                              <span>{t(isResume ? 'terminal.resumeExternal' : 'terminal.forkExternal')}</span>
-                            </button>
+                            {!isRemote && (
+                              <>
+                                {/* External option */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTerminalMenuOpen(false)
+                                    handleOpenCommand(label, command)
+                                  }}
+                                  disabled={openingKey === operationKey}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-50 cursor-pointer"
+                                >
+                                  {openingKey === operationKey ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />
+                                  ) : (
+                                    <Play className="w-3.5 h-3.5 shrink-0 text-primary" />
+                                  )}
+                                  <span>{t(isResume ? 'terminal.resumeExternal' : 'terminal.forkExternal')}</span>
+                                </button>
 
-                            {/* Copy option */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTerminalMenuOpen(false)
-                                handleCopyCommand(label, command)
-                              }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors cursor-pointer"
-                            >
-                              <Copy className="w-3.5 h-3.5 shrink-0" />
-                              <span>
-                                {copiedKey === operationKey ? t('session.copied') : t(isResume ? 'terminal.copyResumeCmd' : 'terminal.copyForkCmd')}
-                              </span>
-                            </button>
+                                {/* Copy option */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTerminalMenuOpen(false)
+                                    handleCopyCommand(label, command)
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors cursor-pointer"
+                                >
+                                  <Copy className="w-3.5 h-3.5 shrink-0" />
+                                  <span>
+                                    {copiedKey === operationKey ? t('session.copied') : t(isResume ? 'terminal.copyResumeCmd' : 'terminal.copyForkCmd')}
+                                  </span>
+                                </button>
+                              </>
+                            )}
                             
                             {idx < arr.length - 1 && <div className="border-t border-border/20 my-2" />}
                           </div>

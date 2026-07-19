@@ -27,6 +27,7 @@ export type DesktopSettings = {
   remoteBindMode: "loopback" | "lan";
   remotePort: number;
   remoteMutationsEnabled: boolean;
+  remoteTerminalEnabled: boolean;
 };
 
 export type DesktopSettingsPatch = Partial<DesktopSettings>;
@@ -52,6 +53,7 @@ export type RemoteServerStatus = {
   url: string;
   protocolVersion: number;
   readOnly: boolean;
+  terminalEnabled?: boolean;
   authRequired?: boolean;
   lanUrls?: string[];
   accessToken?: string | null;

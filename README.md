@@ -127,7 +127,18 @@ That's it. Your AI picks up the corrected memory on the next `--resume`.
 **Experimental LAN Companion**
 - **Phone-friendly UI** — Browse sessions and audit history from a browser on the same network
 - **Protected Writes** — Optional message edits, erases and restores use Bearer authentication, revision checks and the audit log
+- **Bedside CLI Control** — Resume or fork a supported AI CLI session on the host, view live PTY output, send prompts and reconnect after a phone-page refresh
 - **Current Limit** — LAN transport is plain HTTP and is intended only for trusted networks; see [Remote Protocol v1](docs/remote-protocol-v1.md)
+
+### Try the LAN companion (experimental)
+
+1. In desktop Settings, change Remote access from **This device only** to **LAN**.
+2. Enable **Remote terminal** and, if wanted, **Remote edits**.
+3. Keep the desktop app running and scan its QR code with a phone on the same trusted network. It opens in the phone browser; no mobile app is required.
+4. Open a supported session, tap the terminal button, then choose **Resume** or **Fork**. The CLI runs on the computer while output and input travel through the LAN companion.
+
+Closing or refreshing the phone page does not end a running terminal. Reopen the terminal list to
+continue. This milestone is LAN-only: it does not expose an Internet relay, HTTPS or E2EE.
 
 ## Supported Platforms
 
@@ -347,7 +358,18 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 **实验性局域网伴侣**
 - **手机友好界面** — 在同一网络的手机浏览器中查看会话与修改记录
 - **受保护的写入** — 可选的编辑、擦除和恢复均经过 Bearer 鉴权、revision 冲突检查与审计日志
+- **躺床上控制 CLI** — 在主机恢复或分叉受支持的 AI CLI 会话，查看实时 PTY 输出、发送提示词，并在手机页面刷新后重新接回
 - **当前限制** — 局域网传输仍是明文 HTTP，只适合可信网络；详见 [远程协议 v1](docs/remote-protocol-v1.md)
+
+### 体验局域网伴侣（实验性）
+
+1. 在桌面端「设置」中把远程访问从**仅本机**切换为**局域网**。
+2. 开启**远程终端**；如果需要手机改记忆，再开启**远程编辑**。
+3. 保持桌面应用运行，用同一可信局域网里的手机扫描二维码。它会直接在手机浏览器打开，不需要安装 App。
+4. 打开受支持的会话，点击终端按钮，再选择**恢复**或**分叉**。AI CLI 实际运行在电脑上，手机负责显示输出和发送输入。
+
+关闭或刷新手机页面不会结束正在运行的终端，重新打开终端列表即可继续连接。当前里程碑
+仅支持局域网，不包含外网 Relay、HTTPS 或 E2EE。
 
 ## 支持平台
 

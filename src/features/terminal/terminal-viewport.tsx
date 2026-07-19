@@ -5,10 +5,12 @@ import "@xterm/xterm/css/xterm.css";
 import { useDesktop } from "@/features/desktop/provider";
 import { useTerminal } from "./terminal-context";
 import { xtermTheme } from "./terminal-theme";
+import type { TerminalTransport } from "./terminal-types";
 
 interface TerminalViewportProps {
   terminalId: string;
   isActive: boolean;
+  transport?: TerminalTransport;
 }
 
 function encodeBinaryString(value: string) {
@@ -19,9 +21,12 @@ function encodeBinaryString(value: string) {
   return globalThis.btoa(binary);
 }
 
-export function TerminalViewport({ terminalId, isActive }: TerminalViewportProps) {
+export function TerminalViewport({ terminalId, isActive, transport }: TerminalViewportProps) {
   const { t } = useDesktop();
-  const { writeTerminal, resizeTerminal, subscribeToOutput } = useTerminal();
+  const localTerminal = useTerminal();
+  const writeTerminal = transport?.writeTerminal ?? localTerminal.writeTerminal;
+  const resizeTerminal = transport?.resizeTerminal ?? localTerminal.resizeTerminal;
+  const subscribeToOutput = transport?.subscribeToOutput ?? localTerminal.subscribeToOutput;
   const hostRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -145,7 +150,7 @@ export function TerminalViewport({ terminalId, isActive }: TerminalViewportProps
   }, [isActive]);
 
   return (
-    <div className="h-full min-h-0 w-full bg-[#0d1117] p-2">
+    <div className="terminal-viewport-frame h-full min-h-0 w-full bg-[#0d1117] p-2">
       <div
         ref={hostRef}
         className="h-full min-h-0 w-full overflow-hidden"

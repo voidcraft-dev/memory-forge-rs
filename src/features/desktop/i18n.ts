@@ -89,6 +89,8 @@ export type MessageKey =
   | "remoteLan"
   | "remoteAllowEdits"
   | "remoteAllowEditsDesc"
+  | "remoteAllowTerminal"
+  | "remoteAllowTerminalDesc"
   | "remotePort"
   | "remoteRestart"
   | "remoteRunning"
@@ -117,6 +119,16 @@ export type MessageKey =
   | "remoteCollapseContent"
   | "remoteExpandContent"
   | "remoteSessionCount"
+  | "remoteTerminalPromptPlaceholder"
+  | "remoteTerminalSend"
+  | "remoteTerminalKeys"
+  | "remoteTerminalControl"
+  | "remoteTerminalControlHint"
+  | "remoteOpenTerminal"
+  | "remoteTerminalResumeHint"
+  | "remoteTerminalForkHint"
+  | "remoteTerminalHistoryTruncated"
+  | "remoteTerminalInputFailed"
   | "toggleOn"
   | "toggleOff"
   // Prompts
@@ -444,6 +456,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     remoteLan: "局域网",
     remoteAllowEdits: "允许远程编辑",
     remoteAllowEditsDesc: "手机编辑与复原均执行 revision 冲突保护并写入审计日志。",
+    remoteAllowTerminal: "允许远程终端",
+    remoteAllowTerminalDesc: "手机可以恢复或分支会话，并控制主机上的内嵌 CLI 进程。不会接受任意 shell 命令。",
     remotePort: "服务端口",
     remoteRestart: "重启服务",
     remoteRunning: "服务运行中",
@@ -472,6 +486,16 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     remoteCollapseContent: "收起完整内容",
     remoteExpandContent: "展开完整内容",
     remoteSessionCount: "共 {count} 个会话",
+    remoteTerminalPromptPlaceholder: "输入给 AI 的消息...",
+    remoteTerminalSend: "发送",
+    remoteTerminalKeys: "终端控制键",
+    remoteTerminalControl: "远程终端已启用",
+    remoteTerminalControlHint: "进程运行在主机，手机可随时重连",
+    remoteOpenTerminal: "打开主机终端",
+    remoteTerminalResumeHint: "继续原会话与完整上下文",
+    remoteTerminalForkHint: "从当前会话创建独立分支",
+    remoteTerminalHistoryTruncated: "[Memory Forge] 较早的终端输出已从主机缓冲区清理",
+    remoteTerminalInputFailed: "发送失败，连接恢复后重试",
     toggleOn: "开启",
     toggleOff: "关闭",
     promptLibrary: "提示词库",
@@ -793,6 +817,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     remoteLan: "Local network",
     remoteAllowEdits: "Allow remote edits",
     remoteAllowEditsDesc: "Phone edits and restores use revision protection and are written to the audit log.",
+    remoteAllowTerminal: "Allow remote terminal",
+    remoteAllowTerminalDesc: "The phone can resume or fork a session and control its host CLI process. Arbitrary shell commands are rejected.",
     remotePort: "Service port",
     remoteRestart: "Restart service",
     remoteRunning: "Service running",
@@ -821,6 +847,16 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     remoteCollapseContent: "Collapse full content",
     remoteExpandContent: "Expand full content",
     remoteSessionCount: "{count} sessions",
+    remoteTerminalPromptPlaceholder: "Message the AI...",
+    remoteTerminalSend: "Send",
+    remoteTerminalKeys: "Terminal control keys",
+    remoteTerminalControl: "Remote terminal enabled",
+    remoteTerminalControlHint: "The process stays on the host and can be reconnected",
+    remoteOpenTerminal: "Open host terminal",
+    remoteTerminalResumeHint: "Continue the original session and context",
+    remoteTerminalForkHint: "Create an independent branch from this session",
+    remoteTerminalHistoryTruncated: "[Memory Forge] Earlier terminal output has left the host buffer",
+    remoteTerminalInputFailed: "Send failed. Retry after the connection recovers.",
     toggleOn: "On",
     toggleOff: "Off",
     promptLibrary: "Prompt Library",

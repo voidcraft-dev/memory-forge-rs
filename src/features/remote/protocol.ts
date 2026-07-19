@@ -81,3 +81,32 @@ export type RemoteMutationResult = {
   mutationId: string
   applied: boolean
 }
+
+export type RemoteTerminalStatus = 'starting' | 'running' | 'stopping' | 'exited' | 'failed'
+
+export type RemoteTerminalSnapshot = {
+  terminalId: string
+  sessionKey: string
+  platform: string
+  commandKind: 'resume' | 'fork'
+  title: string
+  cwd: string
+  status: RemoteTerminalStatus
+  processId?: number | null
+  exitCode?: number | null
+  errorMessage?: string | null
+  createdAt: number
+  nextCursor: number
+}
+
+export type RemoteTerminalOutputChunk = {
+  cursor: number
+  data: string
+}
+
+export type RemoteTerminalOutput = {
+  terminal: RemoteTerminalSnapshot
+  chunks: RemoteTerminalOutputChunk[]
+  nextCursor: number
+  truncated: boolean
+}

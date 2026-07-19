@@ -5,6 +5,7 @@ import { AppLogo } from "@/components/logo";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DesktopProvider } from "@/features/desktop/provider";
 import { TerminalProvider } from "@/features/terminal/terminal-context";
+import { RemoteTerminalProvider } from "@/features/terminal/remote-terminal-context";
 import AppErrorPage from "@/features/errors/app-error";
 
 export default function AppProvider({ children }: { children: ReactNode }) {
@@ -21,9 +22,11 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     >
       <ErrorBoundary FallbackComponent={AppErrorPage}>
         <DesktopProvider>
-          <TerminalProvider>
-            <TooltipProvider>{children}</TooltipProvider>
-          </TerminalProvider>
+          <RemoteTerminalProvider>
+            <TerminalProvider>
+              <TooltipProvider>{children}</TooltipProvider>
+            </TerminalProvider>
+          </RemoteTerminalProvider>
         </DesktopProvider>
       </ErrorBoundary>
     </Suspense>
