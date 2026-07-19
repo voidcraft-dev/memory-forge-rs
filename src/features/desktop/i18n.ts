@@ -73,6 +73,28 @@ export type MessageKey =
   | "ready"
   | "runtimeTauri"
   | "runtimeWebPreview"
+  | "runtimeRemote"
+  | "remoteReadOnly"
+  | "remoteServer"
+  | "remoteReadOnlyHint"
+  | "mobileBackToSessions"
+  | "remoteAccessTitle"
+  | "remoteAccessToken"
+  | "remoteConnect"
+  | "remoteAccessInvalid"
+  | "remoteSection"
+  | "remoteSectionDesc"
+  | "remoteMode"
+  | "remoteLoopback"
+  | "remoteLan"
+  | "remoteAllowEdits"
+  | "remoteAllowEditsDesc"
+  | "remotePort"
+  | "remoteRestart"
+  | "remoteRunning"
+  | "remoteStopped"
+  | "remoteCopyLink"
+  | "remoteLinkCopied"
   | "toggleOn"
   | "toggleOff"
   // Prompts
@@ -145,6 +167,7 @@ export type MessageKey =
   | "session.enterContent"
   | "session.saveChanges"
   | "session.saveFailed"
+  | "session.revisionConflict"
   | "session.aliasSaved"
   | "session.aliasSaveFailed"
   | "session.messageSaved"
@@ -383,6 +406,28 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     ready: "已就绪",
     runtimeTauri: "原生桌面",
     runtimeWebPreview: "网页预览",
+    runtimeRemote: "局域网远程",
+    remoteReadOnly: "只读远程",
+    remoteServer: "远程主机",
+    remoteReadOnlyHint: "当前连接只开放查看与审计，原始数据仍保存在主机。",
+    mobileBackToSessions: "返回会话列表",
+    remoteAccessTitle: "连接记忆锻造主机",
+    remoteAccessToken: "访问令牌",
+    remoteConnect: "连接",
+    remoteAccessInvalid: "令牌无效或主机暂时不可用",
+    remoteSection: "手机远程",
+    remoteSectionDesc: "控制本机服务的监听范围、端口和远程写入权限。",
+    remoteMode: "访问范围",
+    remoteLoopback: "仅本机",
+    remoteLan: "局域网",
+    remoteAllowEdits: "允许远程编辑",
+    remoteAllowEditsDesc: "手机编辑与复原均执行 revision 冲突保护并写入审计日志。",
+    remotePort: "服务端口",
+    remoteRestart: "重启服务",
+    remoteRunning: "服务运行中",
+    remoteStopped: "服务未运行",
+    remoteCopyLink: "复制手机链接",
+    remoteLinkCopied: "手机链接已复制",
     toggleOn: "开启",
     toggleOff: "关闭",
     promptLibrary: "提示词库",
@@ -451,6 +496,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.enterContent": "输入内容...",
     "session.saveChanges": "保存修改",
     "session.saveFailed": "保存失败",
+    "session.revisionConflict": "会话内容已在其他位置更新。为避免覆盖，本次修改未保存；请重新打开编辑器确认最新内容。",
     "session.aliasSaved": "别名已保存",
     "session.aliasSaveFailed": "别名保存失败",
     "session.messageSaved": "修改已保存",
@@ -687,6 +733,28 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     ready: "Ready",
     runtimeTauri: "Native desktop",
     runtimeWebPreview: "Web preview",
+    runtimeRemote: "LAN remote",
+    remoteReadOnly: "Read-only remote",
+    remoteServer: "Remote host",
+    remoteReadOnlyHint: "This connection is read-only. Source data stays on the host.",
+    mobileBackToSessions: "Back to sessions",
+    remoteAccessTitle: "Connect to Memory Forge",
+    remoteAccessToken: "Access token",
+    remoteConnect: "Connect",
+    remoteAccessInvalid: "The token is invalid or the host is unavailable",
+    remoteSection: "Phone remote",
+    remoteSectionDesc: "Control the daemon scope, port, and remote write permission.",
+    remoteMode: "Access scope",
+    remoteLoopback: "This device",
+    remoteLan: "Local network",
+    remoteAllowEdits: "Allow remote edits",
+    remoteAllowEditsDesc: "Phone edits and restores use revision protection and are written to the audit log.",
+    remotePort: "Service port",
+    remoteRestart: "Restart service",
+    remoteRunning: "Service running",
+    remoteStopped: "Service stopped",
+    remoteCopyLink: "Copy phone link",
+    remoteLinkCopied: "Phone link copied",
     toggleOn: "On",
     toggleOff: "Off",
     promptLibrary: "Prompt Library",
@@ -755,6 +823,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.enterContent": "Enter content...",
     "session.saveChanges": "Save Changes",
     "session.saveFailed": "Save failed",
+    "session.revisionConflict": "This session changed elsewhere. Your edit was not saved; reopen the editor and review the latest content before trying again.",
     "session.aliasSaved": "Alias saved",
     "session.aliasSaveFailed": "Failed to save alias",
     "session.messageSaved": "Changes saved",

@@ -11,13 +11,24 @@ import type {
   RawJsonlExportResult,
   RawJsonlImportPreview,
   RawJsonlImportResult,
-  Session,
+  RemoteServerStatus,
   SessionDetail,
   SessionListResult,
   UpdateInfo,
 } from "@/features/desktop/types";
+import type {
+  EditMessageMutation,
+  RemoteBootstrap,
+  RemoteCapabilities,
+  RestoreMessageMutation,
+} from "@/features/remote/protocol";
 
 const STORAGE_KEY = "memory-forge.snapshot";
+const API_BASE = "/api/v1";
+const REMOTE_DEVICE_ID_KEY = "memory-forge.remote-device-id";
+const REMOTE_ACCESS_TOKEN_KEY = "memory-forge.remote-access-token";
+
+let webRemoteCapabilities: RemoteCapabilities | null = null;
 
 const defaultSettings = {
   theme: "porcelain" as const,
@@ -45,13 +56,31 @@ const defaultSettings = {
     "grok",
     "pi",
   ] as string[],
+  remoteBindMode: "loopback" as const,
+  remotePort: 7331,
+  remoteMutationsEnabled: false,
 };
 
-function isTauriRuntime() {
+export function isTauriRuntime() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+export function isSessionRevisionConflict(error: unknown) {
+  if (typeof error === "string") {
+    return error.includes("SESSION_REVISION_CONFLICT");
+  }
+  if (error instanceof Error) {
+    return error.message.includes("SESSION_REVISION_CONFLICT");
+  }
+  try {
+    return JSON.stringify(error).includes("SESSION_REVISION_CONFLICT");
+  } catch {
+    return false;
+  }
+}
+
 function defaultWebSnapshot(): DesktopSnapshot {
+  webRemoteCapabilities = null;
   return {
     appName: "Memory Forge",
     version: "3.0.0",
@@ -66,12 +95,61 @@ function defaultWebSnapshot(): DesktopSnapshot {
   };
 }
 
+function remoteWebSnapshot(bootstrap: RemoteBootstrap): DesktopSnapshot {
+  const local = readWebSnapshot();
+  webRemoteCapabilities = bootstrap.capabilities;
+  const availablePlatforms = bootstrap.platforms
+    .filter((platform) => platform.available)
+    .map((platform) => platform.id);
+  const availableSet = new Set(availablePlatforms);
+  const navigationItems = (local.settings.navigationItems ?? []).filter(
+    (item) => item === "terminal-sessions"
+      ? bootstrap.capabilities.terminal
+      : availableSet.has(item),
+  );
+  const nextNavigationItems = navigationItems.length > 0
+    ? navigationItems
+    : availablePlatforms.slice(0, 6);
+
+  return {
+    ...local,
+    appName: "Memory Forge",
+    version: bootstrap.serverVersion,
+    runtime: "remote-web",
+    configDir: `remote://${bootstrap.serverName}`,
+    configFile: "remote://bootstrap",
+    dataDir: `remote://${bootstrap.serverId}`,
+    dbPath: "remote://daemon",
+    trayAvailable: false,
+    autostartSupported: false,
+    remote: bootstrap,
+    settings: {
+      ...local.settings,
+      visiblePlatforms: availablePlatforms,
+      navigationItems: nextNavigationItems,
+    },
+  };
+}
+
 function readWebSnapshot() {
   if (typeof window === "undefined") return defaultWebSnapshot();
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) return defaultWebSnapshot();
   try {
-    return JSON.parse(raw) as DesktopSnapshot;
+    const parsed = JSON.parse(raw) as Partial<DesktopSnapshot>;
+    const defaults = defaultWebSnapshot();
+    const snapshot: DesktopSnapshot = {
+      ...defaults,
+      ...parsed,
+      settings: {
+        ...defaultSettings,
+        ...parsed.settings,
+      },
+    };
+    webRemoteCapabilities = snapshot.runtime === "remote-web"
+      ? snapshot.remote?.capabilities ?? null
+      : null;
+    return snapshot;
   } catch {
     return defaultWebSnapshot();
   }
@@ -86,7 +164,25 @@ function writeWebSnapshot(snapshot: DesktopSnapshot) {
 
 export async function loadDesktopSnapshot(): Promise<DesktopSnapshot> {
   if (!isTauriRuntime()) {
-    const snapshot = readWebSnapshot();
+    try {
+      const response = await fetch(`${API_BASE}/bootstrap`, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (response.ok) {
+        const envelope = (await response.json()) as {
+          data?: RemoteBootstrap;
+        };
+        if (envelope.data?.capabilities && envelope.data.serverId) {
+          const snapshot = remoteWebSnapshot(envelope.data);
+          writeWebSnapshot(snapshot);
+          return snapshot;
+        }
+      }
+    } catch {
+      // A standalone browser preview has no daemon. Keep the local preview fallback.
+    }
+    const snapshot = defaultWebSnapshot();
     writeWebSnapshot(snapshot);
     return snapshot;
   }
@@ -103,6 +199,20 @@ export async function updateDesktopSettings(
     return next;
   }
   return invoke<DesktopSnapshot>("app_settings_set", { patch });
+}
+
+export async function getRemoteServerStatus(): Promise<RemoteServerStatus> {
+  if (!isTauriRuntime()) {
+    throw new Error("Remote server status is only available in the desktop app");
+  }
+  return invoke<RemoteServerStatus>("remote_server_status");
+}
+
+export async function restartRemoteServer(): Promise<RemoteServerStatus> {
+  if (!isTauriRuntime()) {
+    throw new Error("Remote server restart is only available in the desktop app");
+  }
+  return invoke<RemoteServerStatus>("remote_server_restart");
 }
 
 // ─── Prompt API ───
@@ -256,7 +366,64 @@ export async function importPrompts(
 // In web-preview mode, sessions come from the Python backend via HTTP
 // In Tauri mode, sessions come from Rust commands
 
-const API_BASE = "/api";
+function remoteDeviceId() {
+  if (typeof window === "undefined") return "web-preview";
+  const existing = window.localStorage.getItem(REMOTE_DEVICE_ID_KEY);
+  if (existing) return existing;
+  const value = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  window.localStorage.setItem(REMOTE_DEVICE_ID_KEY, value);
+  return value;
+}
+
+function captureRemoteAccessToken() {
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const tokenFromHash = new URLSearchParams(hash).get("token")?.trim();
+  if (tokenFromHash) {
+    window.localStorage.setItem(REMOTE_ACCESS_TOKEN_KEY, tokenFromHash);
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    return tokenFromHash;
+  }
+  return window.localStorage.getItem(REMOTE_ACCESS_TOKEN_KEY);
+}
+
+export function hasRemoteAccessToken() {
+  return Boolean(captureRemoteAccessToken());
+}
+
+export function setRemoteAccessToken(token: string) {
+  if (typeof window === "undefined") return;
+  const trimmed = token.trim();
+  if (trimmed) window.localStorage.setItem(REMOTE_ACCESS_TOKEN_KEY, trimmed);
+  else window.localStorage.removeItem(REMOTE_ACCESS_TOKEN_KEY);
+}
+
+function remoteMutationId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `mutation-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function assertRemoteCapability(capability: keyof RemoteCapabilities) {
+  if (webRemoteCapabilities !== null && webRemoteCapabilities[capability] !== true) {
+    throw new Error(`REMOTE_CAPABILITY_UNAVAILABLE:${capability}`);
+  }
+}
+
+function rejectUnsupportedRemoteOperation(capability: string) {
+  if (webRemoteCapabilities !== null) {
+    throw new Error(`REMOTE_CAPABILITY_UNAVAILABLE:${capability}`);
+  }
+}
+
+export function isRemoteCapabilityUnavailable(error: unknown) {
+  return typeof error === "string"
+    ? error.includes("REMOTE_CAPABILITY_UNAVAILABLE")
+    : error instanceof Error && error.message.includes("REMOTE_CAPABILITY_UNAVAILABLE");
+}
 
 export interface StartEmbeddedTerminalRequest {
   terminalId: string;
@@ -275,14 +442,35 @@ export interface EmbeddedTerminalStarted {
 }
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+  const accessToken = captureRemoteAccessToken();
   const response = await fetch(url, {
     ...options,
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
+      "X-Request-ID": remoteMutationId(),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...options?.headers,
     },
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) {
+    type RemoteErrorDetail = { code?: string; message?: string; currentRevision?: string };
+    let detail: RemoteErrorDetail | undefined;
+    try {
+      const body = (await response.json()) as { error?: RemoteErrorDetail };
+      detail = body.error;
+    } catch {
+      // Fall back to the HTTP status when a proxy returns a non-JSON error page.
+    }
+    const error = new Error(
+      detail?.code
+        ? `${detail.code}: ${detail.message ?? `HTTP ${response.status}`}`
+        : `HTTP ${response.status}`,
+    ) as Error & { code?: string; currentRevision?: string };
+    error.code = detail?.code;
+    error.currentRevision = detail?.currentRevision;
+    throw error;
+  }
   const data = await response.json();
   return data.data ?? data;
 }
@@ -293,7 +481,7 @@ export const api = {
     if (isTauriRuntime()) {
       return invoke<DashboardSummary>("dashboard_summary");
     }
-    return fetchJSON<DashboardSummary>(`${API_BASE}/dashboard/summary`);
+    return fetchJSON<DashboardSummary>(`${API_BASE}/dashboard`);
   },
 
   // Sessions
@@ -307,20 +495,20 @@ export const api = {
         showArchived: showArchived ?? false,
       });
     }
-    const params = q ? `?q=${encodeURIComponent(q)}` : "";
-    const items = await fetchJSON<Session[]>(`${API_BASE}/platforms/${platform}/sessions${params}`);
-    return { total: items.length, items };
+    const params = new URLSearchParams({ platform });
+    if (q) params.set("q", q);
+    if (limit !== undefined) params.set("limit", String(limit));
+    if (offset !== undefined) params.set("offset", String(offset));
+    if (showArchived !== undefined) params.set("showArchived", String(showArchived));
+    return fetchJSON<SessionListResult>(`${API_BASE}/sessions?${params}`);
   },
 
   async getSessionDetail(platform: string, sessionKey: string): Promise<SessionDetail> {
     if (isTauriRuntime()) {
       return invoke<SessionDetail>("session_detail", { platform, sessionKey });
     }
-    const encodedKey = encodeURIComponent(sessionKey);
-    const data = await fetchJSON<{ detail: SessionDetail }>(
-      `${API_BASE}/platforms/${platform}/session-detail/${encodedKey}`
-    );
-    return data.detail ?? data;
+    const params = new URLSearchParams({ platform, sessionKey });
+    return fetchJSON<SessionDetail>(`${API_BASE}/session-detail?${params}`);
   },
 
   async getExecutionOutput(platform: string, sessionKey: string, editTarget: string): Promise<string> {
@@ -400,6 +588,7 @@ export const api = {
     if (isTauriRuntime()) {
       return invoke("session_set_alias", { platform, sessionKey, title });
     }
+    rejectUnsupportedRemoteOperation("sessionMetadata");
     const encodedKey = encodeURIComponent(sessionKey);
     return fetchJSON(`${API_BASE}/platforms/${platform}/sessions/${encodedKey}/alias`, {
       method: "POST",
@@ -407,13 +596,23 @@ export const api = {
     });
   },
 
-  async editMessage(platform: string, messageId: string, content: string, sessionKey: string) {
+  async editMessage(platform: string, messageId: string, content: string, sessionKey: string, expectedRevision: string) {
     if (isTauriRuntime()) {
-      return invoke("session_edit_message", { platform, messageId, content, sessionKey });
+      return invoke("session_edit_message", { platform, messageId, content, sessionKey, expectedRevision });
     }
-    return fetchJSON(`${API_BASE}/platforms/${platform}/messages/${encodeURIComponent(messageId)}/edit`, {
+    assertRemoteCapability("sessionEdit");
+    const mutation: EditMessageMutation = {
+      deviceId: remoteDeviceId(),
+      mutationId: remoteMutationId(),
+      platform,
+      sessionKey,
+      messageId,
+      content,
+      expectedRevision,
+    };
+    return fetchJSON(`${API_BASE}/mutations/session-edit`, {
       method: "POST",
-      body: JSON.stringify({ content, sessionKey }),
+      body: JSON.stringify(mutation),
     });
   },
 
@@ -421,15 +620,27 @@ export const api = {
     if (isTauriRuntime()) {
       return invoke<EditLogEntry[]>("session_edit_log", { platform, sessionKey });
     }
-    const encodedKey = encodeURIComponent(sessionKey);
-    return fetchJSON<EditLogEntry[]>(`${API_BASE}/platforms/${platform}/sessions/${encodedKey}/edit-log`);
+    const params = new URLSearchParams({ platform, sessionKey });
+    return fetchJSON<EditLogEntry[]>(`${API_BASE}/edit-log?${params}`);
   },
 
-  async restoreMessage(platform: string, editLogId: number, sessionKey: string) {
+  async restoreMessage(platform: string, editLogId: number, sessionKey: string, expectedRevision: string) {
     if (isTauriRuntime()) {
-      return invoke("session_restore_message", { platform, editLogId, sessionKey });
+      return invoke("session_restore_message", { platform, editLogId, sessionKey, expectedRevision });
     }
-    throw new Error("Restore not supported in web preview");
+    assertRemoteCapability("sessionEdit");
+    const mutation: RestoreMessageMutation = {
+      deviceId: remoteDeviceId(),
+      mutationId: remoteMutationId(),
+      platform,
+      sessionKey,
+      editLogId,
+      expectedRevision,
+    };
+    return fetchJSON(`${API_BASE}/mutations/session-restore`, {
+      method: "POST",
+      body: JSON.stringify(mutation),
+    });
   },
 
   async deleteEditLog(platform: string, editLogId: number, sessionKey: string): Promise<boolean> {
@@ -475,6 +686,7 @@ export const api = {
     if (isTauriRuntime()) {
       return invoke<boolean>("session_toggle_flag", { platform, sessionKey, flag });
     }
+    rejectUnsupportedRemoteOperation("sessionMetadata");
     return false;
   },
 
@@ -482,6 +694,7 @@ export const api = {
     if (isTauriRuntime()) {
       return invoke<number>("session_batch_set_flag", { platform, sessionKeys, flag, set });
     }
+    rejectUnsupportedRemoteOperation("sessionMetadata");
     return 0;
   },
 

@@ -271,6 +271,7 @@ impl super::PlatformAdapter for OpenCodePlatform {
             alias_title: alias,
             cwd: session_cwd,
             commands: build_commands("opencode", session_key),
+            revision: String::new(),
             blocks,
         })
     }

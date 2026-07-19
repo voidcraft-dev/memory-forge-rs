@@ -419,6 +419,7 @@ impl PlatformAdapter for CursorPlatform {
             alias_title: alias,
             cwd,
             commands: build_commands("cursor", session_key),
+            revision: String::new(),
             blocks,
         })
     }

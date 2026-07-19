@@ -11,6 +11,9 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi", "app", "dmg", "deb", "rpm", "appimage"],
+    "resources": {
+      "../dist/": "web/"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -22,7 +25,8 @@
   "plugins": {},
   "app": {
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "devCsp": "default-src 'self' http://localhost:1430; connect-src 'self' ipc: http://ipc.localhost http://localhost:1430 ws://localhost:1430; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline' http://localhost:1430; font-src 'self' data:; script-src 'self' 'unsafe-eval' http://localhost:1430; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
     },
     "windows": [
       {

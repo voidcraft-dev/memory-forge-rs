@@ -15,6 +15,10 @@ export default defineConfig({
   server: {
     port: 1430,
     strictPort: true,
+    proxy: {
+      "/api": "http://127.0.0.1:7331",
+      "/health": "http://127.0.0.1:7331",
+    },
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],

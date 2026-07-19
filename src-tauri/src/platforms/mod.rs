@@ -83,6 +83,7 @@ pub struct SessionDetail {
     pub alias_title: String,
     pub cwd: String,
     pub commands: HashMap<String, String>,
+    pub revision: String,
     pub blocks: Vec<TimelineBlock>,
 }
 

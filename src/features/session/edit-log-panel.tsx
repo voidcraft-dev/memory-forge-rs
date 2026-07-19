@@ -7,7 +7,7 @@ import { FileText, ArrowRight, Clock, Eye, EyeOff, RefreshCw, CheckCircle, Undo2
 import { useState } from 'react'
 import type { MessageKey } from '@/features/desktop/i18n'
 import type { EditLogEntry } from '@/features/desktop/types'
-import { api } from '@/features/desktop/api'
+import { api, isSessionRevisionConflict } from '@/features/desktop/api'
 
 function DiffView({ oldText, newText, t }: { oldText: string; newText: string; t: (key: MessageKey) => string }) {
   const [expanded, setExpanded] = useState(false)
@@ -41,10 +41,11 @@ function DiffView({ oldText, newText, t }: { oldText: string; newText: string; t
 }
 
 export function EditLogPanel() {
-  const { t, state, dispatch } = useDesktop()
+  const { t, state, dispatch, isRemote, isReadOnlyRemote } = useDesktop()
   const currentPlatform = state.currentPlatform
   const editLog = state.editLog
   const selectedSessionKey = state.selectedSessionKey
+  const sessionDetail = state.sessionDetail
   const showEditLog = state.showEditLog
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -67,11 +68,12 @@ export function EditLogPanel() {
   }
 
   const handleRestore = async (entry: EditLogEntry) => {
+    if (isReadOnlyRemote) return
+    if (!selectedSessionKey || !sessionDetail || sessionDetail.sessionKey !== selectedSessionKey) return
+    const expectedRevision = sessionDetail.revision
     if (!window.confirm(t('session.restoreConfirm'))) return
-    if (!selectedSessionKey) return
     try {
-      await api.restoreMessage(currentPlatform, entry.id, selectedSessionKey)
-      // Refresh both edit log and session detail
+      await api.restoreMessage(currentPlatform, entry.id, selectedSessionKey, expectedRevision)
       const [logs, detail] = await Promise.all([
         api.getEditLog(currentPlatform, selectedSessionKey),
         api.getSessionDetail(currentPlatform, selectedSessionKey),
@@ -81,11 +83,28 @@ export function EditLogPanel() {
       dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.messageSaved') } })
     } catch (err) {
       console.error('Failed to restore message:', err)
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
+      const conflict = isSessionRevisionConflict(err)
+      if (conflict) {
+        try {
+          const [logs, detail] = await Promise.all([
+            api.getEditLog(currentPlatform, selectedSessionKey),
+            api.getSessionDetail(currentPlatform, selectedSessionKey),
+          ])
+          dispatch({ type: 'setEditLog', payload: logs })
+          dispatch({ type: 'setSessionDetail', payload: detail })
+        } catch (refreshError) {
+          console.error('Failed to refresh after revision conflict:', refreshError)
+        }
+      }
+      dispatch({
+        type: 'setSessionStatus',
+        payload: { tone: 'error', message: conflict ? t('session.revisionConflict') : t('session.saveFailed') },
+      })
     }
   }
 
   const handleDelete = async (entry: EditLogEntry) => {
+    if (isRemote) return
     if (!selectedSessionKey || !window.confirm(t('editLog.deleteConfirm'))) return
     setDeletingId(entry.id)
     try {
@@ -102,6 +121,7 @@ export function EditLogPanel() {
   }
 
   const handleClear = async () => {
+    if (isRemote) return
     if (!selectedSessionKey || editLog.length === 0 || !window.confirm(t('editLog.clearConfirm'))) return
     setDeletingId(-1)
     try {
@@ -120,7 +140,14 @@ export function EditLogPanel() {
   if (!showEditLog) return null
 
   return (
-    <aside className="hidden h-full w-[280px] flex-shrink-0 flex-col border-l border-border/50 bg-gradient-to-b from-card to-card/60 backdrop-blur-xl xl:w-[320px] xl:flex">
+    <>
+      <button
+        type="button"
+        className="edit-log-scrim"
+        onClick={() => dispatch({ type: 'setShowEditLog', payload: false })}
+        aria-label={t('editLog.collapse')}
+      />
+    <aside className="edit-log-panel h-full flex-shrink-0 flex-col border-border/50 bg-gradient-to-b from-card to-card/60 backdrop-blur-xl">
       <div className="border-b border-border/50 p-5">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
@@ -128,7 +155,7 @@ export function EditLogPanel() {
             {t('editLog.title')}
           </h2>
           <div className="flex items-center gap-1">
-            {editLog.length > 0 && (
+            {editLog.length > 0 && !isRemote && (
               <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={handleClear} disabled={deletingId !== null}>
                 <Trash2 className="w-3.5 h-3.5" />
                 {t('editLog.clear')}
@@ -175,12 +202,12 @@ export function EditLogPanel() {
                         <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setExpandedId(null)}>
                           <EyeOff className="w-3 h-3 mr-1" />{t('editLog.collapse')}
                         </Button>
-                        <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs border-blue-500/20 hover:bg-blue-500/10 hover:border-blue-500/30 text-blue-400" onClick={() => handleRestore(entry)}>
+                        {!isReadOnlyRemote && <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs border-blue-500/20 hover:bg-blue-500/10 hover:border-blue-500/30 text-blue-400" onClick={() => handleRestore(entry)}>
                           <Undo2 className="w-3 h-3" />{t('session.restore')}
-                        </Button>
-                        <Button variant="outline" size="sm" className="px-2 text-xs border-red-500/20 text-red-400 hover:border-red-500/30 hover:bg-red-500/10" onClick={() => handleDelete(entry)} disabled={deletingId === entry.id} title={t('editLog.delete')}>
+                        </Button>}
+                        {!isRemote && <Button variant="outline" size="sm" className="px-2 text-xs border-red-500/20 text-red-400 hover:border-red-500/30 hover:bg-red-500/10" onClick={() => handleDelete(entry)} disabled={deletingId === entry.id} title={t('editLog.delete')}>
                           <Trash2 className="w-3 h-3" />
-                        </Button>
+                        </Button>}
                       </div>
                     </>
                   ) : (
@@ -191,12 +218,12 @@ export function EditLogPanel() {
                         <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs border-amber-500/20 hover:bg-amber-500/10 hover:border-amber-500/30" onClick={() => setExpandedId(entry.id)}>
                           <Eye className="w-3 h-3" />{t('editLog.viewDetail')}
                         </Button>
-                        <Button variant="outline" size="sm" className="gap-1.5 text-xs border-blue-500/20 hover:bg-blue-500/10 hover:border-blue-500/30 text-blue-400" onClick={() => handleRestore(entry)}>
+                        {!isReadOnlyRemote && <Button variant="outline" size="sm" className="gap-1.5 text-xs border-blue-500/20 hover:bg-blue-500/10 hover:border-blue-500/30 text-blue-400" onClick={() => handleRestore(entry)}>
                           <Undo2 className="w-3 h-3" />{t('session.restore')}
-                        </Button>
-                        <Button variant="outline" size="sm" className="px-2 text-xs border-red-500/20 text-red-400 hover:border-red-500/30 hover:bg-red-500/10" onClick={() => handleDelete(entry)} disabled={deletingId === entry.id} title={t('editLog.delete')}>
+                        </Button>}
+                        {!isRemote && <Button variant="outline" size="sm" className="px-2 text-xs border-red-500/20 text-red-400 hover:border-red-500/30 hover:bg-red-500/10" onClick={() => handleDelete(entry)} disabled={deletingId === entry.id} title={t('editLog.delete')}>
                           <Trash2 className="w-3 h-3" />
-                        </Button>
+                        </Button>}
                       </div>
                     </>
                   )}
@@ -216,5 +243,6 @@ export function EditLogPanel() {
         </div>
       </div>
     </aside>
+    </>
   )
 }

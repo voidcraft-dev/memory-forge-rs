@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useDesktop } from '@/features/desktop/provider'
-import { api } from '@/features/desktop/api'
+import { api, isTauriRuntime } from '@/features/desktop/api'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore, ChevronDown, ChevronUp, CheckSquare, X, Upload, FileJson, AlertTriangle } from 'lucide-react'
+import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore, ChevronDown, ChevronUp, CheckSquare, X, Upload, FileJson, AlertTriangle, Eye } from 'lucide-react'
 import type { RawJsonlImportPreview, Session } from '@/features/desktop/types'
 
 function formatTime(timestamp: string, justNowLabel: string): string {
@@ -68,7 +68,7 @@ const SESSION_CARD_RENDER_STYLE: CSSProperties = {
 }
 
 export function SessionList() {
-  const { t, state, dispatch } = useDesktop()
+  const { t, state, dispatch, isRemote, isReadOnlyRemote } = useDesktop()
   const currentPlatform = state.currentPlatform
   const sessions = state.sessions
   const selectedSessionKey = state.selectedSessionKey
@@ -323,7 +323,10 @@ export function SessionList() {
   }
 
   return (
-    <aside className="flex h-full w-[250px] flex-shrink-0 flex-col border-r border-border/50 bg-gradient-to-b from-card to-card/55 backdrop-blur-xl xl:w-[280px]">
+    <aside className={cn(
+      "flex h-full w-full min-w-0 flex-shrink-0 flex-col border-border/50 bg-gradient-to-b from-card to-card/55 backdrop-blur-xl md:w-[250px] md:border-r xl:w-[280px]",
+      selectedSessionKey && "max-md:hidden",
+    )}>
       <div className="border-b border-border/50 p-4 md:p-5">
         <div className="mb-4 flex items-center justify-between gap-2">
           <h2 className="font-semibold text-foreground text-lg truncate flex-1 min-w-0 pr-1">
@@ -336,7 +339,7 @@ export function SessionList() {
             })()} {showArchived ? t('session.archiveView') : t('session.sessions')}
           </h2>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {JSONL_TRANSFER_PLATFORMS.has(currentPlatform) && (
+            {isTauriRuntime() && JSONL_TRANSFER_PLATFORMS.has(currentPlatform) && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -348,7 +351,7 @@ export function SessionList() {
                 <Upload className={cn('w-3.5 h-3.5', probingImport && 'animate-pulse')} />
               </Button>
             )}
-            <Button
+            {!isRemote && <Button
               variant={selectionMode ? "secondary" : "ghost"}
               size="icon"
               onClick={() => selectionMode ? exitSelectionMode() : setSelectionMode(true)}
@@ -361,8 +364,8 @@ export function SessionList() {
               title={selectionMode ? t('session.exitSelect') : t('session.selectMode')}
             >
               <CheckSquare className="w-3.5 h-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={refreshing} className={cn("h-8 w-8 transition-all duration-300", refreshDone && "text-green-400")}>
+            </Button>}
+            <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={refreshing} className={cn("h-8 w-8 transition-all duration-300", refreshDone && "text-green-400")} title={t('session.refresh')} aria-label={t('session.refresh')}>
               {refreshDone ? <CheckCircle className="w-4 h-4" /> : <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />}
             </Button>
             <Button
@@ -395,7 +398,13 @@ export function SessionList() {
             </Button>
           </div>
         </div>
-        <div className="relative">
+          {isReadOnlyRemote && (
+            <div className="mb-3 flex items-start gap-2 rounded-xl border border-primary/15 bg-primary/6 px-3 py-2 text-[11px] leading-relaxed text-primary/80">
+              <Eye className="mt-0.5 size-3.5 shrink-0" />
+              <span>{t('remoteReadOnlyHint')}</span>
+            </div>
+          )}
+          <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
           <Input
             placeholder={t('session.search')}
@@ -494,6 +503,7 @@ export function SessionList() {
                   selectionMode={selectionMode}
                   isMultiSelected={selectedKeys.has(session.sessionKey)}
                   onClick={(e) => handleCardClick(session, index, e)}
+                  readOnly={isRemote}
                   onToggleFavorite={async (e) => {
                     e.stopPropagation()
                     const isNow = await api.toggleFlag(currentPlatform, session.sessionKey, 'favorite')
@@ -596,7 +606,7 @@ export function SessionList() {
   )
 }
 
-function SessionCard({ session, isSelected, showArchived, selectionMode, isMultiSelected, onClick, onToggleFavorite, onToggleArchive, justNowLabel, untitledLabel, noPreviewLabel, archiveLabel }: {
+function SessionCard({ session, isSelected, showArchived, selectionMode, isMultiSelected, onClick, onToggleFavorite, onToggleArchive, justNowLabel, untitledLabel, noPreviewLabel, archiveLabel, readOnly }: {
   session: Session
   isSelected: boolean
   showArchived: boolean
@@ -609,6 +619,7 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
   untitledLabel: string
   noPreviewLabel: string
   archiveLabel: string
+  readOnly: boolean
 }) {
   const platform = session.platform || 'claude'
   const [copied, setCopied] = useState(false)
@@ -740,7 +751,7 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
             <Clock className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/40" />
             <span>{formatDateTime(session.updatedAt)}</span>
           </div>
-          {!session.cwd && !selectionMode && (
+          {!session.cwd && !selectionMode && !readOnly && (
             <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <button
                 type="button"
@@ -783,7 +794,7 @@ function SessionCard({ session, isSelected, showArchived, selectionMode, isMulti
             {!copied && <Copy className="w-3 h-3 flex-shrink-0 ml-auto opacity-0 group-hover:opacity-80 transition-opacity" />}
           </button>
           
-          {!selectionMode && (
+          {!selectionMode && !readOnly && (
             <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <button
                 type="button"

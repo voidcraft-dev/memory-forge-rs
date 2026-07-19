@@ -1,8 +1,8 @@
-use rusqlite::{params, Connection, Result as SqlResult};
+use rusqlite::{params, Connection, OptionalExtension, Result as SqlResult};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 const BUILTIN_PROMPT_FENJUE_CTF_NAME: &str = "焚诀·CTF 比赛";
 const BUILTIN_PROMPT_FENJUE_CTF_TAGS: &str = "代码,分析,CTF,焚诀";
@@ -40,6 +40,8 @@ impl DbState {
         let conn =
             Connection::open(db_path).map_err(|e| format!("Failed to open database: {e}"))?;
 
+        conn.busy_timeout(Duration::from_secs(5))
+            .map_err(|e| format!("Failed to configure database lock timeout: {e}"))?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
             .map_err(|e| format!("Failed to set pragmas: {e}"))?;
 
@@ -520,6 +522,61 @@ pub struct EditLog {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteMutationRecord {
+    pub operation: String,
+    pub request_hash: String,
+    pub response_json: String,
+}
+
+pub fn get_remote_mutation(
+    conn: &Mutex<Connection>,
+    device_id: &str,
+    mutation_id: &str,
+) -> Result<Option<RemoteMutationRecord>, String> {
+    let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+    conn.query_row(
+        "SELECT operation, request_hash, response_json
+         FROM remote_mutations
+         WHERE device_id = ?1 AND mutation_id = ?2",
+        params![device_id, mutation_id],
+        |row| {
+            Ok(RemoteMutationRecord {
+                operation: row.get(0)?,
+                request_hash: row.get(1)?,
+                response_json: row.get(2)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|e| format!("Remote mutation lookup error: {e}"))
+}
+
+pub fn save_remote_mutation(
+    conn: &Mutex<Connection>,
+    device_id: &str,
+    mutation_id: &str,
+    operation: &str,
+    request_hash: &str,
+    response_json: &str,
+) -> Result<(), String> {
+    let conn = conn.lock().map_err(|e| format!("DB lock error: {e}"))?;
+    conn.execute(
+        "INSERT INTO remote_mutations
+            (device_id, mutation_id, operation, request_hash, response_json)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            device_id,
+            mutation_id,
+            operation,
+            request_hash,
+            response_json
+        ],
+    )
+    .map_err(|e| format!("Remote mutation persistence error: {e}"))?;
+    Ok(())
+}
+
 // ─── Init ───
 
 pub fn init_tables(conn: &Connection) -> SqlResult<()> {
@@ -559,6 +616,16 @@ pub fn init_tables(conn: &Connection) -> SqlResult<()> {
 
         CREATE INDEX IF NOT EXISTS idx_edit_log_platform_session
             ON edit_log(platform, session_key);
+
+        CREATE TABLE IF NOT EXISTS remote_mutations (
+            device_id    TEXT NOT NULL,
+            mutation_id  TEXT NOT NULL,
+            operation    TEXT NOT NULL,
+            request_hash TEXT NOT NULL,
+            response_json TEXT NOT NULL,
+            created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY(device_id, mutation_id)
+        );
 
         CREATE TABLE IF NOT EXISTS session_flags (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1066,6 +1133,33 @@ mod tests {
         assert!(!delete_edit_log(&state, log.id, "claude", "session-b").expect("scoped delete"));
         assert!(get_edit_log_by_id_for_session(&state, log.id, "claude", "session-a").is_ok());
         assert!(delete_edit_log(&state, log.id, "claude", "session-a").expect("matching delete"));
+    }
+
+    #[test]
+    fn remote_mutations_are_persisted_by_device_and_mutation_id() {
+        let conn = Connection::open_in_memory().expect("sqlite memory");
+        init_tables(&conn).expect("init tables");
+        let state = Mutex::new(conn);
+
+        save_remote_mutation(
+            &state,
+            "device-1",
+            "mutation-1",
+            "session-edit",
+            "request-hash",
+            r#"{"mutationId":"mutation-1","applied":true}"#,
+        )
+        .expect("save mutation");
+
+        let stored = get_remote_mutation(&state, "device-1", "mutation-1")
+            .expect("load mutation")
+            .expect("stored mutation");
+        assert_eq!(stored.operation, "session-edit");
+        assert_eq!(stored.request_hash, "request-hash");
+        assert!(stored.response_json.contains("mutation-1"));
+        assert!(get_remote_mutation(&state, "device-2", "mutation-1")
+            .expect("different device lookup")
+            .is_none());
     }
 
     #[test]

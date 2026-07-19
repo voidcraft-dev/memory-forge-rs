@@ -1,0 +1,19 @@
+{
+  "name": "Memory Forge Remote Companion",
+  "short_name": "Memory Forge",
+  "description": "在手机上查看本机 AI 编程会话与修改记录。",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1c1917",
+  "theme_color": "#1c1917",
+  "icons": [
+    {
+      "src": "/memory-forge.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

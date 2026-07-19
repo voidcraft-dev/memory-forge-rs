@@ -1,10 +1,13 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod atomic_file;
 mod database;
 mod editor_targets;
 mod embedded_terminal;
 mod platforms;
+mod remote_protocol;
+mod remote_server;
 mod session_service;
 mod session_transfer;
 mod settings;
@@ -14,7 +17,8 @@ mod update_checker;
 
 use database::{DbState, PromptCreate, PromptUpdate};
 use session_service::DashboardSummary;
-use settings::{AppSettingsPatch, SharedSettingsState};
+use settings::{AppSettings, AppSettingsPatch, SharedSettingsState};
+use std::path::PathBuf;
 use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
 
@@ -40,6 +44,77 @@ fn app_settings_set(
 #[tauri::command]
 fn app_show_main_window(app: tauri::AppHandle) {
     shell::show_main_window(&app);
+}
+
+#[tauri::command]
+fn remote_server_status(
+    state: tauri::State<'_, remote_server::RemoteServerState>,
+) -> remote_server::RemoteServerStatus {
+    state.status()
+}
+
+#[tauri::command]
+fn remote_server_restart(
+    app: tauri::AppHandle,
+    db: tauri::State<'_, DbState>,
+    settings_state: tauri::State<'_, SharedSettingsState>,
+    remote_state: tauri::State<'_, remote_server::RemoteServerState>,
+) -> Result<remote_server::RemoteServerStatus, String> {
+    remote_state.stop()?;
+    let data_dir = settings::ensure_data_dir(&app)?;
+    let remote_settings = settings_state
+        .settings
+        .lock()
+        .map_err(|_| "failed to lock settings state".to_string())?
+        .clone();
+    let config = remote_server_config(&remote_settings, &data_dir)?;
+    let context = remote_server::RemoteServerContext {
+        db_path: db.db_path.clone(),
+        settings: settings_state.settings.clone(),
+        server_id: remote_server::load_or_create_server_id(&data_dir)?,
+        server_name: remote_server::local_server_name(),
+        server_version: app.package_info().version.to_string(),
+        web_root: remote_web_root(&app),
+        mutation_enabled: config.enable_mutations,
+        mutation_lock: std::sync::Arc::new(std::sync::Mutex::new(())),
+        auth_required: config.require_auth,
+        access_token: config.access_token.clone(),
+    };
+    remote_state.start(config, context)
+}
+
+fn remote_server_config(
+    settings: &AppSettings,
+    data_dir: &std::path::Path,
+) -> Result<remote_server::RemoteServerConfig, String> {
+    let lan_mode = settings.remote_bind_mode == "lan";
+    let access_token = if lan_mode {
+        Some(remote_server::load_or_create_access_token(data_dir)?)
+    } else {
+        None
+    };
+    let mut config = remote_server::RemoteServerConfig::loopback_default();
+    config.bind_address = if lan_mode {
+        std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)
+    } else {
+        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+    };
+    config.port = settings.remote_port;
+    config.enable_mutations = settings.remote_mutations_enabled;
+    config.require_auth = lan_mode;
+    config.access_token = access_token;
+    Ok(config)
+}
+
+fn remote_web_root(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let packaged = app.path().resource_dir().ok().map(|root| root.join("web"));
+    let development = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(|root| root.join("dist"));
+    packaged
+        .into_iter()
+        .chain(development)
+        .find(|root| root.join("index.html").is_file())
 }
 
 #[tauri::command]
@@ -229,6 +304,7 @@ fn session_edit_message(
     message_id: String,
     content: String,
     session_key: String,
+    expected_revision: String,
 ) -> Result<(), String> {
     let settings = settings_state
         .settings
@@ -241,6 +317,7 @@ fn session_edit_message(
         &message_id,
         &content,
         &session_key,
+        &expected_revision,
     )
 }
 
@@ -279,12 +356,20 @@ fn session_restore_message(
     platform: String,
     edit_log_id: i64,
     session_key: String,
+    expected_revision: String,
 ) -> Result<(), String> {
     let settings = settings_state
         .settings
         .lock()
         .map_err(|_| "lock error".to_string())?;
-    session_service::session_restore_message(&db, &settings, &platform, edit_log_id, &session_key)
+    session_service::session_restore_message(
+        &db,
+        &settings,
+        &platform,
+        edit_log_id,
+        &session_key,
+        &expected_revision,
+    )
 }
 
 #[tauri::command]
@@ -328,12 +413,12 @@ fn session_import_raw_jsonl(
     session_transfer::import_raw_jsonl(&settings, &platform, &input_path, conflict_policy)
 }
 
-// ─── Prompt Commands ───
-
 #[tauri::command]
-fn write_text_file(path: String, content: String) -> Result<(), String> {
-    std::fs::write(&path, &content).map_err(|e| e.to_string())
+fn session_export_markdown(output_path: String, content: String) -> Result<(), String> {
+    session_transfer::export_markdown(&output_path, &content)
 }
+
+// ─── Prompt Commands ───
 
 #[tauri::command]
 fn prompt_list(
@@ -389,6 +474,7 @@ fn prompt_import(
 fn main() {
     tauri::Builder::default()
         .manage(embedded_terminal::EmbeddedTerminalState::default())
+        .manage(remote_server::RemoteServerState::default())
         .manage(SharedSettingsState::default())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             shell::show_main_window(app);
@@ -410,12 +496,38 @@ fn main() {
             // Database
             let data_dir = settings::ensure_data_dir(app.handle())?;
             let db_path = data_dir.join("memory-forge.db");
-            let db_state = DbState::new(db_path.to_string_lossy().as_ref())?;
+            let db_path_string = db_path.to_string_lossy().into_owned();
+            let db_state = DbState::new(&db_path_string)?;
             {
                 let conn = db_state.conn.lock().unwrap();
                 database::init_tables(&conn)?;
             }
             app.manage(db_state);
+
+            // Loopback/read-only are defaults; saved settings may opt into authenticated LAN access.
+            let settings_state = app.state::<SharedSettingsState>();
+            let remote_state = app.state::<remote_server::RemoteServerState>();
+            let remote_settings = settings_state
+                .settings
+                .lock()
+                .map_err(|_| "failed to lock settings state".to_string())?
+                .clone();
+            let remote_config = remote_server_config(&remote_settings, &data_dir)?;
+            let remote_context = remote_server::RemoteServerContext {
+                db_path: db_path_string,
+                settings: settings_state.settings.clone(),
+                server_id: remote_server::load_or_create_server_id(&data_dir)?,
+                server_name: remote_server::local_server_name(),
+                server_version: app.package_info().version.to_string(),
+                web_root: remote_web_root(app.handle()),
+                mutation_enabled: remote_config.enable_mutations,
+                mutation_lock: std::sync::Arc::new(std::sync::Mutex::new(())),
+                auth_required: remote_config.require_auth,
+                access_token: remote_config.access_token.clone(),
+            };
+            if let Err(error) = remote_state.start(remote_config, remote_context) {
+                eprintln!("[remote] daemon did not start: {error}");
+            }
 
             Ok(())
         })
@@ -432,8 +544,10 @@ fn main() {
             app_bootstrap,
             app_settings_set,
             app_show_main_window,
+            remote_server_status,
+            remote_server_restart,
             check_update,
-            write_text_file,
+            session_export_markdown,
             dashboard_summary,
             session_list,
             session_detail,

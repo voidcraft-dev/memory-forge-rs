@@ -1,14 +1,23 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::Mutex;
 use std::thread;
 use std::time::Instant;
 
 use chrono::{Duration, Local, TimeZone};
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 use crate::database::{self, DbState};
-use crate::platforms::{self, SessionDetail, SessionListItem, SessionListResult};
+use crate::platforms::{self, SessionDetail, SessionListItem, SessionListResult, TimelineBlock};
 use crate::settings::AppSettings;
+
+pub const SESSION_REVISION_CONFLICT: &str = "SESSION_REVISION_CONFLICT";
+pub const SESSION_AUDIT_WRITE_FAILED: &str = "SESSION_AUDIT_WRITE_FAILED";
+pub const SESSION_AUDIT_ROLLBACK_FAILED: &str = "SESSION_AUDIT_ROLLBACK_FAILED";
+pub const SESSION_EDIT_TARGET_MISMATCH: &str = "SESSION_EDIT_TARGET_MISMATCH";
+
+static SESSION_MUTATION_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -438,13 +447,32 @@ pub fn session_detail(
     let t0 = Instant::now();
     let adapter = platforms::get_adapter(platform, settings)?;
     let aliases = database::get_alias_map(&db.conn, platform)?;
-    let detail = adapter.get_session_detail(session_key, &aliases)?;
+    let mut detail = adapter.get_session_detail(session_key, &aliases)?;
+    detail.revision = session_revision(&detail.blocks)?;
     eprintln!(
         "[perf] session_detail({platform}) {} blocks: {:?}",
         detail.blocks.len(),
         t0.elapsed()
     );
     Ok(detail)
+}
+
+pub fn session_key_exists(
+    settings: &AppSettings,
+    platform: &str,
+    session_key: &str,
+) -> Result<bool, String> {
+    let adapter = platforms::get_adapter(platform, settings)?;
+    if let Some(keys) = adapter.list_session_keys() {
+        return Ok(keys.into_iter().any(|item| item.key == session_key));
+    }
+
+    let aliases = HashMap::new();
+    Ok(adapter
+        .list_sessions(&aliases, None, 0)
+        .items
+        .into_iter()
+        .any(|item| item.session_key == session_key))
 }
 
 pub fn session_execution_output(
@@ -498,17 +526,40 @@ pub fn session_edit_message(
     edit_target: &str,
     content: &str,
     session_key: &str,
+    expected_revision: &str,
 ) -> Result<(), String> {
+    let _mutation_guard = SESSION_MUTATION_LOCK
+        .lock()
+        .map_err(|_| "Session mutation lock is poisoned".to_string())?;
     let adapter = platforms::get_adapter(platform, settings)?;
+    let aliases = database::get_alias_map(&db.conn, platform)?;
+    let detail = adapter.get_session_detail(session_key, &aliases)?;
+    ensure_expected_revision(&detail.blocks, expected_revision)?;
+    let target_belongs_to_session = detail.blocks.iter().any(|block| {
+        block.editable
+            && (block.edit_target == edit_target
+                || (block.edit_target.is_empty() && block.id == edit_target))
+    });
+    if !target_belongs_to_session {
+        return Err(SESSION_EDIT_TARGET_MISMATCH.to_string());
+    }
     let old_content = adapter.update_message(edit_target, content)?;
-    database::insert_edit_log(
+    if let Err(audit_error) = database::insert_edit_log(
         &db.conn,
         platform,
         session_key,
         edit_target,
         &old_content,
         content,
-    )
+    ) {
+        return match adapter.update_message(edit_target, &old_content) {
+            Ok(_) => Err(format!("{SESSION_AUDIT_WRITE_FAILED}: {audit_error}")),
+            Err(rollback_error) => Err(format!(
+                "{SESSION_AUDIT_WRITE_FAILED}: {audit_error}; {SESSION_AUDIT_ROLLBACK_FAILED}: {rollback_error}"
+            )),
+        };
+    }
+    Ok(())
 }
 
 pub fn session_edit_log(
@@ -542,6 +593,7 @@ pub fn session_restore_message(
     platform: &str,
     edit_log_id: i64,
     session_key: &str,
+    expected_revision: &str,
 ) -> Result<(), String> {
     let log =
         database::get_edit_log_by_id_for_session(&db.conn, edit_log_id, platform, session_key)?;
@@ -552,7 +604,26 @@ pub fn session_restore_message(
         &log.edit_target,
         &log.old_content,
         session_key,
+        expected_revision,
     )
+}
+
+pub fn session_revision(blocks: &[TimelineBlock]) -> Result<String, String> {
+    let serialized = serde_json::to_vec(blocks)
+        .map_err(|error| format!("Failed to serialize session revision: {error}"))?;
+    let digest = Sha256::digest(serialized);
+    Ok(format!("{digest:x}"))
+}
+
+fn ensure_expected_revision(
+    blocks: &[TimelineBlock],
+    expected_revision: &str,
+) -> Result<(), String> {
+    let current_revision = session_revision(blocks)?;
+    if current_revision != expected_revision {
+        return Err(SESSION_REVISION_CONFLICT.to_string());
+    }
+    Ok(())
 }
 
 fn format_timestamp(value: &str) -> String {
@@ -609,6 +680,43 @@ fn path_exists(path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+
+    struct TestDir(PathBuf);
+
+    impl TestDir {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "memory-forge-session-service-{}",
+                uuid::Uuid::new_v4()
+            ));
+            fs::create_dir_all(&path).expect("create test directory");
+            Self(path)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn test_block(content: &str) -> TimelineBlock {
+        TimelineBlock {
+            id: "message-1".to_string(),
+            role: "user".to_string(),
+            content: content.to_string(),
+            editable: true,
+            edit_target: "session::message-1".to_string(),
+            source_meta: serde_json::json!({ "index": 1 }),
+            tool_calls: Vec::new(),
+        }
+    }
 
     #[test]
     fn dashboard_platform_names_only_include_visible_supported_platforms() {
@@ -636,5 +744,182 @@ mod tests {
         };
 
         assert!(dashboard_platform_names(&settings).is_empty());
+    }
+
+    #[test]
+    fn session_revision_is_stable_and_content_sensitive() {
+        let original = vec![test_block("before")];
+        let same = vec![test_block("before")];
+        let changed = vec![test_block("after")];
+
+        let original_revision = session_revision(&original).expect("original revision");
+        let same_revision = session_revision(&same).expect("same revision");
+        let changed_revision = session_revision(&changed).expect("changed revision");
+
+        assert_eq!(original_revision, same_revision);
+        assert_ne!(original_revision, changed_revision);
+        assert_eq!(original_revision.len(), 64);
+        assert!(original_revision
+            .chars()
+            .all(|value| value.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn stale_session_revision_is_rejected() {
+        let blocks = vec![test_block("current")];
+        let current_revision = session_revision(&blocks).expect("current revision");
+
+        assert!(ensure_expected_revision(&blocks, &current_revision).is_ok());
+        assert_eq!(
+            ensure_expected_revision(&blocks, "stale").expect_err("stale revision must fail"),
+            SESSION_REVISION_CONFLICT
+        );
+    }
+
+    #[test]
+    fn stale_edit_does_not_overwrite_session_or_add_audit_log() {
+        let dir = TestDir::new();
+        let session_path = dir.path().join("session.jsonl");
+        let session_key = session_path.to_string_lossy().into_owned();
+        let row = serde_json::json!({
+            "sessionId": "session-1",
+            "cwd": dir.path(),
+            "message": {
+                "role": "user",
+                "content": "before"
+            }
+        });
+        fs::write(&session_path, format!("{row}\n")).expect("write test session");
+
+        let db = DbState::new(":memory:").expect("create in-memory database");
+        {
+            let conn = db.conn.lock().expect("lock database");
+            database::init_tables(&conn).expect("initialize database");
+        }
+        let settings = AppSettings {
+            claude_home: Some(dir.path().to_string_lossy().into_owned()),
+            ..AppSettings::default()
+        };
+
+        let original =
+            session_detail(&db, &settings, "claude", &session_key).expect("load original detail");
+        assert_eq!(original.blocks.len(), 1);
+        let edit_target = original.blocks[0].edit_target.clone();
+
+        session_edit_message(
+            &db,
+            &settings,
+            "claude",
+            &edit_target,
+            "first edit",
+            &session_key,
+            &original.revision,
+        )
+        .expect("apply first edit");
+
+        let updated =
+            session_detail(&db, &settings, "claude", &session_key).expect("load updated detail");
+        assert_eq!(updated.blocks[0].content, "first edit");
+        assert_ne!(updated.revision, original.revision);
+
+        let error = session_edit_message(
+            &db,
+            &settings,
+            "claude",
+            &edit_target,
+            "stale overwrite",
+            &session_key,
+            &original.revision,
+        )
+        .expect_err("stale edit must fail");
+        assert_eq!(error, SESSION_REVISION_CONFLICT);
+
+        let final_detail =
+            session_detail(&db, &settings, "claude", &session_key).expect("load final detail");
+        assert_eq!(final_detail.blocks[0].content, "first edit");
+
+        let outside_path = dir.path().join("outside.jsonl");
+        let outside_key = outside_path.to_string_lossy().into_owned();
+        let outside_row = serde_json::json!({
+            "sessionId": "outside-session",
+            "cwd": dir.path(),
+            "message": {
+                "role": "user",
+                "content": "outside before"
+            }
+        });
+        fs::write(&outside_path, format!("{outside_row}\n")).expect("write outside session");
+        let outside =
+            session_detail(&db, &settings, "claude", &outside_key).expect("load outside detail");
+        let mismatched_target = session_edit_message(
+            &db,
+            &settings,
+            "claude",
+            &outside.blocks[0].edit_target,
+            "must not cross sessions",
+            &session_key,
+            &final_detail.revision,
+        )
+        .expect_err("cross-session target must fail");
+        assert_eq!(mismatched_target, SESSION_EDIT_TARGET_MISMATCH);
+        let outside_after =
+            session_detail(&db, &settings, "claude", &outside_key).expect("reload outside detail");
+        assert_eq!(outside_after.blocks[0].content, "outside before");
+
+        let logs = session_edit_log(&db, "claude", &session_key).expect("load edit log");
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].new_content, "first edit");
+    }
+
+    #[test]
+    fn audit_failure_rolls_back_session_content() {
+        let dir = TestDir::new();
+        let session_path = dir.path().join("session.jsonl");
+        let session_key = session_path.to_string_lossy().into_owned();
+        let row = serde_json::json!({
+            "sessionId": "session-1",
+            "cwd": dir.path(),
+            "message": {
+                "role": "user",
+                "content": "before"
+            }
+        });
+        fs::write(&session_path, format!("{row}\n")).expect("write test session");
+
+        let db = DbState::new(":memory:").expect("create in-memory database");
+        {
+            let conn = db.conn.lock().expect("lock database");
+            database::init_tables(&conn).expect("initialize database");
+        }
+        let settings = AppSettings {
+            claude_home: Some(dir.path().to_string_lossy().into_owned()),
+            ..AppSettings::default()
+        };
+        let original =
+            session_detail(&db, &settings, "claude", &session_key).expect("load original detail");
+        let edit_target = original.blocks[0].edit_target.clone();
+        {
+            let conn = db.conn.lock().expect("lock database");
+            conn.execute("DROP TABLE edit_log", [])
+                .expect("disable audit table");
+        }
+
+        let error = session_edit_message(
+            &db,
+            &settings,
+            "claude",
+            &edit_target,
+            "must be rolled back",
+            &session_key,
+            &original.revision,
+        )
+        .expect_err("audit failure must fail the edit");
+
+        assert!(error.starts_with(SESSION_AUDIT_WRITE_FAILED));
+        assert!(!error.contains(SESSION_AUDIT_ROLLBACK_FAILED));
+        let final_detail =
+            session_detail(&db, &settings, "claude", &session_key).expect("load final detail");
+        assert_eq!(final_detail.blocks[0].content, "before");
+        assert_eq!(final_detail.revision, original.revision);
     }
 }

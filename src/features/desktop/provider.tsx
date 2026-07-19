@@ -19,6 +19,7 @@ import type {
   LocaleId,
   ThemeId,
 } from "@/features/desktop/types";
+import type { RemoteCapabilities } from "@/features/remote/protocol";
 
 const initialAppState: AppState = {
   currentPlatform: "dashboard",
@@ -91,6 +92,10 @@ type DesktopContextValue = {
   notice: string | null;
   error: string | null;
   settings: DesktopSnapshot["settings"] | null;
+  remoteBootstrap: DesktopSnapshot["remote"] | null;
+  remoteCapabilities: RemoteCapabilities | null;
+  isRemote: boolean;
+  isReadOnlyRemote: boolean;
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
   t: (key: MessageKey, params?: Record<string, string | number>) => string;
@@ -129,6 +134,10 @@ export function DesktopProvider({ children }: { children: ReactNode }) {
   );
 
   const settings = snapshot?.settings ?? null;
+  const remoteBootstrap = snapshot?.remote ?? null;
+  const remoteCapabilities = remoteBootstrap?.capabilities ?? null;
+  const isRemote = snapshot?.runtime === "remote-web";
+  const isReadOnlyRemote = isRemote && remoteCapabilities?.sessionEdit !== true;
 
   useEffect(() => {
     return () => {
@@ -141,7 +150,9 @@ export function DesktopProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.theme = snapshot.settings.theme;
     document.documentElement.dataset.reduceMotion = String(snapshot.settings.reduceMotion);
     document.documentElement.lang = snapshot.settings.locale;
-    document.documentElement.style.colorScheme = getThemeSpec(snapshot.settings.theme).mode;
+    const theme = getThemeSpec(snapshot.settings.theme);
+    document.documentElement.style.colorScheme = theme.mode;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme.preview[0]);
   }, [snapshot]);
 
   const setTimedNotice = (value: string | null) => {
@@ -193,6 +204,10 @@ export function DesktopProvider({ children }: { children: ReactNode }) {
       notice,
       error,
       settings,
+      remoteBootstrap,
+      remoteCapabilities,
+      isRemote,
+      isReadOnlyRemote,
       state,
       dispatch,
       t,
@@ -204,7 +219,7 @@ export function DesktopProvider({ children }: { children: ReactNode }) {
       setLaunchOnStartup: async (enabled) => updateSettings({ launchOnStartup: enabled }),
       setReduceMotion: async (enabled) => updateSettings({ reduceMotion: enabled }),
     }),
-    [snapshot, loading, saving, notice, error, state, t],
+    [snapshot, loading, saving, notice, error, state, t, remoteBootstrap, remoteCapabilities, isRemote, isReadOnlyRemote],
   );
 
   return (

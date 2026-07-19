@@ -6,14 +6,15 @@ use std::time::UNIX_EPOCH;
 use chrono::DateTime;
 use serde_json::{json, Value};
 
+use crate::atomic_file::replace_existing_file_atomic;
 use crate::database::{
     CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache,
 };
 
 use super::{
     build_commands, content_entries_to_matches, read_head_tail_lines, tool_text_from_str,
-    tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionKey, SessionListItem,
-    SessionListResult, TimelineBlock, ToolCallBlock,
+    tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionKey,
+    SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
 };
 
 pub struct PiPlatform {
@@ -482,6 +483,7 @@ impl PlatformAdapter for PiPlatform {
             alias_title,
             cwd: scan.cwd,
             commands,
+            revision: String::new(),
             blocks,
         })
     }
@@ -555,7 +557,7 @@ impl PlatformAdapter for PiPlatform {
             return Err(format!("Pi message entry not found: {entry_id}"));
         };
 
-        fs::write(&path, format!("{}\n", lines.join("\n")))
+        replace_existing_file_atomic(&path, format!("{}\n", lines.join("\n")).as_bytes())
             .map_err(|e| format!("cannot write Pi session '{}': {e}", path.display()))?;
 
         Ok(old_content)

@@ -18,7 +18,7 @@ export default function PlatformPage() {
 
   return (
     <>
-      <div className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-[24px] border border-border/60 bg-white/4">
+      <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-white/4 md:rounded-[24px]">
         <SessionList />
         <SessionDetail />
         {state.showEditLog && <EditLogPanel />}

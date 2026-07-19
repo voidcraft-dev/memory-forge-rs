@@ -1,5 +1,7 @@
 // ─── Desktop ───
 
+import type { RemoteBootstrap } from "@/features/remote/protocol";
+
 export type ThemeId = "graphite" | "linen" | "porcelain" | "ocean" | "ember" | "twilight";
 export type LocaleId = "zh-CN" | "en";
 
@@ -22,6 +24,9 @@ export type DesktopSettings = {
   preferredTerminal: string | null;
   visiblePlatforms: string[];
   navigationItems: string[];
+  remoteBindMode: "loopback" | "lan";
+  remotePort: number;
+  remoteMutationsEnabled: boolean;
 };
 
 export type DesktopSettingsPatch = Partial<DesktopSettings>;
@@ -29,7 +34,7 @@ export type DesktopSettingsPatch = Partial<DesktopSettings>;
 export type DesktopSnapshot = {
   appName: string;
   version: string;
-  runtime: "tauri" | "web-preview";
+  runtime: "tauri" | "web-preview" | "remote-web";
   configDir: string;
   configFile: string;
   dataDir: string;
@@ -37,6 +42,20 @@ export type DesktopSnapshot = {
   trayAvailable: boolean;
   autostartSupported: boolean;
   settings: DesktopSettings;
+  remote?: RemoteBootstrap;
+};
+
+export type RemoteServerStatus = {
+  running: boolean;
+  bindAddress: string;
+  port: number;
+  url: string;
+  protocolVersion: number;
+  readOnly: boolean;
+  authRequired?: boolean;
+  lanUrls?: string[];
+  accessToken?: string | null;
+  error: string | null;
 };
 
 // ─── Session ───
@@ -96,6 +115,7 @@ export type SessionDetail = {
   aliasTitle: string;
   cwd: string;
   commands: Record<string, string>;
+  revision: string;
   blocks: TimelineBlock[];
 };
 
@@ -210,7 +230,7 @@ export type AppState = {
   dashboard: DashboardSummary | null;
   roleFilter: "all" | "user" | "assistant" | "thinking";
   searchQuery: string;
-  editingBlock: { id: string; content: string; role: string; originalContent: string } | null;
+  editingBlock: { id: string; content: string; role: string; originalContent: string; revision: string } | null;
   editLog: EditLogEntry[];
   showEditLog: boolean;
   sessionStatus: SessionStatus | null;
@@ -227,7 +247,7 @@ export type AppAction =
   | { type: "setDashboard"; payload: DashboardSummary | null }
   | { type: "setRoleFilter"; payload: "all" | "user" | "assistant" | "thinking" }
   | { type: "setSearchQuery"; payload: string }
-  | { type: "setEditingBlock"; payload: { id: string; content: string; role: string; originalContent: string } | null }
+  | { type: "setEditingBlock"; payload: { id: string; content: string; role: string; originalContent: string; revision: string } | null }
   | { type: "setEditLog"; payload: EditLogEntry[] }
   | { type: "setShowEditLog"; payload: boolean }
   | { type: "setSessionStatus"; payload: SessionStatus | null }

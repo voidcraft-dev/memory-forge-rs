@@ -8,6 +8,7 @@ use std::time::UNIX_EPOCH;
 use chrono::DateTime;
 use serde_json::{json, Value};
 
+use crate::atomic_file::replace_existing_file_atomic;
 use crate::database::{SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 
 use super::{
@@ -453,6 +454,7 @@ impl PlatformAdapter for GrokPlatform {
             alias_title,
             cwd: summary.cwd,
             commands: build_commands("grok", &summary.session_id),
+            revision: String::new(),
             blocks,
         })
     }
@@ -512,12 +514,13 @@ impl PlatformAdapter for GrokPlatform {
         }
         let old_content =
             old_content.ok_or_else(|| format!("Grok chat line not found: {line_index}"))?;
-        fs::write(&path, format!("{}\n", output_lines.join("\n"))).map_err(|error| {
-            format!(
-                "cannot write Grok chat history '{}': {error}",
-                path.display()
-            )
-        })?;
+        replace_existing_file_atomic(&path, format!("{}\n", output_lines.join("\n")).as_bytes())
+            .map_err(|error| {
+                format!(
+                    "cannot write Grok chat history '{}': {error}",
+                    path.display()
+                )
+            })?;
         Ok(old_content)
     }
 

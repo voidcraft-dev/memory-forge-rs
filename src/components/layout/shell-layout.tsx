@@ -16,14 +16,18 @@ import {
   Orbit,
   Pi,
   SquareTerminal,
+  Wifi,
+  Eye,
+  KeyRound,
+  LoaderCircle,
   type LucideIcon,
 } from "lucide-react";
 import { AppLogo } from "@/components/logo";
 import { NavLink, Outlet, useNavigate } from "react-router";
 import { useDesktop } from "@/features/desktop/provider";
-import { api } from "@/features/desktop/api";
+import { api, hasRemoteAccessToken, setRemoteAccessToken } from "@/features/desktop/api";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import type { MessageKey } from "@/features/desktop/i18n";
 
 const navigation: Array<{
@@ -49,12 +53,70 @@ const navigation: Array<{
 ];
 
 export default function ShellLayout() {
-  const { snapshot, notice, error, t } = useDesktop();
+  const { snapshot, notice, error, t, isRemote, isReadOnlyRemote, remoteBootstrap, dispatch } = useDesktop();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [hasUpdate, setHasUpdate] = useState(false);
   const [terminalMaximized, setTerminalMaximized] = useState(false);
+  const [remoteToken, setRemoteToken] = useState("");
+  const [remoteAccessReady, setRemoteAccessReady] = useState(false);
+  const [remoteAccessChecking, setRemoteAccessChecking] = useState(() => hasRemoteAccessToken());
+  const [remoteConnecting, setRemoteConnecting] = useState(false);
+  const [remoteTokenError, setRemoteTokenError] = useState(false);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    if (!isRemote || !remoteBootstrap?.auth.required) {
+      setRemoteAccessReady(false);
+      setRemoteAccessChecking(false);
+      return;
+    }
+    setRemoteAccessReady(false);
+    if (!hasRemoteAccessToken()) {
+      setRemoteAccessChecking(false);
+      return;
+    }
+    let cancelled = false;
+    setRemoteAccessChecking(true);
+    api.getDashboard()
+      .then((dashboard) => {
+        if (cancelled) return;
+        dispatch({ type: "setDashboard", payload: dashboard });
+        setRemoteAccessReady(true);
+        setRemoteTokenError(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRemoteAccessToken("");
+        setRemoteAccessReady(false);
+        setRemoteTokenError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setRemoteAccessChecking(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, isRemote, remoteBootstrap?.auth.required, snapshot]);
+
+  const connectRemote = async () => {
+    if (!remoteToken.trim()) return;
+    setRemoteConnecting(true);
+    setRemoteTokenError(false);
+    setRemoteAccessToken(remoteToken);
+    try {
+      const dashboard = await api.getDashboard();
+      dispatch({ type: "setDashboard", payload: dashboard });
+      setRemoteAccessReady(true);
+      setRemoteToken("");
+    } catch {
+      setRemoteAccessToken("");
+      setRemoteTokenError(true);
+    } finally {
+      setRemoteConnecting(false);
+    }
+  };
 
   useEffect(() => {
     const handleToggle = (e: Event) => {
@@ -82,6 +144,9 @@ export default function ShellLayout() {
     }),
     ...navigation.filter((item) => !item.navigationId && item.to !== "/"),
   ];
+  const remoteContentReady = !isRemote
+    || remoteBootstrap?.auth.required !== true
+    || remoteAccessReady;
 
   useEffect(() => {
     api.checkUpdate().then(info => {
@@ -108,18 +173,73 @@ export default function ShellLayout() {
         </div>
       )}
 
+      {isRemote && remoteBootstrap?.auth.required && !remoteAccessReady && !remoteAccessChecking && (
+        <div
+          aria-labelledby="remote-access-title"
+          aria-modal="true"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-5 backdrop-blur-md"
+          role="dialog"
+        >
+          <form
+            className="panel-surface w-full max-w-sm rounded-2xl p-5 shadow-2xl"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void connectRemote();
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
+                <KeyRound className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="font-semibold text-foreground" id="remote-access-title">{t("remoteAccessTitle")}</h2>
+                <p className="mt-0.5 break-words text-xs text-quiet [overflow-wrap:anywhere]">{remoteBootstrap.serverName}</p>
+              </div>
+            </div>
+            <label className="mt-5 block text-xs font-semibold text-quiet" htmlFor="remote-access-token">
+              {t("remoteAccessToken")}
+            </label>
+            <input
+              id="remote-access-token"
+              type="password"
+              autoComplete="off"
+              value={remoteToken}
+              onChange={(event) => setRemoteToken(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border border-border/70 bg-background/70 px-3 text-base text-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+              autoFocus
+            />
+            {remoteTokenError && <p className="mt-2 text-xs text-red-400" role="alert">{t("remoteAccessInvalid")}</p>}
+            <button
+              type="submit"
+              disabled={remoteConnecting || !remoteToken.trim()}
+              className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              {remoteConnecting && <LoaderCircle className="size-4 animate-spin" />}
+              {t("remoteConnect")}
+            </button>
+          </form>
+        </div>
+      )}
+
       {/* Mobile Header */}
-      <div className={cn("lg:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-card/90 backdrop-blur-xl border-b border-border/50 flex items-center px-4 gap-3", terminalMaximized && "hidden")}>
+      <div className={cn("mobile-topbar lg:hidden fixed top-0 left-0 right-0 z-50 bg-card/90 backdrop-blur-xl border-b border-border/50 flex items-center px-4 gap-3", terminalMaximized && "hidden")}>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center hover:bg-muted transition-colors"
+          aria-label={mobileMenuOpen ? "关闭导航菜单" : "打开导航菜单"}
+          className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/50 hover:bg-muted transition-colors focus-visible:ring-2 focus-visible:ring-primary/60"
         >
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <AppLogo className="size-5" />
-          <span className="font-semibold">{t("appName")}</span>
+          <span className="truncate font-semibold">{t("appName")}</span>
         </div>
+        {isRemote && (
+          <div className="ml-auto flex min-w-0 max-w-[48%] items-center gap-1.5 rounded-full border border-primary/20 bg-primary/8 px-2.5 py-1 text-[10px] font-semibold text-primary" title={isReadOnlyRemote ? t("remoteReadOnlyHint") : `${t("remoteServer")}: ${remoteBootstrap?.serverName ?? "Memory Forge"}`}>
+            {isReadOnlyRemote ? <Eye className="size-3.5 shrink-0" /> : <Wifi className="size-3.5 shrink-0" />}
+            <span className="truncate">{remoteBootstrap?.serverName ?? t("runtimeRemote")}</span>
+          </div>
+        )}
       </div>
 
       {/* Mobile Overlay */}
@@ -132,7 +252,7 @@ export default function ShellLayout() {
 
       <div
         className={cn(
-          "relative grid h-full gap-2.5 p-2.5 pt-[4.5rem] lg:pt-2.5 transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          "mobile-shell-grid relative grid h-full gap-2.5 p-2.5 pt-[4.5rem] lg:pt-2.5 transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
           terminalMaximized
             ? "lg:grid-cols-1 p-0 gap-0 pt-0 lg:pt-0"
             : sidebarCollapsed
@@ -143,7 +263,7 @@ export default function ShellLayout() {
         {/* Sidebar */}
         <aside
           className={cn(
-            "panel-surface fixed inset-y-2.5 left-2.5 z-50 flex h-[calc(100vh-1.25rem)] w-[220px] flex-col overflow-hidden rounded-[24px] p-5 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:static lg:h-full lg:translate-x-0",
+            "mobile-sidebar panel-surface fixed inset-y-2.5 left-2.5 z-50 flex h-[calc(100vh-1.25rem)] w-[220px] flex-col overflow-hidden rounded-[24px] p-5 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:static lg:h-full lg:translate-x-0",
             sidebarCollapsed ? "lg:w-auto lg:p-3" : "lg:w-auto lg:p-5",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full",
             terminalMaximized ? "hidden lg:hidden" : "flex"
@@ -260,9 +380,75 @@ export default function ShellLayout() {
           "panel-surface relative min-h-0 min-w-0 overflow-hidden transition-all duration-500",
           terminalMaximized ? "rounded-none p-0 border-none m-0 h-full w-full bg-background" : "rounded-[24px] p-2 md:p-3"
         )}>
-          <Outlet />
+          <Suspense
+            fallback={(
+              <div className="flex h-full min-h-48 items-center justify-center" role="status" aria-live="polite">
+                <div className="relative grid size-12 place-items-center">
+                  <AppLogo className="size-8 motion-safe:animate-pulse" />
+                  <LoaderCircle className="absolute size-12 animate-spin text-primary/35 motion-reduce:animate-none" />
+                </div>
+                <span className="sr-only">{t("loading")}</span>
+              </div>
+            )}
+          >
+            {remoteContentReady ? (
+              <Outlet />
+            ) : (
+              <div className="flex h-full min-h-48 items-center justify-center" role="status" aria-live="polite">
+                <div className="relative grid size-12 place-items-center">
+                  <AppLogo className="size-8 motion-safe:animate-pulse" />
+                  <LoaderCircle className="absolute size-12 animate-spin text-primary/35 motion-reduce:animate-none" />
+                </div>
+                <span className="sr-only">{t("loading")}</span>
+              </div>
+            )}
+          </Suspense>
         </main>
       </div>
+
+      <nav className={cn("mobile-bottom-nav lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-card/95 px-2 pt-2 backdrop-blur-2xl", terminalMaximized && "hidden")} aria-label="主导航">
+        <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
+          {mobileNavigationItems(visibleNavigation).map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                end={item.to === "/"}
+                to={item.to}
+                onClick={() => setMobileMenuOpen(false)}
+                className={({ isActive }) => cn(
+                  "flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[10px] font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-primary/60",
+                  isActive ? "bg-primary/12 text-primary" : "text-quiet hover:bg-muted/60 hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4" />
+                <span className="max-w-full truncate">{t(item.labelKey)}</span>
+              </NavLink>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
+}
+
+function mobileNavigationItems(
+  visibleNavigation: Array<{ to: string; labelKey: MessageKey; icon: LucideIcon; navigationId?: string }>,
+) {
+  const primaryPlatform = visibleNavigation.find((item) => item.navigationId && item.to !== "/terminal-sessions");
+  const secondaryPlatform = visibleNavigation.find(
+    (item) => item.navigationId && item.to !== "/terminal-sessions" && item.to !== primaryPlatform?.to,
+  );
+  const platform = primaryPlatform ?? visibleNavigation.find((item) => item.to === "/terminal-sessions");
+  const settings = visibleNavigation.find((item) => item.to === "/settings");
+  const prompts = visibleNavigation.find((item) => item.to === "/prompts");
+  const terminal = visibleNavigation.find((item) => item.to === "/terminal-sessions");
+  const candidates = [
+    visibleNavigation[0],
+    platform,
+    terminal ?? secondaryPlatform,
+    prompts,
+    settings,
+  ].filter((item): item is { to: string; labelKey: MessageKey; icon: LucideIcon; navigationId?: string } => Boolean(item));
+  return candidates.filter((item, index) => candidates.findIndex((candidate) => candidate.to === item.to) === index);
 }

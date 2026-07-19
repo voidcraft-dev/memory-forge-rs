@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
 
+use crate::atomic_file::write_file_atomic;
 use crate::shell;
 
 const APP_NAME: &str = "Memory Forge";
@@ -44,6 +45,20 @@ pub struct AppSettings {
     pub visible_platforms: Vec<String>,
     #[serde(default)]
     pub navigation_items: Option<Vec<String>>,
+    #[serde(default = "default_remote_bind_mode")]
+    pub remote_bind_mode: String,
+    #[serde(default = "default_remote_port")]
+    pub remote_port: u16,
+    #[serde(default)]
+    pub remote_mutations_enabled: bool,
+}
+
+fn default_remote_bind_mode() -> String {
+    "loopback".to_string()
+}
+
+fn default_remote_port() -> u16 {
+    7331
 }
 
 fn default_visible_platforms() -> Vec<String> {
@@ -107,6 +122,13 @@ fn migrate_settings(mut settings: AppSettings) -> AppSettings {
         settings.navigation_items = Some(default_navigation_items(&settings.visible_platforms));
     }
 
+    if !matches!(settings.remote_bind_mode.as_str(), "loopback" | "lan") {
+        settings.remote_bind_mode = default_remote_bind_mode();
+    }
+    if settings.remote_port < 1024 {
+        settings.remote_port = default_remote_port();
+    }
+
     settings
 }
 
@@ -131,6 +153,9 @@ impl Default for AppSettings {
             preferred_terminal: None,
             visible_platforms: default_visible_platforms(),
             navigation_items: Some(default_navigation_items(&default_visible_platforms())),
+            remote_bind_mode: default_remote_bind_mode(),
+            remote_port: default_remote_port(),
+            remote_mutations_enabled: false,
         }
     }
 }
@@ -156,6 +181,9 @@ pub struct AppSettingsPatch {
     pub preferred_terminal: Option<Option<String>>,
     pub visible_platforms: Option<Vec<String>>,
     pub navigation_items: Option<Vec<String>>,
+    pub remote_bind_mode: Option<String>,
+    pub remote_port: Option<u16>,
+    pub remote_mutations_enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -175,7 +203,7 @@ pub struct DesktopSnapshot {
 
 #[derive(Default)]
 pub struct SharedSettingsState {
-    pub settings: Mutex<AppSettings>,
+    pub settings: Arc<Mutex<AppSettings>>,
 }
 
 pub fn initialize(app: &AppHandle, state: &SharedSettingsState) -> Result<(), String> {
@@ -227,6 +255,17 @@ pub fn update_settings(
     state: &SharedSettingsState,
     patch: AppSettingsPatch,
 ) -> Result<DesktopSnapshot, String> {
+    if patch
+        .remote_bind_mode
+        .as_deref()
+        .is_some_and(|mode| !matches!(mode, "loopback" | "lan"))
+    {
+        return Err("remote bind mode must be 'loopback' or 'lan'".to_string());
+    }
+    if patch.remote_port.is_some_and(|port| port < 1024) {
+        return Err("remote port must be between 1024 and 65535".to_string());
+    }
+
     let mut settings = state
         .settings
         .lock()
@@ -299,6 +338,18 @@ pub fn update_settings(
 
     if let Some(navigation_items) = patch.navigation_items {
         settings.navigation_items = Some(navigation_items);
+    }
+
+    if let Some(remote_bind_mode) = patch.remote_bind_mode {
+        settings.remote_bind_mode = remote_bind_mode;
+    }
+
+    if let Some(remote_port) = patch.remote_port {
+        settings.remote_port = remote_port;
+    }
+
+    if let Some(remote_mutations_enabled) = patch.remote_mutations_enabled {
+        settings.remote_mutations_enabled = remote_mutations_enabled;
     }
 
     let autostart_supported = if let Some(launch_on_startup) = patch.launch_on_startup {
@@ -399,7 +450,7 @@ fn persist_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), Strin
     let path = settings_file_path(app)?;
     let json = serde_json::to_string_pretty(settings)
         .map_err(|error| format!("failed to serialize settings: {error}"))?;
-    fs::write(&path, json).map_err(|error| {
+    write_file_atomic(&path, json.as_bytes()).map_err(|error| {
         format!(
             "failed to write settings file '{}': {error}",
             path.display()

@@ -7,10 +7,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+use crate::atomic_file::write_file_atomic;
 use crate::platforms;
 use crate::settings::AppSettings;
 
 const SUPPORTED_PLATFORMS: [&str; 3] = ["claude", "codex", "pi"];
+const MAX_MARKDOWN_EXPORT_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,6 +55,28 @@ pub struct RawJsonlExportResult {
 pub enum ImportConflictPolicy {
     Rename,
     SkipIfSame,
+}
+
+pub fn export_markdown(output_path: &str, content: &str) -> Result<(), String> {
+    let output = PathBuf::from(output_path);
+    let is_markdown = output
+        .extension()
+        .and_then(|value| value.to_str())
+        .is_some_and(|value| value.eq_ignore_ascii_case("md"));
+    if !is_markdown {
+        return Err("Markdown exports must use the .md extension".to_string());
+    }
+    if content.len() > MAX_MARKDOWN_EXPORT_BYTES {
+        return Err(format!(
+            "Markdown export exceeds the {MAX_MARKDOWN_EXPORT_BYTES} byte limit"
+        ));
+    }
+    write_file_atomic(&output, content.as_bytes()).map_err(|error| {
+        format!(
+            "failed to export Markdown to '{}': {error}",
+            output.display()
+        )
+    })
 }
 
 #[derive(Default)]
@@ -659,6 +683,27 @@ mod tests {
     fn safe_component_removes_path_control_characters() {
         assert_eq!(safe_component("../../session:one"), "session-one");
         assert_eq!(safe_component("abc_DEF-123"), "abc_DEF-123");
+    }
+
+    #[test]
+    fn markdown_export_is_atomic_and_extension_scoped() {
+        let temp = std::env::temp_dir().join(format!("memory-forge-markdown-{}", Uuid::new_v4()));
+        fs::create_dir_all(&temp).expect("create export directory");
+        let output = temp.join("session.md");
+
+        export_markdown(output.to_string_lossy().as_ref(), "# First\n")
+            .expect("create markdown export");
+        export_markdown(output.to_string_lossy().as_ref(), "# Updated\n")
+            .expect("replace markdown export");
+
+        assert_eq!(
+            fs::read_to_string(&output).expect("read markdown export"),
+            "# Updated\n"
+        );
+        let invalid = temp.join("session.txt");
+        assert!(export_markdown(invalid.to_string_lossy().as_ref(), "not markdown").is_err());
+        assert!(!invalid.exists());
+        fs::remove_dir_all(temp).expect("remove export directory");
     }
 
     #[test]

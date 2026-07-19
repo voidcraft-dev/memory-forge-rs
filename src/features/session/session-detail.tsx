@@ -5,10 +5,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useDesktop } from '@/features/desktop/provider'
-import { api } from '@/features/desktop/api'
+import { api, isSessionRevisionConflict } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
 import type { EditorTarget, TimelineBlock } from '@/features/desktop/types'
-import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play, FolderOpen, MousePointer2, Code, Sparkles } from 'lucide-react'
+import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play, FolderOpen, MousePointer2, Code, Sparkles, ArrowLeft, Eye } from 'lucide-react'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
@@ -73,7 +73,7 @@ const getEditorIcon = (id: string) => {
 
 export function SessionDetail() {
   const navigate = useNavigate()
-  const { t, state, dispatch } = useDesktop()
+  const { t, state, dispatch, isRemote, isReadOnlyRemote, remoteCapabilities } = useDesktop()
   const currentPlatform = state.currentPlatform
   const sessionDetail = state.sessionDetail
   const sessions = state.sessions
@@ -286,7 +286,7 @@ export function SessionDetail() {
 
   if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings' || !sessionDetail) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground bg-gradient-to-br from-background to-muted/20">
+      <div className="max-md:hidden flex-1 items-center justify-center text-muted-foreground bg-gradient-to-br from-background to-muted/20 md:flex">
         <div className="text-center">
           <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
             <Clock className="w-8 h-8 text-muted-foreground/50" />
@@ -299,6 +299,7 @@ export function SessionDetail() {
   }
 
   const handleSaveAlias = async (newVal?: string) => {
+    if (isRemote) return
     const valueToSave = typeof newVal === 'string' ? newVal : aliasTitle
     dispatch({ type: 'setSessionStatus', payload: null })
 
@@ -324,22 +325,43 @@ export function SessionDetail() {
         content: block.content,
         originalContent: block.content,
         role: block.role,
+        revision: sessionDetail.revision,
       },
     })
   }
 
   const handleEraseBlock = async (block: typeof sessionDetail.blocks[0]) => {
+    const sessionKey = sessionDetail.sessionKey
+    const expectedRevision = sessionDetail.revision
     if (!await confirm({ title: t('session.erase'), description: t('session.eraseConfirm'), variant: 'danger' })) return
     try {
-      await api.editMessage(currentPlatform, block.editTarget || block.id, '', sessionDetail.sessionKey)
-      const updatedBlocks = sessionDetail.blocks.map(b =>
-        (b.editTarget || b.id) === (block.editTarget || block.id) ? { ...b, content: '' } : b
-      )
-      dispatch({ type: 'setSessionDetail', payload: { ...sessionDetail, blocks: updatedBlocks } })
+      await api.editMessage(currentPlatform, block.editTarget || block.id, '', sessionKey, expectedRevision)
+      const [updated, logs] = await Promise.all([
+        api.getSessionDetail(currentPlatform, sessionKey),
+        api.getEditLog(currentPlatform, sessionKey),
+      ])
+      dispatch({ type: 'setSessionDetail', payload: updated })
+      dispatch({ type: 'setEditLog', payload: logs })
       dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.messageSaved') } })
     } catch (err) {
       console.error('Failed to erase message:', err)
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
+      const conflict = isSessionRevisionConflict(err)
+      if (conflict) {
+        try {
+          const [updated, logs] = await Promise.all([
+            api.getSessionDetail(currentPlatform, sessionKey),
+            api.getEditLog(currentPlatform, sessionKey),
+          ])
+          dispatch({ type: 'setSessionDetail', payload: updated })
+          dispatch({ type: 'setEditLog', payload: logs })
+        } catch (refreshError) {
+          console.error('Failed to refresh after revision conflict:', refreshError)
+        }
+      }
+      dispatch({
+        type: 'setSessionStatus',
+        payload: { tone: 'error', message: conflict ? t('session.revisionConflict') : t('session.saveFailed') },
+      })
     }
   }
 
@@ -618,7 +640,7 @@ export function SessionDetail() {
         filters: [{ name: 'Markdown', extensions: ['md'] }],
       })
       if (!filePath) return
-      await invoke('write_text_file', { path: filePath, content })
+      await invoke('session_export_markdown', { outputPath: filePath, content })
     } else {
       const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
       const url = URL.createObjectURL(blob)
@@ -674,9 +696,23 @@ export function SessionDetail() {
           <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       )}
-      <header className="relative z-20 border-b bg-card/50 px-5 py-4 backdrop-blur-xl md:px-6">
+      <header className="relative z-20 border-b bg-card/50 px-4 py-3 backdrop-blur-xl md:px-6 md:py-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-10 shrink-0 rounded-xl md:hidden"
+              onClick={() => {
+                dispatch({ type: 'setSelectedSessionKey', payload: null })
+                dispatch({ type: 'setSessionDetail', payload: null })
+              }}
+              title={t('mobileBackToSessions')}
+              aria-label={t('mobileBackToSessions')}
+            >
+              <ArrowLeft className="size-4" />
+            </Button>
             {isEditingAlias ? (
               <div className="flex items-center gap-1.5 min-w-[200px]">
                 <Input
@@ -722,16 +758,17 @@ export function SessionDetail() {
               <div className="flex flex-col min-w-0">
                 <div
                   onClick={() => {
+                    if (isRemote) return
                     setTempAlias(sessionDetail.aliasTitle || '')
                     setIsEditingAlias(true)
                   }}
-                  className="group flex items-center gap-2 cursor-pointer rounded-lg hover:bg-muted/30 px-2 py-0.5 -ml-2 transition-all min-w-0"
-                  title="双击或点击编辑别名"
+                  className={cn("group flex items-center gap-2 rounded-lg px-2 py-0.5 -ml-2 transition-all min-w-0", !isRemote && "cursor-pointer hover:bg-muted/30")}
+                  title={isRemote ? t('runtimeRemote') : '双击或点击编辑别名'}
                 >
                   <span className="text-lg font-bold text-foreground truncate max-w-[240px] md:max-w-[360px]">
                     {sessionDetail.aliasTitle || sessionDetail.title || sessionDetail.sessionId}
                   </span>
-                  <Pencil className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 transition-opacity text-muted-foreground shrink-0" />
+                  {!isRemote && <Pencil className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 transition-opacity text-muted-foreground shrink-0" />}
                 </div>
                 {sessionDetail.aliasTitle && (
                   <span className="text-[10px] text-muted-foreground/60 font-mono select-all block mt-0.5 truncate max-w-[240px] md:max-w-[360px] pl-0.5">
@@ -740,7 +777,7 @@ export function SessionDetail() {
                 )}
               </div>
             )}
-            <button
+            {!isRemote && <button
               type="button"
               onClick={async () => {
                 const isNow = await api.toggleFlag(currentPlatform, sessionDetail.sessionKey, 'favorite')
@@ -755,14 +792,14 @@ export function SessionDetail() {
               title={t('session.favorite')}
             >
               <Star className={cn("w-5 h-5", sessions.find(s => s.sessionKey === sessionDetail.sessionKey)?.favorite && "fill-current")} />
-            </button>
+            </button>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="ghost" size="sm" className={cn("gap-2", refreshDone ? "bg-green-500/10 text-green-400" : "hover:bg-blue-500/10")} onClick={handleRefresh} disabled={refreshing}>
+            <Button variant="ghost" size="sm" className={cn("gap-2", refreshDone ? "bg-green-500/10 text-green-400" : "hover:bg-blue-500/10")} onClick={handleRefresh} disabled={refreshing} title={t('session.refresh')} aria-label={t('session.refresh')}>
               {refreshDone ? <CheckCircle className="w-4 h-4" /> : <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />}
               <span className="hidden sm:inline">{refreshDone ? t('session.refreshed') : t('session.refresh')}</span>
             </Button>
-            {canOpenWorkspace && (
+            {canOpenWorkspace && !isRemote && (
               <div className="relative flex overflow-visible rounded-xl border border-border/40 bg-white/4 shadow-sm hover:border-border/60 transition-all duration-300" ref={editorMenuRef}>
                 <button
                   type="button"
@@ -826,7 +863,7 @@ export function SessionDetail() {
                 )}
               </div>
             )}
-            {kiroExecutionPlaceholderBlocks.length > 0 && (
+            {!isRemote && kiroExecutionPlaceholderBlocks.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -842,7 +879,7 @@ export function SessionDetail() {
             )}
 
             {/* Geek Terminal Dropdown Button */}
-            {(() => {
+            {!isReadOnlyRemote && remoteCapabilities?.terminal !== false && (() => {
               const availableCommands = ['resume', 'fork'].filter(label => sessionDetail.commands?.[label])
               if (availableCommands.length === 0) return null
               return (
@@ -1028,8 +1065,10 @@ export function SessionDetail() {
               )}
             </div>
 
-            <Button variant="ghost" size="sm"
+            {!isRemote && <Button variant="ghost" size="sm"
               className="gap-2 hover:bg-amber-500/10 hover:text-amber-400"
+              title={t('session.archive')}
+              aria-label={t('session.archive')}
               onClick={async () => {
                 if (!await confirm({ title: t('session.archive'), description: t('session.archiveConfirm') })) return
                 await api.toggleFlag(currentPlatform, sessionDetail.sessionKey, 'archived')
@@ -1040,9 +1079,11 @@ export function SessionDetail() {
               }}>
               <Archive className="w-4 h-4" />
               <span className="hidden sm:inline">{t('session.archive')}</span>
-            </Button>
+            </Button>}
             <Button variant={showEditLog ? "secondary" : "ghost"} size="sm"
               className={cn("gap-2", showEditLog && "border border-amber-500/30 bg-amber-500/20 text-amber-400")}
+              title={t('session.editLog')}
+              aria-label={t('session.editLog')}
               onClick={() => {
                 const next = !showEditLog
                 dispatch({ type: 'setShowEditLog', payload: next })
@@ -1061,6 +1102,12 @@ export function SessionDetail() {
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {isReadOnlyRemote && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-primary/85">
+              <Eye className="size-3.5" />
+              {t('remoteReadOnly')}
+            </span>
+          )}
           {sessionStatus && (
             <span
               className={cn(
@@ -1156,7 +1203,7 @@ export function SessionDetail() {
                       index={virtualItem.index}
                       onEdit={() => handleEditBlock(block)}
                       onErase={() => handleEraseBlock(block)}
-                      onLoadExecutionOutput={() => handleLoadExecutionOutput(block)}
+                      onLoadExecutionOutput={isRemote ? undefined : () => handleLoadExecutionOutput(block)}
                       loadingExecutionOutput={Boolean(block.editTarget && loadingExecutionTargets.has(block.editTarget))}
                       t={t}
                       searchHighlight={searchNeedle}

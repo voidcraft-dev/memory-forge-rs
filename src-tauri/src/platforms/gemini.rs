@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::atomic_file::replace_existing_file_atomic;
+
 use super::{
     extract_snippet, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
     SessionListResult, TimelineBlock,
@@ -365,7 +367,7 @@ fn update_jsonl_message(
         .map_err(|e| format!("cannot serialize update marker: {e}"))?,
     );
 
-    fs::write(path, format!("{}\n", updated_lines.join("\n")))
+    replace_existing_file_atomic(path, format!("{}\n", updated_lines.join("\n")).as_bytes())
         .map_err(|e| format!("cannot write session file: {e}"))?;
 
     Ok(old_content)
@@ -553,6 +555,7 @@ impl PlatformAdapter for GeminiPlatform {
             alias_title,
             cwd,
             commands,
+            revision: String::new(),
             blocks,
         })
     }
@@ -630,7 +633,8 @@ impl PlatformAdapter for GeminiPlatform {
 
         let updated = serde_json::to_string_pretty(&json)
             .map_err(|e| format!("cannot serialize session: {e}"))?;
-        fs::write(&path, updated).map_err(|e| format!("cannot write session file: {e}"))?;
+        replace_existing_file_atomic(&path, updated.as_bytes())
+            .map_err(|e| format!("cannot write session file: {e}"))?;
 
         Ok(old_content)
     }

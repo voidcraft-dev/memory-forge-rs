@@ -1,11 +1,22 @@
+import { lazy } from "react";
 import { Navigate, RouterProvider, createBrowserRouter } from "react-router";
-import DashboardPage from "@/app/routes/dashboard";
-import SettingsPage from "@/app/routes/settings";
-import PromptsPage from "@/app/routes/prompts";
-import AboutPage from "@/app/routes/about";
-import PlatformPage from "@/app/routes/platform";
-import TerminalSessionsPage from "@/app/routes/terminal-sessions";
 import ShellLayout from "@/components/layout/shell-layout";
+import { useDesktop } from "@/features/desktop/provider";
+
+const DashboardPage = lazy(() => import("@/app/routes/dashboard"));
+const SettingsPage = lazy(() => import("@/app/routes/settings"));
+const PromptsPage = lazy(() => import("@/app/routes/prompts"));
+const AboutPage = lazy(() => import("@/app/routes/about"));
+const PlatformPage = lazy(() => import("@/app/routes/platform"));
+const TerminalSessionsPage = lazy(() => import("@/app/routes/terminal-sessions"));
+
+function TerminalSessionsRoute() {
+  const { isRemote, remoteCapabilities } = useDesktop();
+  if (isRemote && remoteCapabilities?.terminal !== true) {
+    return <Navigate replace to="/" />;
+  }
+  return <TerminalSessionsPage />;
+}
 
 const createAppRouter = () =>
   createBrowserRouter([
@@ -17,7 +28,7 @@ const createAppRouter = () =>
         { path: "settings", element: <SettingsPage /> },
         { path: "prompts", element: <PromptsPage /> },
         { path: "about", element: <AboutPage /> },
-        { path: "terminal-sessions", element: <TerminalSessionsPage /> },
+        { path: "terminal-sessions", element: <TerminalSessionsRoute /> },
         { path: ":platform", element: <PlatformPage /> },
       ],
     },

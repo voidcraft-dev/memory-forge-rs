@@ -48,7 +48,7 @@ A **local desktop app** that lets you browse, edit, and manage AI coding assista
 
 Works with **Claude Code**, **Codex CLI**, **OpenCode**, **Kiro CLI**, **Kiro IDE**, and **Gemini CLI** — all in one unified interface.
 
-Built with **Tauri v2 + Rust**. No Python, no server, no cloud. 100% local.
+Built with **Tauri v2 + Rust**. No Python or cloud service. Local by default, with an opt-in experimental LAN companion served by the desktop app.
 
 ## Use Cases
 
@@ -122,7 +122,12 @@ That's it. Your AI picks up the corrected memory on the next `--resume`.
 - **Bilingual** — 简体中文 / English
 - **Prompt Library** — Save, tag, search & copy frequently used prompts
 - **System Tray** — Close to tray, launch on startup
-- **100% Local** — Zero network calls, your data stays on your machine
+- **Local by Default** — Zero cloud calls; LAN access stays disabled until you explicitly enable it
+
+**Experimental LAN Companion**
+- **Phone-friendly UI** — Browse sessions and audit history from a browser on the same network
+- **Protected Writes** — Optional message edits, erases and restores use Bearer authentication, revision checks and the audit log
+- **Current Limit** — LAN transport is plain HTTP and is intended only for trusted networks; see [Remote Protocol v1](docs/remote-protocol-v1.md)
 
 ## Supported Platforms
 
@@ -263,7 +268,7 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 
 支持 **Claude Code**、**Codex CLI**、**OpenCode**、**Kiro CLI**、**Kiro IDE** 和 **Gemini CLI** — 统一界面管理。
 
-**Tauri v2 + Rust** 构建。没有 Python，没有服务器，没有云端。100% 本地运行。
+**Tauri v2 + Rust** 构建。没有 Python，也不依赖云服务；默认仅本机运行，可选开启由桌面端提供的实验性局域网伴侣。
 
 ## 使用场景
 
@@ -337,7 +342,12 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 - **双语界面** — 简体中文 / English
 - **提示词库** — 保存、标签、搜索常用提示词，一键复制
 - **系统托盘** — 关闭到托盘、开机自启
-- **纯本地** — 零网络请求，数据不离开你的电脑
+- **默认纯本地** — 不访问云端；只有你主动开启后才允许局域网访问
+
+**实验性局域网伴侣**
+- **手机友好界面** — 在同一网络的手机浏览器中查看会话与修改记录
+- **受保护的写入** — 可选的编辑、擦除和恢复均经过 Bearer 鉴权、revision 冲突检查与审计日志
+- **当前限制** — 局域网传输仍是明文 HTTP，只适合可信网络；详见 [远程协议 v1](docs/remote-protocol-v1.md)
 
 ## 支持平台
 

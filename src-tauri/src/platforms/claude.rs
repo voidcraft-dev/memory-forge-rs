@@ -6,6 +6,7 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
+use crate::atomic_file::replace_existing_file_atomic;
 use crate::database::{
     CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache,
 };
@@ -803,6 +804,7 @@ impl PlatformAdapter for ClaudePlatform {
             alias_title: alias,
             cwd: self.cwd(&lines),
             commands: build_commands("claude", &session_id),
+            revision: String::new(),
             blocks: self.blocks(&lines, session_key),
         })
     }
@@ -861,7 +863,7 @@ impl PlatformAdapter for ClaudePlatform {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| format!("Serialize error: {error}"))?;
 
-        fs::write(file_path, format!("{}\n", serialized.join("\n")))
+        replace_existing_file_atomic(file_path, format!("{}\n", serialized.join("\n")).as_bytes())
             .map_err(|error| format!("Write error: {error}"))?;
 
         Ok(old_content)

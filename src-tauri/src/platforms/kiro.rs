@@ -6,6 +6,8 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
+use crate::atomic_file::replace_existing_file_atomic;
+
 use super::{
     build_commands, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
     SessionListResult, TimelineBlock,
@@ -263,6 +265,7 @@ impl PlatformAdapter for KiroPlatform {
             alias_title: alias,
             cwd,
             commands: build_commands("kiro", session_key),
+            revision: String::new(),
             blocks,
         })
     }
@@ -305,8 +308,11 @@ impl PlatformAdapter for KiroPlatform {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| format!("Serialize error: {e}"))?;
 
-        fs::write(&jsonl_path, format!("{}\n", serialized.join("\n")))
-            .map_err(|e| format!("Write error: {e}"))?;
+        replace_existing_file_atomic(
+            &jsonl_path,
+            format!("{}\n", serialized.join("\n")).as_bytes(),
+        )
+        .map_err(|e| format!("Write error: {e}"))?;
 
         Ok(old_content)
     }

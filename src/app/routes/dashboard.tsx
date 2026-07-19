@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi } from "lucide-react";
+import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Eye, ShieldCheck } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/logo";
 import { useDesktop } from "@/features/desktop/provider";
-import { api } from "@/features/desktop/api";
+import { api, hasRemoteAccessToken } from "@/features/desktop/api";
 import { cn } from "@/lib/utils";
 
 const platformMeta = [
@@ -101,21 +101,21 @@ const platformMeta = [
 ] as const;
 
 export default function DashboardPage() {
-  const { snapshot, loading, t, state, dispatch } = useDesktop();
+  const { snapshot, loading, t, state, dispatch, isRemote, isReadOnlyRemote, remoteBootstrap } = useDesktop();
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? ["claude", "codex", "opencode", "grok", "pi"];
   const visiblePlatformsKey = visiblePlatforms.join("|");
   const snapshotReady = Boolean(snapshot);
+  const canLoadDashboard = snapshotReady
+    && (!isRemote || remoteBootstrap?.auth.required !== true || hasRemoteAccessToken());
 
   useEffect(() => {
-    if (!snapshotReady) return;
+    if (!canLoadDashboard) return;
 
     let cancelled = false;
-    const label = `[perf] dashboard load (${visiblePlatformsKey || "none"})`;
     setDashboardLoading(true);
     setDashboardError(null);
-    console.time(label);
 
     api.getDashboard()
       .then((data) => {
@@ -131,7 +131,6 @@ export default function DashboardPage() {
         }
       })
       .finally(() => {
-        console.timeEnd(label);
         if (!cancelled) {
           setDashboardLoading(false);
         }
@@ -140,7 +139,11 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [dispatch, snapshotReady, visiblePlatformsKey]);
+  }, [canLoadDashboard, dispatch, visiblePlatformsKey]);
+
+  useEffect(() => {
+    if (state.dashboard) setDashboardError(null);
+  }, [state.dashboard]);
 
   const platforms = state.dashboard?.platforms ?? [];
   const displayPlatforms = visiblePlatforms.flatMap((platformId) => {
@@ -150,13 +153,37 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto pr-2 pb-6">
-      {/* Hero with dynamic glowing abstract background */}
       <section className="relative shrink-0 overflow-hidden rounded-[28px] border border-border/80 bg-gradient-to-br from-card/85 via-card/75 to-card/40 px-6 py-7 md:px-8 md:py-8 backdrop-blur-md shadow-xl shadow-black/10">
-        {/* Glow Spheres */}
-        <div className="absolute -top-12 -left-12 size-48 bg-primary/8 blur-[90px] rounded-full pointer-events-none" />
-        <div className="absolute -bottom-16 -right-16 size-56 bg-violet-500/6 blur-[110px] rounded-full pointer-events-none" />
-        <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.04),transparent_72%)] lg:block pointer-events-none" />
-
+        {isRemote ? (
+          <div className="relative flex flex-col gap-5">
+            <div className="flex items-center gap-4">
+              <div className="inline-flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/5 bg-stone-900 shadow-lg shadow-black/20 ring-soft">
+                <AppLogo className="size-14" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-fine font-bold uppercase text-primary">Memory Forge Remote</p>
+                <h2 className="mt-1 break-words text-2xl font-extrabold leading-tight text-foreground [overflow-wrap:anywhere]">
+                  {remoteBootstrap?.serverName ?? t("appName")}
+                </h2>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold",
+                isReadOnlyRemote
+                  ? "border-primary/20 bg-primary/8 text-primary"
+                  : "border-emerald-500/20 bg-emerald-500/8 text-emerald-600 dark:text-emerald-300",
+              )}>
+                {isReadOnlyRemote ? <Eye className="size-3.5" /> : <ShieldCheck className="size-3.5" />}
+                {t(isReadOnlyRemote ? "remoteReadOnly" : "remoteAllowEdits")}
+              </span>
+              <span className="rounded-full border border-border/60 bg-white/5 px-3 py-1.5 font-mono text-[11px] text-quiet">
+                v{remoteBootstrap?.serverVersion ?? snapshot?.version ?? "-"}
+              </span>
+            </div>
+            {isReadOnlyRemote && <p className="max-w-2xl text-sm leading-6 text-quiet">{t("remoteReadOnlyHint")}</p>}
+          </div>
+        ) : (
         <div className="relative flex flex-col gap-6">
           <div className="flex flex-col md:flex-row md:items-center gap-5">
             <div className="inline-flex size-16 shrink-0 items-center justify-center rounded-2xl overflow-hidden shadow-lg shadow-black/25 ring-soft bg-stone-900 border border-white/5 transition-transform duration-300 hover:scale-105 select-none">
@@ -184,6 +211,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+        )}
       </section>
 
       {/* Platform Session Cards */}
@@ -235,14 +263,14 @@ export default function DashboardPage() {
       )}
 
       {/* Feature Cards */}
-      <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {!isRemote && <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <FeatureCard icon={<Brain className="size-5" />} title={t("memoryManipulation")} description={t("memoryManipulationDesc")} />
         <FeatureCard icon={<Flame className="size-5" />} title={t("localFirst")} description="100% 本地运行，零云端依赖。你的数据不会离开你的电脑。" />
         <FeatureCard icon={<ArrowRight className="size-5" />} title={t("multiPlatform")} description="Claude Code / Codex CLI / OpenCode 统一管理，一个界面搞定。" />
-      </section>
+      </section>}
 
       {/* Quick Links */}
-      <section className="mt-5 setting-card rounded-[24px] p-6 bg-gradient-to-r from-card/50 via-card/30 to-transparent border border-border/40">
+      {!isRemote && <section className="mt-5 setting-card rounded-[24px] p-6 bg-gradient-to-r from-card/50 via-card/30 to-transparent border border-border/40">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="select-none">
             <p className="text-fine uppercase tracking-[0.24em] text-primary font-bold">快捷导航</p>
@@ -260,7 +288,7 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
-      </section>
+      </section>}
     </div>
   );
 }

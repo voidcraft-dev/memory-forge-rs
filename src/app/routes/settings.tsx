@@ -8,11 +8,17 @@ import {
   SlidersHorizontal,
   Sparkles,
   Terminal,
+  Wifi,
+  RefreshCw,
+  Copy,
+  CheckCircle,
 } from "lucide-react";
-import { type ComponentType, useState } from "react";
+import { type ComponentType, useEffect, useState } from "react";
 import { localeCatalog, themeCatalog } from "@/features/desktop/catalog";
 import { useDesktop } from "@/features/desktop/provider";
 import type { ThemeId } from "@/features/desktop/types";
+import type { RemoteServerStatus } from "@/features/desktop/types";
+import { getRemoteServerStatus, restartRemoteServer } from "@/features/desktop/api";
 import { cn } from "@/lib/utils";
 
 const PLATFORM_ITEMS = [
@@ -84,9 +90,20 @@ export default function SettingsPage() {
     setLaunchOnStartup,
     setReduceMotion,
     updateSettings,
+    isRemote,
   } = useDesktop();
   const [draggingPlatformId, setDraggingPlatformId] = useState<string | null>(null);
   const [dragOverPlatformId, setDragOverPlatformId] = useState<string | null>(null);
+  const [remoteStatus, setRemoteStatus] = useState<RemoteServerStatus | null>(null);
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  const [remoteLinkCopied, setRemoteLinkCopied] = useState(false);
+  const [remotePortDraft, setRemotePortDraft] = useState("7331");
+
+  useEffect(() => {
+    if (!snapshot || snapshot.runtime !== "tauri") return;
+    setRemotePortDraft(String(snapshot.settings.remotePort));
+    void getRemoteServerStatus().then(setRemoteStatus).catch(() => setRemoteStatus(null));
+  }, [snapshot?.runtime, snapshot?.settings.remotePort]);
 
   if (loading || !snapshot) {
     return (
@@ -120,6 +137,34 @@ export default function SettingsPage() {
     }),
     ...PLATFORM_ITEMS.filter(({ id }) => !navigationItems.includes(id)),
   ];
+  const remoteBaseUrl = remoteStatus?.lanUrls?.[0] ?? remoteStatus?.url ?? "";
+  const remotePhoneLink = remoteBaseUrl
+    ? remoteStatus?.accessToken
+      ? `${remoteBaseUrl}/#token=${encodeURIComponent(remoteStatus.accessToken)}`
+      : remoteBaseUrl
+    : "";
+
+  const applyRemoteSettings = async (
+    patch: Parameters<typeof updateSettings>[0]
+  ) => {
+    setRemoteBusy(true);
+    try {
+      await updateSettings(patch);
+      setRemoteStatus(await restartRemoteServer());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setRemoteStatus((current) => current ? { ...current, running: false, error: message } : current);
+    } finally {
+      setRemoteBusy(false);
+    }
+  };
+
+  const copyRemoteLink = async () => {
+    if (!remotePhoneLink) return;
+    await navigator.clipboard.writeText(remotePhoneLink);
+    setRemoteLinkCopied(true);
+    window.setTimeout(() => setRemoteLinkCopied(false), 1600);
+  };
 
   const togglePlatformVisible = async (
     platformId: string,
@@ -251,8 +296,120 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {snapshot.runtime === "tauri" && (
+          <section className="setting-card rounded-[24px] p-5">
+            <SectionHeader
+              description={t("remoteSectionDesc")}
+              icon={Wifi}
+              title={t("remoteSection")}
+            />
+
+            <div className="mt-5 border-t border-border/40 pt-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold text-sm text-foreground">{t("remoteMode")}</p>
+                  <p className="mt-1 text-xs text-quiet">{snapshot.settings.remoteBindMode === "lan" ? t("remoteLan") : t("remoteLoopback")}</p>
+                </div>
+                <div className="grid grid-cols-2 rounded-xl border border-border/60 bg-muted/30 p-1" role="group" aria-label={t("remoteMode")}>
+                  {(["loopback", "lan"] as const).map((mode) => (
+                    <button
+                      type="button"
+                      key={mode}
+                      disabled={remoteBusy}
+                      aria-pressed={snapshot.settings.remoteBindMode === mode}
+                      onClick={() => void applyRemoteSettings({ remoteBindMode: mode })}
+                      className={cn(
+                        "min-h-10 rounded-lg px-4 text-xs font-semibold transition-colors",
+                        snapshot.settings.remoteBindMode === mode
+                          ? "bg-background text-primary shadow-sm"
+                          : "text-quiet hover:text-foreground",
+                      )}
+                    >
+                      {t(mode === "lan" ? "remoteLan" : "remoteLoopback")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 border-t border-border/40 pt-5 md:grid-cols-[minmax(0,1fr)_180px]">
+                <ToggleRow
+                  checked={snapshot.settings.remoteMutationsEnabled}
+                  description={t("remoteAllowEditsDesc")}
+                  disabled={remoteBusy}
+                  label={t("remoteAllowEdits")}
+                  onToggle={(enabled) => applyRemoteSettings({ remoteMutationsEnabled: enabled })}
+                />
+                <div className="flex flex-col justify-center">
+                  <label className="font-semibold text-sm text-foreground" htmlFor="remote-port">{t("remotePort")}</label>
+                  <input
+                    id="remote-port"
+                    type="number"
+                    min={1024}
+                    max={65535}
+                    inputMode="numeric"
+                    disabled={remoteBusy}
+                    value={remotePortDraft}
+                    onChange={(event) => setRemotePortDraft(event.target.value)}
+                    onBlur={() => {
+                      const port = Number(remotePortDraft);
+                      if (Number.isInteger(port) && port >= 1024 && port <= 65535 && port !== snapshot.settings.remotePort) {
+                        void applyRemoteSettings({ remotePort: port });
+                      } else {
+                        setRemotePortDraft(String(snapshot.settings.remotePort));
+                      }
+                    }}
+                    className="mt-2 h-11 rounded-xl border border-border/60 bg-background/50 px-3 text-base font-mono tabular-nums text-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3 border-t border-border/40 pt-5 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                  <span className={cn("size-2.5 shrink-0 rounded-full", remoteStatus?.running ? "bg-emerald-500" : "bg-red-400")} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{t(remoteStatus?.running ? "remoteRunning" : "remoteStopped")}</p>
+                    <p className="mt-0.5 truncate font-mono text-[11px] text-quiet" title={remoteBaseUrl || remoteStatus?.error || undefined}>
+                      {remoteBaseUrl || remoteStatus?.error || "-"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {snapshot.settings.remoteBindMode === "lan" && remotePhoneLink && (
+                    <button
+                      type="button"
+                      onClick={() => void copyRemoteLink()}
+                      className="flex min-h-11 items-center gap-2 rounded-xl border border-primary/25 bg-primary/8 px-3 text-xs font-semibold text-primary hover:bg-primary/12"
+                    >
+                      {remoteLinkCopied ? <CheckCircle className="size-4" /> : <Copy className="size-4" />}
+                      {t(remoteLinkCopied ? "remoteLinkCopied" : "remoteCopyLink")}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={remoteBusy}
+                    onClick={() => {
+                      setRemoteBusy(true);
+                      void restartRemoteServer()
+                        .then(setRemoteStatus)
+                        .catch((error) => {
+                          const message = error instanceof Error ? error.message : String(error);
+                          setRemoteStatus((current) => current ? { ...current, running: false, error: message } : current);
+                        })
+                        .finally(() => setRemoteBusy(false));
+                    }}
+                    className="flex min-h-11 items-center gap-2 rounded-xl border border-border/60 px-3 text-xs font-semibold text-foreground hover:bg-muted/60 disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn("size-4", remoteBusy && "animate-spin")} />
+                    {t("remoteRestart")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* 3. Desktop Behavior Toggles */}
-        <section className="setting-card rounded-[24px] p-5">
+        {!isRemote && <section className="setting-card rounded-[24px] p-5">
           <SectionHeader
             description={t("desktopBehaviorDesc")}
             icon={Rocket}
@@ -283,10 +440,10 @@ export default function SettingsPage() {
               onToggle={setReduceMotion}
             />
           </div>
-        </section>
+        </section>}
 
         {/* 4. Preferred terminal */}
-        <section className="setting-card rounded-[24px] p-5">
+        {!isRemote && <section className="setting-card rounded-[24px] p-5">
           <SectionHeader
             description={t("terminalSectionDesc")}
             icon={Terminal}
@@ -311,10 +468,10 @@ export default function SettingsPage() {
               ))}
             </select>
           </div>
-        </section>
+        </section>}
 
         {/* 5. Platform Visibility Filters */}
-        <section className="setting-card rounded-[24px] p-5">
+        {!isRemote && <section className="setting-card rounded-[24px] p-5">
           <SectionHeader
             description={t("sidebarSectionDesc")}
             icon={SlidersHorizontal}
@@ -425,10 +582,10 @@ export default function SettingsPage() {
               );
             })}
           </div>
-        </section>
+        </section>}
 
         {/* 6. Directory Paths configuration */}
-        <section className="setting-card rounded-[24px] p-5">
+        {!isRemote && <section className="setting-card rounded-[24px] p-5">
           <SectionHeader
             description={t("platformPathsDesc")}
             icon={FolderOpen}
@@ -506,7 +663,7 @@ export default function SettingsPage() {
               value={snapshot.settings.piHome ?? ""}
             />
           </div>
-        </section>
+        </section>}
       </div>
     </div>
   );

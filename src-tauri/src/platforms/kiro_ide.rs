@@ -7,6 +7,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
+use crate::atomic_file::replace_existing_file_atomic;
+
 use super::{
     build_commands, extract_snippet, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
     SessionListResult, TimelineBlock,
@@ -452,7 +454,7 @@ impl KiroIdePlatform {
             context_replacements += replace_bot_text_occurrences(&mut parsed, &old, new_content);
             let serialized = serde_json::to_string_pretty(&parsed)
                 .map_err(|e| format!("Serialize execution log error: {e}"))?;
-            fs::write(path, format!("{serialized}\n"))
+            replace_existing_file_atomic(path, format!("{serialized}\n").as_bytes())
                 .map_err(|e| format!("Write execution log error: {e}"))?;
             old_content = Some(old);
             updated_files += 1;
@@ -499,7 +501,7 @@ impl KiroIdePlatform {
             }
             let serialized = serde_json::to_string_pretty(&parsed)
                 .map_err(|e| format!("Serialize context log error: {e}"))?;
-            fs::write(path, format!("{serialized}\n"))
+            replace_existing_file_atomic(path, format!("{serialized}\n").as_bytes())
                 .map_err(|e| format!("Write context log error: {e}"))?;
             context_replacements += count;
             updated_files += 1;
@@ -724,6 +726,7 @@ impl PlatformAdapter for KiroIdePlatform {
             alias_title: alias,
             cwd,
             commands: build_commands("kiro-ide", session_id),
+            revision: String::new(),
             blocks,
         })
     }
@@ -776,7 +779,8 @@ impl PlatformAdapter for KiroIdePlatform {
             let old = replace_message_text(content, new_content)?;
             let serialized = serde_json::to_string_pretty(&session)
                 .map_err(|e| format!("Serialize error: {e}"))?;
-            fs::write(&path, format!("{serialized}\n")).map_err(|e| format!("Write error: {e}"))?;
+            replace_existing_file_atomic(&path, format!("{serialized}\n").as_bytes())
+                .map_err(|e| format!("Write error: {e}"))?;
             return Ok(old);
         }
 
