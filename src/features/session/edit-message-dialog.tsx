@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Clock, Save } from 'lucide-react'
+import { ChevronDown, ChevronUp, Clock, Save, ShieldCheck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,13 +16,14 @@ import { api, isSessionRevisionConflict } from '@/features/desktop/api'
 import { useDesktop } from '@/features/desktop/provider'
 
 export function EditMessageDialog() {
-  const { t, state, dispatch } = useDesktop()
+  const { t, state, dispatch, isRemote } = useDesktop()
   const currentPlatform = state.currentPlatform
   const editingBlock = state.editingBlock
   const selectedSessionKey = state.selectedSessionKey
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [revisionConflict, setRevisionConflict] = useState(false)
+  const [showOriginal, setShowOriginal] = useState(false)
 
   if (!editingBlock || !selectedSessionKey) {
     return null
@@ -87,6 +88,63 @@ export function EditMessageDialog() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (isRemote) {
+    return (
+      <Dialog
+        open={Boolean(editingBlock)}
+        onOpenChange={(open) => {
+          if (!open) handleClose()
+        }}
+      >
+        <DialogContent className="remote-editor-sheet">
+          <DialogHeader className="remote-editor-header">
+            <p className="remote-kicker">{roleLabel}</p>
+            <DialogTitle>{t('session.editMessage')}</DialogTitle>
+            <DialogDescription className="sr-only">{t('session.editWarning')}</DialogDescription>
+            <div className="remote-editor-revision">
+              <ShieldCheck className="size-3.5" />
+              <span>{t('remoteRevisionProtected')}</span>
+            </div>
+          </DialogHeader>
+
+          <DialogBody className="remote-editor-body">
+            <button
+              type="button"
+              className="remote-original-toggle"
+              onClick={() => setShowOriginal((value) => !value)}
+              aria-expanded={showOriginal}
+            >
+              <span>{t('editLog.before')}</span>
+              {showOriginal ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            </button>
+            {showOriginal && <pre className="remote-original-content">{editingBlock.originalContent}</pre>}
+
+            <label className="remote-editor-label" htmlFor="remote-message-editor">{t('editLog.after')}</label>
+            <Textarea
+              id="remote-message-editor"
+              value={editingBlock.content}
+              onChange={(event) => dispatch({ type: 'setEditingBlock', payload: { ...editingBlock, content: event.target.value } })}
+              className="remote-editor-textarea"
+              placeholder={t('session.enterContent')}
+              autoFocus
+            />
+
+            {saveError && <div className="remote-editor-error" role="alert">{saveError}</div>}
+            <p className="remote-editor-warning">{t('session.editWarning')}</p>
+          </DialogBody>
+
+          <DialogFooter className="remote-editor-footer">
+            <Button variant="ghost" onClick={handleClose}>{t('session.cancel')}</Button>
+            <Button onClick={() => void handleSave()} disabled={saving || revisionConflict}>
+              {saving ? <Clock className="size-4 animate-spin" /> : <Save className="size-4" />}
+              {t('session.saveChanges')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   return (

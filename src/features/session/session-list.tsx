@@ -8,8 +8,9 @@ import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useDesktop } from '@/features/desktop/provider'
 import { api, isTauriRuntime } from '@/features/desktop/api'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore, ChevronDown, ChevronUp, CheckSquare, X, Upload, FileJson, AlertTriangle, Eye } from 'lucide-react'
+import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore, ChevronDown, ChevronUp, ChevronRight, CheckSquare, X, Upload, FileJson, AlertTriangle, Eye } from 'lucide-react'
 import type { RawJsonlImportPreview, Session } from '@/features/desktop/types'
+import { useSearchParams } from 'react-router'
 
 function formatTime(timestamp: string, justNowLabel: string): string {
   try {
@@ -69,6 +70,7 @@ const SESSION_CARD_RENDER_STYLE: CSSProperties = {
 
 export function SessionList() {
   const { t, state, dispatch, isRemote, isReadOnlyRemote } = useDesktop()
+  const [remoteSearchParams, setRemoteSearchParams] = useSearchParams()
   const currentPlatform = state.currentPlatform
   const sessions = state.sessions
   const selectedSessionKey = state.selectedSessionKey
@@ -132,7 +134,7 @@ export function SessionList() {
         const detail = await api.getSessionDetail(currentPlatform, selectedSessionKey)
         console.timeEnd(`[perf] getSessionDetail(${currentPlatform})`)
         dispatch({ type: 'setSessionDetail', payload: detail })
-        if (state.showEditLog) {
+        if (isRemote || state.showEditLog) {
           api.getEditLog(currentPlatform, selectedSessionKey).then(logs => dispatch({ type: 'setEditLog', payload: logs })).catch(console.error)
         }
         dispatch({
@@ -260,6 +262,11 @@ export function SessionList() {
 
   const handleCardClick = (session: Session, index: number, e: React.MouseEvent) => {
     if (!selectionMode) {
+      if (isRemote) {
+        const nextSearchParams = new URLSearchParams(remoteSearchParams)
+        nextSearchParams.set('session', session.sessionKey)
+        setRemoteSearchParams(nextSearchParams)
+      }
       dispatch({ type: 'setSelectedSessionKey', payload: session.sessionKey })
       dispatch({ type: 'setEditingBlock', payload: null })
       return
@@ -320,6 +327,124 @@ export function SessionList() {
 
   if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings') {
     return null
+  }
+
+  if (isRemote) {
+    const platformName = currentPlatform === 'kiro-ide'
+      ? 'Kiro IDE'
+      : currentPlatform === 'opencode'
+        ? 'OpenCode'
+        : currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)
+
+    return (
+      <aside className={cn('remote-session-list', selectedSessionKey && 'max-md:hidden')}>
+        <div className="remote-session-list-header">
+          <div className="remote-session-heading-row">
+            <div className="min-w-0">
+              <p className="remote-kicker">{showArchived ? t('session.archiveView') : t('remoteRecentSessions')}</p>
+              <h1>{platformName}</h1>
+              <span>{t('remoteSessionCount', { count: totalCount })}</span>
+            </div>
+            <div className="remote-list-actions">
+              {isReadOnlyRemote && (
+                <span className="remote-readonly-mark" title={t('remoteReadOnlyHint')}>
+                  <Eye className="size-3.5" />
+                </span>
+              )}
+              <button
+                type="button"
+                className={cn('remote-icon-button', favoritesOnly && 'remote-icon-button-active')}
+                onClick={() => setFavoritesOnly((value) => !value)}
+                title={t('session.favorite')}
+                aria-label={t('session.favorite')}
+                aria-pressed={favoritesOnly}
+              >
+                <Star className={cn('size-4', favoritesOnly && 'fill-current')} />
+              </button>
+              <button
+                type="button"
+                className={cn('remote-icon-button', showArchived && 'remote-icon-button-active')}
+                onClick={() => {
+                  setFavoritesOnly(false)
+                  dispatch({ type: 'setShowArchived', payload: !showArchived })
+                }}
+                title={showArchived ? t('session.sessionsView') : t('session.archiveView')}
+                aria-label={showArchived ? t('session.sessionsView') : t('session.archiveView')}
+                aria-pressed={showArchived}
+              >
+                <Archive className="size-4" />
+              </button>
+              <button
+                type="button"
+                className={cn('remote-icon-button', refreshDone && 'remote-icon-button-success')}
+                onClick={() => void handleRefresh()}
+                disabled={refreshing}
+                title={t('session.refresh')}
+                aria-label={t('session.refresh')}
+              >
+                {refreshDone
+                  ? <CheckCircle className="size-4" />
+                  : <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} />}
+              </button>
+            </div>
+          </div>
+
+          <label className="remote-search-field">
+            <Search className="size-4" />
+            <span className="sr-only">{t('session.search')}</span>
+            <input
+              type="search"
+              placeholder={t('session.search')}
+              defaultValue={searchQuery}
+              onChange={(event) => debouncedSetSearch(event.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="remote-session-scroll">
+          {loading ? (
+            <div className="remote-session-loading" aria-label={t('loading')}>
+              {Array.from({ length: 7 }).map((_, index) => (
+                <div key={index} className="remote-session-skeleton">
+                  <span />
+                  <div><i /><i /></div>
+                </div>
+              ))}
+            </div>
+          ) : displaySessions.length === 0 ? (
+            <div className="remote-empty-state">
+              {showArchived ? <Archive className="size-6" /> : <Search className="size-6" />}
+              <strong>{showArchived ? t('session.noArchivedSessions') : t('session.noSessions')}</strong>
+            </div>
+          ) : (
+            <div className="remote-session-rows">
+              {displaySessions.map((session, index) => (
+                <RemoteSessionRow
+                  key={session.sessionKey}
+                  session={session}
+                  selected={selectedSessionKey === session.sessionKey}
+                  onClick={(event) => handleCardClick(session, index, event)}
+                  justNowLabel={t('session.justNow')}
+                  untitledLabel={t('session.untitled')}
+                  noPreviewLabel={t('session.noPreview')}
+                />
+              ))}
+              {remaining > 0 && !favoritesOnly && (
+                <button
+                  type="button"
+                  className="remote-load-more"
+                  onClick={() => void handleLoadMore()}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? <RefreshCw className="size-4 animate-spin" /> : null}
+                  {loadingMore ? t('loading') : t('session.loadMore', { count: remaining })}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
+    )
   }
 
   return (
@@ -603,6 +728,49 @@ export function SessionList() {
         </DialogContent>
       </Dialog>
     </aside>
+  )
+}
+
+function RemoteSessionRow({ session, selected, onClick, justNowLabel, untitledLabel, noPreviewLabel }: {
+  session: Session
+  selected: boolean
+  onClick: (event: React.MouseEvent) => void
+  justNowLabel: string
+  untitledLabel: string
+  noPreviewLabel: string
+}) {
+  const platform = session.platform || 'claude'
+  const pathParts = session.cwd?.split(/[\\/]/).filter(Boolean) ?? []
+  const shortPath = pathParts.slice(-2).join(' / ')
+  const match = session.contentMatches?.[0]
+
+  return (
+    <button
+      type="button"
+      className={cn('remote-session-row', selected && 'remote-session-row-selected')}
+      onClick={onClick}
+      style={SESSION_CARD_RENDER_STYLE}
+      aria-current={selected ? 'true' : undefined}
+    >
+      <span className="remote-session-avatar" data-platform={platform}>
+        {platform === 'kiro-ide' ? 'K' : platform === 'opencode' ? 'O' : platform.charAt(0).toUpperCase()}
+      </span>
+      <span className="remote-session-copy">
+        <span className="remote-session-title-line">
+          <strong>{session.displayTitle || session.sessionId || untitledLabel}</strong>
+          <time dateTime={session.updatedAt} title={formatDateTime(session.updatedAt)}>
+            {formatTime(session.updatedAt, justNowLabel)}
+          </time>
+        </span>
+        <span className="remote-session-preview">{session.preview || noPreviewLabel}</span>
+        {match && <span className="remote-session-match"><Search className="size-3" />{match.snippet}</span>}
+        <span className="remote-session-meta">
+          {session.favorite && <Star className="size-3 fill-current" />}
+          {shortPath && <span>{shortPath}</span>}
+        </span>
+      </span>
+      <ChevronRight className="remote-session-chevron size-4" />
+    </button>
   )
 }
 

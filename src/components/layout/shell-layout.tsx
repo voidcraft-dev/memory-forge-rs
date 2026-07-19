@@ -29,6 +29,7 @@ import { api, hasRemoteAccessToken, setRemoteAccessToken } from "@/features/desk
 import { cn } from "@/lib/utils";
 import { Suspense, useState, useEffect } from "react";
 import type { MessageKey } from "@/features/desktop/i18n";
+import RemoteShellLayout from "@/components/layout/remote-shell-layout";
 
 const navigation: Array<{
   to: string;
@@ -53,6 +54,11 @@ const navigation: Array<{
 ];
 
 export default function ShellLayout() {
+  const { isRemote } = useDesktop();
+  return isRemote ? <RemoteShellLayout /> : <DesktopShellLayout />;
+}
+
+function DesktopShellLayout() {
   const { snapshot, notice, error, t, isRemote, isReadOnlyRemote, remoteBootstrap, dispatch } = useDesktop();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useDesktop } from '@/features/desktop/provider'
 import { cn } from '@/lib/utils'
-import { FileText, ArrowRight, Clock, Eye, EyeOff, RefreshCw, CheckCircle, Undo2, Trash2 } from 'lucide-react'
+import { FileText, ArrowRight, Clock, Eye, EyeOff, RefreshCw, CheckCircle, Undo2, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import type { MessageKey } from '@/features/desktop/i18n'
 import type { EditLogEntry } from '@/features/desktop/types'
@@ -138,6 +138,110 @@ export function EditLogPanel() {
 
   if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings' || !selectedSessionKey) return null
   if (!showEditLog) return null
+
+  if (isRemote) {
+    return (
+      <>
+        <button
+          type="button"
+          className="remote-change-scrim"
+          onClick={() => dispatch({ type: 'setShowEditLog', payload: false })}
+          aria-label={t('editLog.collapse')}
+        />
+        <aside className="remote-change-sheet" aria-label={t('editLog.title')}>
+          <header className="remote-change-header">
+            <button
+              type="button"
+              className="remote-icon-button"
+              onClick={() => dispatch({ type: 'setShowEditLog', payload: false })}
+              title={t('editLog.collapse')}
+              aria-label={t('editLog.collapse')}
+            >
+              <X className="size-5" />
+            </button>
+            <div>
+              <p className="remote-kicker">{t('remoteRevisionHistory')}</p>
+              <h2>{t('editLog.title')}</h2>
+            </div>
+            <span className="remote-change-count">{editLog.length}</span>
+            <button
+              type="button"
+              className={cn('remote-icon-button ml-auto', refreshDone && 'remote-icon-button-success')}
+              onClick={() => void handleRefreshLog()}
+              disabled={refreshing}
+              title={t('session.refresh')}
+              aria-label={t('session.refresh')}
+            >
+              {refreshDone
+                ? <CheckCircle className="size-4" />
+                : <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} />}
+            </button>
+          </header>
+
+          <div className="remote-change-scroll">
+            {editLog.length === 0 ? (
+              <div className="remote-empty-state">
+                <FileText className="size-6" />
+                <strong>{t('editLog.noRecords')}</strong>
+              </div>
+            ) : (
+              <div className="remote-change-list">
+                {editLog.map((entry: EditLogEntry) => {
+                  const expanded = expandedId === entry.id
+                  return (
+                    <article key={entry.id} className="remote-change-entry">
+                      <span className="remote-change-track"><i /></span>
+                      <div className="remote-change-entry-body">
+                        <div className="remote-change-meta">
+                          <time dateTime={entry.createdAt}>
+                            {new Date(entry.createdAt).toLocaleString(undefined, {
+                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                            })}
+                          </time>
+                          <span>{entry.editTarget.length > 44 ? `${entry.editTarget.slice(0, 44)}...` : entry.editTarget}</span>
+                        </div>
+
+                        {expanded ? (
+                          <div className="remote-change-diff">
+                            <section data-side="before">
+                              <strong>{t('editLog.before')}</strong>
+                              <pre>{entry.oldContent}</pre>
+                            </section>
+                            <section data-side="after">
+                              <strong>{t('editLog.after')}</strong>
+                              <pre>{entry.newContent}</pre>
+                            </section>
+                          </div>
+                        ) : (
+                          <div className="remote-change-preview">
+                            <p><b>-</b>{entry.oldContent.slice(0, 100)}</p>
+                            <p><b>+</b>{entry.newContent.slice(0, 100)}</p>
+                          </div>
+                        )}
+
+                        <div className="remote-change-actions">
+                          <button type="button" onClick={() => setExpandedId(expanded ? null : entry.id)}>
+                            {expanded ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                            {expanded ? t('editLog.collapse') : t('editLog.viewDetail')}
+                          </button>
+                          {!isReadOnlyRemote && (
+                            <button type="button" className="remote-restore-button" onClick={() => void handleRestore(entry)}>
+                              <Undo2 className="size-4" />
+                              {t('session.restore')}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </aside>
+      </>
+    )
+  }
 
   return (
     <>

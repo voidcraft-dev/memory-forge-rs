@@ -13,7 +13,7 @@ import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { useTerminal } from '@/features/terminal/terminal-context'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 
 const PAGE_SIZE = 50
 const TOOL_INPUT_EXPORT_LIMIT = 8192
@@ -73,6 +73,7 @@ const getEditorIcon = (id: string) => {
 
 export function SessionDetail() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { t, state, dispatch, isRemote, isReadOnlyRemote, remoteCapabilities } = useDesktop()
   const currentPlatform = state.currentPlatform
   const sessionDetail = state.sessionDetail
@@ -237,9 +238,9 @@ export function SessionDetail() {
     estimateSize: estimateVirtualItemSize,
     getItemKey: getVirtualItemKey,
     overscan: 8,
-    gap: 16,
-    paddingStart: 16,
-    paddingEnd: 24,
+    gap: isRemote ? 0 : 16,
+    paddingStart: isRemote ? 0 : 16,
+    paddingEnd: isRemote ? 72 : 24,
   })
   const virtualItems = messageVirtualizer.getVirtualItems()
 
@@ -284,7 +285,16 @@ export function SessionDetail() {
     messageScrollRef.current?.scrollTo({ top: 0 })
   }, [sessionDetail?.sessionKey, roleFilter])
 
-  if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings' || !sessionDetail) {
+  if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings' || !sessionDetail || (isRemote && !selectedSessionKey)) {
+    if (isRemote) {
+      return (
+        <div className="remote-detail-empty max-md:hidden">
+          <Clock className="size-5" />
+          <strong>{t('session.selectToView')}</strong>
+          <span>{t('session.selectFromList')}</span>
+        </div>
+      )
+    }
     return (
       <div className="max-md:hidden flex-1 items-center justify-center text-muted-foreground bg-gradient-to-br from-background to-muted/20 md:flex">
         <div className="text-center">
@@ -688,6 +698,158 @@ export function SessionDetail() {
   }
 
   const detailLoading = selectedSessionKey !== sessionDetail.sessionKey
+
+  if (isRemote) {
+    const revisedTargets = new Set(state.editLog.map((entry) => entry.editTarget))
+    const closeSession = () => {
+      dispatch({ type: 'setSelectedSessionKey', payload: null })
+      dispatch({ type: 'setSessionDetail', payload: null })
+      dispatch({ type: 'setShowEditLog', payload: false })
+      navigate({ pathname: location.pathname, search: '' }, { replace: true })
+    }
+    const toggleHistory = () => {
+      const next = !showEditLog
+      dispatch({ type: 'setShowEditLog', payload: next })
+      if (next && selectedSessionKey) {
+        api.getEditLog(currentPlatform, selectedSessionKey)
+          .then(logs => dispatch({ type: 'setEditLog', payload: logs }))
+          .catch(err => {
+            console.error('Failed to load edit log:', err)
+            dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.refreshFailed') } })
+          })
+      }
+    }
+
+    return (
+      <section className="remote-session-detail">
+        {detailLoading && (
+          <div className="remote-detail-loading">
+            <RefreshCw className="size-5 animate-spin" />
+          </div>
+        )}
+
+        <header className="remote-detail-header">
+          <button
+            type="button"
+            className="remote-icon-button md:hidden"
+            onClick={closeSession}
+            title={t('mobileBackToSessions')}
+            aria-label={t('mobileBackToSessions')}
+          >
+            <ArrowLeft className="size-5" />
+          </button>
+          <div className="remote-detail-title">
+            <p>{currentPlatform === 'kiro-ide' ? 'Kiro IDE' : currentPlatform}</p>
+            <h1>{sessionDetail.aliasTitle || sessionDetail.title || sessionDetail.sessionId}</h1>
+            <span>{t('session.totalMessages', { count: sessionDetail.blocks.length })}</span>
+          </div>
+          <div className="remote-detail-actions">
+            <button
+              type="button"
+              className={cn('remote-icon-button', refreshDone && 'remote-icon-button-success')}
+              onClick={() => void handleRefresh()}
+              disabled={refreshing}
+              title={t('session.refresh')}
+              aria-label={t('session.refresh')}
+            >
+              {refreshDone
+                ? <CheckCircle className="size-4" />
+                : <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} />}
+            </button>
+            <button
+              type="button"
+              className={cn('remote-history-button', showEditLog && 'remote-history-button-active')}
+              onClick={toggleHistory}
+              title={t('session.editLog')}
+              aria-label={t('session.editLog')}
+              aria-pressed={showEditLog}
+            >
+              <FileText className="size-4" />
+              <span className="max-sm:hidden">{t('session.editLog')}</span>
+              {state.editLog.length > 0 && <b>{state.editLog.length}</b>}
+            </button>
+          </div>
+        </header>
+
+        <div className="remote-detail-tools">
+          <div className="remote-role-segments" aria-label={t('session.totalMessages', { count: sessionDetail.blocks.length })}>
+            {(['all', 'user', 'assistant', 'thinking'] as const).map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => dispatch({ type: 'setRoleFilter', payload: filter })}
+                className={cn(roleFilter === filter && 'remote-role-segment-active')}
+                aria-pressed={roleFilter === filter}
+              >
+                {t(`session.filter.${filter}` as MessageKey)}
+              </button>
+            ))}
+          </div>
+          <label className="remote-inline-search">
+            <Search className="size-4" />
+            <span className="sr-only">{t('session.search')}</span>
+            <input
+              type="search"
+              value={inlineSearch}
+              onChange={(event) => setInlineSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') handleSearchNav(event.shiftKey ? 'prev' : 'next')
+                if (event.key === 'Escape') setInlineSearch('')
+              }}
+              placeholder={t('session.search')}
+            />
+            {searchNeedle && (
+              <span>{matchingBlockIds.length > 0 ? `${currentMatchIdx + 1}/${matchingBlockIds.length}` : '0/0'}</span>
+            )}
+          </label>
+        </div>
+
+        {(isReadOnlyRemote || sessionStatus) && (
+          <div className="remote-detail-status">
+            {isReadOnlyRemote && <span><Eye className="size-3.5" />{t('remoteReadOnly')}</span>}
+            {sessionStatus && (
+              <strong data-tone={sessionStatus.tone}>{sessionStatus.message}</strong>
+            )}
+          </div>
+        )}
+
+        <div ref={messageScrollRef} className="remote-message-scroll">
+          <div className="relative w-full" style={{ height: `${messageVirtualizer.getTotalSize()}px` }}>
+            {virtualItems.map((virtualItem) => {
+              const block = filteredBlocks[virtualItem.index]
+              if (!block) return null
+              const editTarget = block.editTarget || block.id
+              return (
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={messageVirtualizer.measureElement}
+                  className="absolute left-0 top-0 w-full"
+                  style={{ transform: `translateY(${virtualItem.start}px)` }}
+                >
+                  <MessageBlock
+                    block={block}
+                    index={virtualItem.index}
+                    onEdit={() => handleEditBlock(block)}
+                    onErase={() => handleEraseBlock(block)}
+                    t={t}
+                    searchHighlight={searchNeedle}
+                    isSearchMatch={matchingBlockIds.includes(block.id)}
+                    isCurrentMatch={matchingBlockIds[currentMatchIdx] === block.id}
+                    remote
+                    readOnly={isReadOnlyRemote}
+                    revised={revisedTargets.has(editTarget)}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <ConfirmDialog {...confirmDialogProps} />
+      </section>
+    )
+  }
 
   return (
     <section className="relative z-10 flex min-w-0 flex-1 flex-col bg-gradient-to-br from-background via-background to-muted/10">
@@ -1428,6 +1590,7 @@ const MessageBlock = forwardRef<HTMLDivElement, {
     editTarget?: string
     editable?: boolean
     toolCalls?: Array<any>
+    createdAt?: string | null
   }
   index: number
   onEdit: () => void
@@ -1438,7 +1601,10 @@ const MessageBlock = forwardRef<HTMLDivElement, {
   searchHighlight?: string
   isSearchMatch?: boolean
   isCurrentMatch?: boolean
-}>(function MessageBlock({ block, index, onEdit, onErase, onLoadExecutionOutput, loadingExecutionOutput, t, searchHighlight, isCurrentMatch }, ref) {
+  remote?: boolean
+  readOnly?: boolean
+  revised?: boolean
+}>(function MessageBlock({ block, index, onEdit, onErase, onLoadExecutionOutput, loadingExecutionOutput, t, searchHighlight, isCurrentMatch, remote, readOnly, revised }, ref) {
   const [thinkingExpanded, setThinkingExpanded] = useState(false)
   const [longContentExpanded, setLongContentExpanded] = useState(false)
 
@@ -1482,6 +1648,77 @@ const MessageBlock = forwardRef<HTMLDivElement, {
   const displayContent = isLongContent && !showFullLongContent
     ? `${block.content.slice(0, LONG_BLOCK_PREVIEW_CHARS)}\n\n...`
     : block.content
+
+  if (remote) {
+    return (
+      <article
+        ref={ref}
+        className={cn(
+          'remote-message',
+          `remote-message-${block.role}`,
+          revised && 'remote-message-revised',
+          isCurrentMatch && 'remote-message-current-match',
+        )}
+      >
+        <div className="remote-message-rail">
+          <span><Icon className="size-3.5" /></span>
+        </div>
+        <div className="remote-message-body">
+          <header>
+            <div>
+              <strong>{config.label}</strong>
+              <span>#{index + 1}</span>
+              {revised && <mark>{t('remoteRevised')}</mark>}
+            </div>
+            {!readOnly && block.editable !== false && (
+              <div className="remote-message-actions">
+                <button type="button" onClick={onEdit} title={t('session.editThisMessage')} aria-label={t('session.editThisMessage')}>
+                  <Pencil className="size-4" />
+                </button>
+                <button type="button" onClick={onErase} title={t('session.erase')} aria-label={t('session.erase')}>
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+            )}
+          </header>
+
+          {isThinking && !thinkingExpanded ? (
+            <button type="button" className="remote-thinking-toggle" onClick={() => setThinkingExpanded(true)}>
+              <Lightbulb className="size-3.5" />
+              <span>{t('remoteShowThinking')}</span>
+              <ChevronDown className="size-3.5" />
+            </button>
+          ) : (
+            <>
+              {hasContent && (
+                <div className={cn('remote-message-content', isThinking && 'remote-thinking-content')}>
+                  {parseContentWithCodeBlocks(displayContent, searchHighlight)}
+                </div>
+              )}
+              {isThinking && (
+                <button type="button" className="remote-thinking-collapse" onClick={() => setThinkingExpanded(false)}>
+                  <ChevronUp className="size-3.5" />{t('remoteHideThinking')}
+                </button>
+              )}
+            </>
+          )}
+
+          {isLongContent && !isSearchHit && (
+            <button
+              type="button"
+              onClick={() => setLongContentExpanded((value) => !value)}
+              className="remote-expand-content"
+            >
+              {longContentExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+              {longContentExpanded ? t('remoteCollapseContent') : t('remoteExpandContent')}
+            </button>
+          )}
+
+          {block.toolCalls && block.toolCalls.length > 0 && <ToolCallsConsole toolCalls={block.toolCalls} />}
+        </div>
+      </article>
+    )
+  }
 
   return (
     <div

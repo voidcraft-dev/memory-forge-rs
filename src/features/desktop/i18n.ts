@@ -99,6 +99,24 @@ export type MessageKey =
   | "remoteQrTitle"
   | "remoteQrDescription"
   | "remoteQrSecret"
+  | "remoteOpenNavigation"
+  | "remoteCloseNavigation"
+  | "remoteSessions"
+  | "remoteOnline"
+  | "remoteCompanion"
+  | "remoteLocalConnection"
+  | "remoteWorkspaces"
+  | "remoteSourceOnHost"
+  | "remoteEditsEnabled"
+  | "remoteRevisionProtected"
+  | "remoteRecentSessions"
+  | "remoteRevisionHistory"
+  | "remoteRevised"
+  | "remoteShowThinking"
+  | "remoteHideThinking"
+  | "remoteCollapseContent"
+  | "remoteExpandContent"
+  | "remoteSessionCount"
   | "toggleOn"
   | "toggleOff"
   // Prompts
@@ -436,6 +454,24 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     remoteQrTitle: "扫描连接主机",
     remoteQrDescription: "使用手机相机或浏览器扫描，直接打开记忆锻造远程页面。",
     remoteQrSecret: "二维码包含访问令牌，只在可信设备上扫描，请勿截图或公开分享。",
+    remoteOpenNavigation: "打开平台导航",
+    remoteCloseNavigation: "关闭平台导航",
+    remoteSessions: "最近会话",
+    remoteOnline: "已连接",
+    remoteCompanion: "局域网伴侣",
+    remoteLocalConnection: "局域网连接",
+    remoteWorkspaces: "工作区",
+    remoteSourceOnHost: "数据保存在主机",
+    remoteEditsEnabled: "可编辑连接",
+    remoteRevisionProtected: "版本保护已启用",
+    remoteRecentSessions: "最近会话",
+    remoteRevisionHistory: "版本时间线",
+    remoteRevised: "已修订",
+    remoteShowThinking: "展开思考过程",
+    remoteHideThinking: "收起思考过程",
+    remoteCollapseContent: "收起完整内容",
+    remoteExpandContent: "展开完整内容",
+    remoteSessionCount: "共 {count} 个会话",
     toggleOn: "开启",
     toggleOff: "关闭",
     promptLibrary: "提示词库",
@@ -767,6 +803,24 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     remoteQrTitle: "Scan to connect",
     remoteQrDescription: "Scan with your phone camera or browser to open Memory Forge Remote.",
     remoteQrSecret: "This QR code contains the access token. Scan it only on trusted devices and do not share screenshots.",
+    remoteOpenNavigation: "Open platform navigation",
+    remoteCloseNavigation: "Close platform navigation",
+    remoteSessions: "Recent sessions",
+    remoteOnline: "Connected",
+    remoteCompanion: "LAN companion",
+    remoteLocalConnection: "Local network",
+    remoteWorkspaces: "Workspaces",
+    remoteSourceOnHost: "Data stays on the host",
+    remoteEditsEnabled: "Editable connection",
+    remoteRevisionProtected: "Revision protection on",
+    remoteRecentSessions: "Recent sessions",
+    remoteRevisionHistory: "Revision timeline",
+    remoteRevised: "Revised",
+    remoteShowThinking: "Show reasoning",
+    remoteHideThinking: "Hide reasoning",
+    remoteCollapseContent: "Collapse full content",
+    remoteExpandContent: "Expand full content",
+    remoteSessionCount: "{count} sessions",
     toggleOn: "On",
     toggleOff: "Off",
     promptLibrary: "Prompt Library",
