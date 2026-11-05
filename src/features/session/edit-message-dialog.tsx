@@ -13,6 +13,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/features/desktop/api'
 import { useDesktop } from '@/features/desktop/provider'
+import { isSessionFileChanged } from './session-errors'
 
 export function EditMessageDialog() {
   const { t, state, dispatch } = useDesktop()
@@ -56,7 +57,7 @@ export function EditMessageDialog() {
       dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.messageSaved') } })
     } catch (error) {
       console.error('Failed to save edit:', error)
-      const message = t('session.saveFailed')
+      const message = isSessionFileChanged(error) ? t('session.sessionFileChanged') : t('session.saveFailed')
       setSaveError(message)
       dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message } })
     }

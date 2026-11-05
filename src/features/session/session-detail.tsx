@@ -15,6 +15,7 @@ import {
   splitInjectedContext,
   stripInjectedContext,
 } from './injected-context'
+import { isSessionFileChanged } from './session-errors'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
@@ -352,7 +353,13 @@ export function SessionDetail() {
       dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.messageSaved') } })
     } catch (err) {
       console.error('Failed to erase message:', err)
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
+      dispatch({
+        type: 'setSessionStatus',
+        payload: {
+          tone: 'error',
+          message: isSessionFileChanged(err) ? t('session.sessionFileChanged') : t('session.saveFailed'),
+        },
+      })
     }
   }
 

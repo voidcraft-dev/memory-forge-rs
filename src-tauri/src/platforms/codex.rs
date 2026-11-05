@@ -11,10 +11,11 @@ use crate::database::{
 };
 
 use super::{
-    build_commands, content_entries_to_matches, derive_session_title, first_conversation_text,
-    push_bounded_index_entry, tool_text_from_str, tool_text_from_value, visit_bounded_jsonl_lines,
-    ContentMatch, PlatformAdapter, SessionAgentGroup, SessionDetail, SessionKey, SessionListItem,
-    SessionListResult, TimelineBlock, ToolCallBlock, MAX_INDEX_SOURCE_LINE_BYTES,
+    build_commands, content_entries_to_matches, derive_session_title, file_fingerprint,
+    first_conversation_text, push_bounded_index_entry, tool_text_from_str, tool_text_from_value,
+    visit_bounded_jsonl_lines, write_atomic, ContentMatch, PlatformAdapter, SessionAgentGroup,
+    SessionDetail, SessionKey, SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
+    MAX_INDEX_SOURCE_LINE_BYTES,
 };
 
 pub struct CodexPlatform {
@@ -897,10 +898,13 @@ impl PlatformAdapter for CodexPlatform {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| format!("Serialize error: {error}"))?;
 
-        fs::write(path, format!("{}\n", serialized.join("\n")))
-            .map_err(|error| format!("Write error: {error}"))?;
+        write_atomic(path, &format!("{}\n", serialized.join("\n")))?;
 
         Ok(old_content)
+    }
+
+    fn source_fingerprint(&self, session_key: &str) -> Option<String> {
+        file_fingerprint(Path::new(session_key))
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {

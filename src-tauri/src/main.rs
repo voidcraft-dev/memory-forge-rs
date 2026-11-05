@@ -361,7 +361,7 @@ fn session_import_raw_jsonl(
 
 #[tauri::command]
 fn write_text_file(path: String, content: String) -> Result<(), String> {
-    std::fs::write(&path, &content).map_err(|e| e.to_string())
+    platforms::write_atomic(std::path::Path::new(&path), &content)
 }
 
 #[tauri::command]

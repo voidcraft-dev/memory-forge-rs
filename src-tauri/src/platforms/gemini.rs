@@ -6,8 +6,8 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::{
-    extract_snippet, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
-    SessionListResult, TimelineBlock,
+    extract_snippet, file_fingerprint, write_atomic, ContentMatch, PlatformAdapter, SessionDetail,
+    SessionListItem, SessionListResult, TimelineBlock,
 };
 
 pub struct GeminiPlatform {
@@ -365,8 +365,7 @@ fn update_jsonl_message(
         .map_err(|e| format!("cannot serialize update marker: {e}"))?,
     );
 
-    fs::write(path, format!("{}\n", updated_lines.join("\n")))
-        .map_err(|e| format!("cannot write session file: {e}"))?;
+    write_atomic(path, &format!("{}\n", updated_lines.join("\n")))?;
 
     Ok(old_content)
 }
@@ -631,9 +630,13 @@ impl PlatformAdapter for GeminiPlatform {
 
         let updated = serde_json::to_string_pretty(&json)
             .map_err(|e| format!("cannot serialize session: {e}"))?;
-        fs::write(&path, updated).map_err(|e| format!("cannot write session file: {e}"))?;
+        write_atomic(&path, &updated)?;
 
         Ok(old_content)
+    }
+
+    fn source_fingerprint(&self, session_key: &str) -> Option<String> {
+        file_fingerprint(&self.key_to_path(session_key)?)
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {

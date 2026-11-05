@@ -157,6 +157,7 @@ export type MessageKey =
   | "session.enterContent"
   | "session.saveChanges"
   | "session.saveFailed"
+  | "session.sessionFileChanged"
   | "session.aliasSaved"
   | "session.aliasSaveFailed"
   | "session.messageSaved"
@@ -484,6 +485,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.enterContent": "输入内容...",
     "session.saveChanges": "保存修改",
     "session.saveFailed": "保存失败",
+    "session.sessionFileChanged": "会话文件已被外部修改（可能刚被 CLI 压缩或重写）。请刷新会话后重试。",
     "session.aliasSaved": "别名已保存",
     "session.aliasSaveFailed": "别名保存失败",
     "session.messageSaved": "修改已保存",
@@ -809,6 +811,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.enterContent": "Enter content...",
     "session.saveChanges": "Save Changes",
     "session.saveFailed": "Save failed",
+    "session.sessionFileChanged": "This session changed on disk (the CLI may have compacted or rewritten it). Refresh the session and try again.",
     "session.aliasSaved": "Alias saved",
     "session.aliasSaveFailed": "Failed to save alias",
     "session.messageSaved": "Changes saved",

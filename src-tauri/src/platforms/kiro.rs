@@ -7,8 +7,8 @@ use std::time::SystemTime;
 use serde_json::{json, Value};
 
 use super::{
-    build_commands, derive_session_title, first_conversation_text, ContentMatch, PlatformAdapter,
-    SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
+    build_commands, derive_session_title, file_fingerprint, first_conversation_text, write_atomic,
+    ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
 };
 
 pub struct KiroPlatform {
@@ -307,10 +307,13 @@ impl PlatformAdapter for KiroPlatform {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| format!("Serialize error: {e}"))?;
 
-        fs::write(&jsonl_path, format!("{}\n", serialized.join("\n")))
-            .map_err(|e| format!("Write error: {e}"))?;
+        write_atomic(&jsonl_path, &format!("{}\n", serialized.join("\n")))?;
 
         Ok(old_content)
+    }
+
+    fn source_fingerprint(&self, session_key: &str) -> Option<String> {
+        file_fingerprint(&self.sessions_dir.join(format!("{session_key}.jsonl")))
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {

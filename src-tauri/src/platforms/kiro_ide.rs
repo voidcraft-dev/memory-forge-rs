@@ -9,9 +9,10 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use super::{
-    build_commands, derive_session_title, extract_snippet, first_conversation_text,
-    tool_text_from_value, visit_bounded_jsonl_lines, ContentMatch, PlatformAdapter, SessionDetail,
-    SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock, MAX_INDEX_SOURCE_LINE_BYTES,
+    build_commands, derive_session_title, extract_snippet, file_fingerprint, first_conversation_text,
+    tool_text_from_value, visit_bounded_jsonl_lines, write_atomic, ContentMatch, PlatformAdapter,
+    SessionDetail, SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
+    MAX_INDEX_SOURCE_LINE_BYTES,
 };
 
 const EXECUTION_LOG_SCAN_MAX_BYTES: u64 = 8 * 1024 * 1024;
@@ -795,8 +796,7 @@ impl KiroIdePlatform {
             context_replacements += replace_bot_text_occurrences(&mut parsed, &old, new_content);
             let serialized = serde_json::to_string_pretty(&parsed)
                 .map_err(|e| format!("Serialize execution log error: {e}"))?;
-            fs::write(path, format!("{serialized}\n"))
-                .map_err(|e| format!("Write execution log error: {e}"))?;
+            write_atomic(path, &format!("{serialized}\n"))?;
             old_content = Some(old);
             updated_files += 1;
             break;
@@ -842,8 +842,7 @@ impl KiroIdePlatform {
             }
             let serialized = serde_json::to_string_pretty(&parsed)
                 .map_err(|e| format!("Serialize context log error: {e}"))?;
-            fs::write(path, format!("{serialized}\n"))
-                .map_err(|e| format!("Write context log error: {e}"))?;
+            write_atomic(path, &format!("{serialized}\n"))?;
             context_replacements += count;
             updated_files += 1;
         }
@@ -967,11 +966,20 @@ impl PlatformAdapter for KiroIdePlatform {
             let old = replace_message_text(content, new_content)?;
             let serialized = serde_json::to_string_pretty(&session)
                 .map_err(|e| format!("Serialize error: {e}"))?;
-            fs::write(&path, format!("{serialized}\n")).map_err(|e| format!("Write error: {e}"))?;
+            write_atomic(&path, &format!("{serialized}\n"))?;
             return Ok(old);
         }
 
         Err(format!("Message not found: {message_ref}"))
+    }
+
+    fn source_fingerprint(&self, session_key: &str) -> Option<String> {
+        let (workspace_key, session_id) = Self::parse_session_key(session_key)?;
+        let new_dir = self.new_session_dir(workspace_key, session_id);
+        if new_dir.is_dir() {
+            return file_fingerprint(&new_dir.join("messages.jsonl"));
+        }
+        file_fingerprint(&self.session_path(workspace_key, session_id))
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {
@@ -1282,8 +1290,7 @@ fn update_new_layout_message(
             return Err("Line index out of range".to_string());
         };
         let old = replace_new_layout_line_content(line, new_content)?;
-        fs::write(path, format!("{}\n", lines.join("\n")))
-            .map_err(|e| format!("Write error: {e}"))?;
+        write_atomic(path, &format!("{}\n", lines.join("\n")))?;
         return Ok(old);
     }
 
@@ -1302,8 +1309,7 @@ fn update_new_layout_message(
             return Err(format!("Event '{event_ref}' is not an editable message"));
         }
         let old = replace_new_layout_line_content(line, new_content)?;
-        fs::write(path, format!("{}\n", lines.join("\n")))
-            .map_err(|e| format!("Write error: {e}"))?;
+        write_atomic(path, &format!("{}\n", lines.join("\n")))?;
         return Ok(old);
     }
 

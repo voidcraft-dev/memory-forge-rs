@@ -11,9 +11,10 @@ use crate::database::{
 };
 
 use super::{
-    build_commands, content_entries_to_matches, derive_session_title, read_head_tail_lines,
-    tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail,
-    SessionKey, SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
+    build_commands, content_entries_to_matches, derive_session_title, file_fingerprint,
+    read_head_tail_lines, tool_text_from_str, tool_text_from_value, write_atomic, ContentMatch,
+    PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult, TimelineBlock,
+    ToolCallBlock,
 };
 
 pub struct PiPlatform {
@@ -553,10 +554,13 @@ impl PlatformAdapter for PiPlatform {
             return Err(format!("Pi message entry not found: {entry_id}"));
         };
 
-        fs::write(&path, format!("{}\n", lines.join("\n")))
-            .map_err(|e| format!("cannot write Pi session '{}': {e}", path.display()))?;
+        write_atomic(&path, &format!("{}\n", lines.join("\n")))?;
 
         Ok(old_content)
+    }
+
+    fn source_fingerprint(&self, session_key: &str) -> Option<String> {
+        file_fingerprint(&self.path_for_key(session_key)?)
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {

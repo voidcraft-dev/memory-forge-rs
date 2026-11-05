@@ -740,6 +740,57 @@ pub fn session_batch_set_flag(
     Ok(affected)
 }
 
+/// Returned when the session file changed after we loaded it. The frontend
+/// maps it to a dedicated "refresh and retry" message.
+pub const SESSION_FILE_CHANGED: &str = "SESSION_FILE_CHANGED";
+
+const MAX_TRACKED_FINGERPRINTS: usize = 512;
+
+fn session_fingerprints() -> &'static Mutex<HashMap<String, String>> {
+    static FINGERPRINTS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    FINGERPRINTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn fingerprint_key(platform: &str, session_key: &str) -> String {
+    format!("{platform}::{session_key}")
+}
+
+fn remember_fingerprint(platform: &str, session_key: &str, adapter: &dyn platforms::PlatformAdapter) {
+    let Some(fingerprint) = adapter.source_fingerprint(session_key) else {
+        return;
+    };
+    let Ok(mut guard) = session_fingerprints().lock() else {
+        return;
+    };
+    if guard.len() >= MAX_TRACKED_FINGERPRINTS {
+        guard.clear();
+    }
+    guard.insert(fingerprint_key(platform, session_key), fingerprint);
+}
+
+/// Refuse to write to a session that the CLI rewrote since we loaded it.
+///
+/// Edit targets are line-indexed, so a compaction or a rewrite in between
+/// would make the save land on a different message.
+fn ensure_session_unchanged(
+    platform: &str,
+    session_key: &str,
+    adapter: &dyn platforms::PlatformAdapter,
+) -> Result<(), String> {
+    let Some(current) = adapter.source_fingerprint(session_key) else {
+        return Ok(());
+    };
+    let remembered = session_fingerprints()
+        .lock()
+        .ok()
+        .and_then(|guard| guard.get(&fingerprint_key(platform, session_key)).cloned());
+
+    match remembered {
+        Some(expected) if expected != current => Err(SESSION_FILE_CHANGED.to_string()),
+        _ => Ok(()),
+    }
+}
+
 pub fn session_detail(
     db: &DbState,
     settings: &AppSettings,
@@ -750,6 +801,7 @@ pub fn session_detail(
     let adapter = platforms::get_adapter(platform, settings)?;
     let aliases = database::get_alias_map(&db.conn, platform)?;
     let detail = adapter.get_session_detail(session_key, &aliases)?;
+    remember_fingerprint(platform, session_key, adapter.as_ref());
     eprintln!(
         "[perf] session_detail({platform}) {} blocks: {:?}",
         detail.blocks.len(),
@@ -811,7 +863,9 @@ pub fn session_edit_message(
     session_key: &str,
 ) -> Result<(), String> {
     let adapter = platforms::get_adapter(platform, settings)?;
+    ensure_session_unchanged(platform, session_key, adapter.as_ref())?;
     let old_content = adapter.update_message(edit_target, content)?;
+    remember_fingerprint(platform, session_key, adapter.as_ref());
     database::insert_edit_log(
         &db.conn,
         platform,

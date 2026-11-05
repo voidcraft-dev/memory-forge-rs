@@ -11,9 +11,9 @@ use serde_json::{json, Value};
 use crate::database::{SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 
 use super::{
-    build_commands, content_entries_to_matches, derive_session_title, tool_text_from_value,
-    ContentMatch, PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult,
-    TimelineBlock, ToolCallBlock,
+    build_commands, content_entries_to_matches, derive_session_title, file_fingerprint,
+    tool_text_from_value, write_atomic, ContentMatch, PlatformAdapter, SessionDetail, SessionKey,
+    SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
 };
 
 pub struct GrokPlatform {
@@ -510,13 +510,13 @@ impl PlatformAdapter for GrokPlatform {
         }
         let old_content =
             old_content.ok_or_else(|| format!("Grok chat line not found: {line_index}"))?;
-        fs::write(&path, format!("{}\n", output_lines.join("\n"))).map_err(|error| {
-            format!(
-                "cannot write Grok chat history '{}': {error}",
-                path.display()
-            )
-        })?;
+        write_atomic(&path, &format!("{}\n", output_lines.join("\n")))?;
         Ok(old_content)
+    }
+
+    fn source_fingerprint(&self, session_key: &str) -> Option<String> {
+        let dir = self.dir_for_key(session_key)?;
+        file_fingerprint(&dir.join("chat_history.jsonl"))
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {

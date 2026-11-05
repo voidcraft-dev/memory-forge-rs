@@ -12,11 +12,68 @@ pub mod zcode;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Seek, SeekFrom};
-use std::path::PathBuf;
+use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 use crate::database::{SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 use crate::settings::AppSettings;
+
+/// Replace a session file without ever leaving it half-written.
+///
+/// Adapters used to call `fs::write` on transcripts owned by the CLI. A crash
+/// or a full disk in the middle of that call truncated the whole session, so
+/// write to a sibling temp file, flush it, and rename it over the original.
+pub fn write_atomic(path: &Path, contents: &str) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("Invalid path: {}", path.display()))?;
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("session");
+    let stamp = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    let temp_path = parent.join(format!(
+        ".{file_name}.{}.{stamp}.tmp",
+        std::process::id()
+    ));
+
+    let result = (|| -> io::Result<()> {
+        let mut file = File::create(&temp_path)?;
+        file.write_all(contents.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        if let Ok(meta) = std::fs::metadata(path) {
+            let _ = std::fs::set_permissions(&temp_path, meta.permissions());
+        }
+        std::fs::rename(&temp_path, path)
+    })();
+
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp_path);
+    }
+
+    result.map_err(|error| format!("Failed to write {}: {error}", path.display()))
+}
+
+/// Identify the current on-disk version of a session file.
+///
+/// File-backed adapters use this to notice that the CLI rewrote or compacted
+/// the transcript after we loaded it, which would make line-indexed edit
+/// targets point at the wrong message.
+pub fn file_fingerprint(path: &Path) -> Option<String> {
+    let metadata = std::fs::metadata(path).ok()?;
+    let modified = metadata
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    Some(format!("{modified}-{}", metadata.len()))
+}
 
 const MAX_IN_MEMORY_SESSION_INDEX_BYTES: usize = 256 * 1024;
 pub const MAX_INDEX_SOURCE_LINE_BYTES: usize = 1024 * 1024;
@@ -165,6 +222,11 @@ pub trait PlatformAdapter: Send + Sync {
         alias_map: &HashMap<String, String>,
     ) -> Result<SessionDetail, String>;
     fn update_message(&self, edit_target: &str, new_content: &str) -> Result<String, String>;
+    /// Fingerprint of the session file that edit targets refer to. Used to
+    /// detect that the CLI rewrote the transcript between load and edit.
+    fn source_fingerprint(&self, _session_key: &str) -> Option<String> {
+        None
+    }
     fn replace_tool_call(
         &self,
         _session_key: &str,
@@ -504,6 +566,57 @@ mod index_reader_tests {
         fs::remove_dir_all(&root).ok();
 
         assert_eq!(lines, vec!["{\"id\":1}", "{\"id\":2}"]);
+    }
+}
+
+#[cfg(test)]
+mod atomic_write_tests {
+    use super::*;
+    use std::fs;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let root = std::env::var_os("MEMORY_FORGE_TEST_TMP")
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir)
+            .join(format!("memory-forge-{name}-{}", std::process::id()));
+        fs::create_dir_all(&root).expect("create temp dir");
+        root
+    }
+
+    #[test]
+    fn write_atomic_replaces_contents_without_leaving_temp_files() {
+        let root = temp_dir("atomic-write");
+        let path = root.join("session.jsonl");
+        fs::write(&path, "old\n").expect("seed file");
+
+        write_atomic(&path, "new\n").expect("atomic write");
+
+        assert_eq!(fs::read_to_string(&path).expect("read file"), "new\n");
+        let leftovers: Vec<_> = fs::read_dir(&root)
+            .expect("read dir")
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.ends_with(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
+        fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn file_fingerprint_changes_when_the_file_is_rewritten() {
+        let root = temp_dir("fingerprint");
+        let path = root.join("session.jsonl");
+        fs::write(&path, "one\n").expect("seed file");
+
+        let first = file_fingerprint(&path).expect("fingerprint");
+
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        fs::write(&path, "two-longer\n").expect("rewrite file");
+        let second = file_fingerprint(&path).expect("fingerprint");
+
+        assert_ne!(first, second);
+        assert!(file_fingerprint(&root.join("missing.jsonl")).is_none());
+        fs::remove_dir_all(&root).ok();
     }
 }
 
