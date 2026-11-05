@@ -336,7 +336,13 @@ export function SessionDetail() {
   }
 
   const handleEraseBlock = async (block: typeof sessionDetail.blocks[0]) => {
-    if (!await confirm({ title: t('session.erase'), description: t('session.eraseConfirm'), variant: 'danger' })) return
+    if (!await confirm({
+      title: t('session.erase'),
+      description: t('session.eraseConfirm'),
+      variant: 'danger',
+      confirmLabel: t('confirm'),
+      cancelLabel: t('cancel'),
+    })) return
     try {
       await api.editMessage(currentPlatform, block.editTarget || block.id, '', sessionDetail.sessionKey)
       const updatedBlocks = sessionDetail.blocks.map(b =>
@@ -357,6 +363,8 @@ export function SessionDetail() {
       title: t('session.eraseToolCall'),
       description: t('session.eraseToolCallConfirm'),
       variant: 'danger',
+      confirmLabel: t('confirm'),
+      cancelLabel: t('cancel'),
     })) return
 
     setErasingToolCallId(toolCall.id)
@@ -1070,7 +1078,12 @@ export function SessionDetail() {
             <Button variant="ghost" size="sm"
               className="gap-2 hover:bg-amber-500/10 hover:text-amber-400"
               onClick={async () => {
-                if (!await confirm({ title: t('session.archive'), description: t('session.archiveConfirm') })) return
+                if (!await confirm({
+                  title: t('session.archive'),
+                  description: t('session.archiveConfirm'),
+                  confirmLabel: t('confirm'),
+                  cancelLabel: t('cancel'),
+                })) return
                 await api.toggleFlag(currentPlatform, sessionDetail.sessionKey, 'archived')
                 dispatch({ type: 'setSessions', payload: sessions.filter(s => s.sessionKey !== sessionDetail.sessionKey) })
                 dispatch({ type: 'setSelectedSessionKey', payload: null })

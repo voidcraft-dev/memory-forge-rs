@@ -61,13 +61,29 @@ export function useConfirmDialog() {
     open: boolean
     title: string
     description: string
+    confirmLabel?: string
+    cancelLabel?: string
     variant: "warning" | "danger"
     resolve: ((value: boolean) => void) | null
   }>({ open: false, title: "", description: "", variant: "warning", resolve: null })
 
-  const confirm = useCallback((opts: { title: string; description: string; variant?: "warning" | "danger" }) => {
+  const confirm = useCallback((opts: {
+    title: string
+    description: string
+    variant?: "warning" | "danger"
+    confirmLabel?: string
+    cancelLabel?: string
+  }) => {
     return new Promise<boolean>((resolve) => {
-      setState({ open: true, title: opts.title, description: opts.description, variant: opts.variant ?? "warning", resolve })
+      setState({
+        open: true,
+        title: opts.title,
+        description: opts.description,
+        confirmLabel: opts.confirmLabel,
+        cancelLabel: opts.cancelLabel,
+        variant: opts.variant ?? "warning",
+        resolve,
+      })
     })
   }, [])
 
@@ -79,6 +95,8 @@ export function useConfirmDialog() {
     },
     title: state.title,
     description: state.description,
+    confirmLabel: state.confirmLabel,
+    cancelLabel: state.cancelLabel,
     variant: state.variant as "warning" | "danger",
     onConfirm: () => {
       if (state.resolve) state.resolve(true)

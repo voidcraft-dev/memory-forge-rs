@@ -356,7 +356,12 @@ export function SessionList() {
 
   const handleToggleArchive = async (session: Session, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!showArchived && !await confirm({ title: t('session.archive'), description: t('session.archiveConfirm') })) return
+    if (!showArchived && !await confirm({
+      title: t('session.archive'),
+      description: t('session.archiveConfirm'),
+      confirmLabel: t('confirm'),
+      cancelLabel: t('cancel'),
+    })) return
     await api.toggleFlag(currentPlatform, session.sessionKey, 'archived')
     if (selectedSessionKey === session.sessionKey) {
       dispatch({ type: 'setSelectedSessionKey', payload: null })
@@ -370,6 +375,15 @@ export function SessionList() {
     if (selectedKeys.size === 0) {
       dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.noSelection') } })
       return
+    }
+    if (flag === 'archived' && set) {
+      const accepted = await confirm({
+        title: t('session.batchArchive'),
+        description: t('session.batchArchiveConfirm', { count: selectedKeys.size }),
+        confirmLabel: t('confirm'),
+        cancelLabel: t('cancel'),
+      })
+      if (!accepted) return
     }
     setBatchOperating(true)
     const keys = Array.from(selectedKeys)

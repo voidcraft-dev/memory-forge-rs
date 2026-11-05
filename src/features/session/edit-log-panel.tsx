@@ -1,6 +1,7 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useDesktop } from '@/features/desktop/provider'
 import { cn } from '@/lib/utils'
 import { FileText, ArrowRight, Clock, Eye, EyeOff, RefreshCw, CheckCircle, Undo2, Trash2 } from 'lucide-react'
@@ -50,6 +51,7 @@ export function EditLogPanel() {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshDone, setRefreshDone] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog()
 
   const handleRefreshLog = async () => {
     if (!selectedSessionKey) return
@@ -67,8 +69,13 @@ export function EditLogPanel() {
   }
 
   const handleRestore = async (entry: EditLogEntry) => {
-    if (!window.confirm(t('session.restoreConfirm'))) return
     if (!selectedSessionKey) return
+    if (!await confirm({
+      title: t('session.restore'),
+      description: t('session.restoreConfirm'),
+      confirmLabel: t('confirm'),
+      cancelLabel: t('cancel'),
+    })) return
     try {
       await api.restoreMessage(currentPlatform, entry.id, selectedSessionKey)
       // Refresh both edit log and session detail
@@ -86,7 +93,14 @@ export function EditLogPanel() {
   }
 
   const handleDelete = async (entry: EditLogEntry) => {
-    if (!selectedSessionKey || !window.confirm(t('editLog.deleteConfirm'))) return
+    if (!selectedSessionKey) return
+    if (!await confirm({
+      title: t('editLog.delete'),
+      description: t('editLog.deleteConfirm'),
+      variant: 'danger',
+      confirmLabel: t('confirm'),
+      cancelLabel: t('cancel'),
+    })) return
     setDeletingId(entry.id)
     try {
       const deleted = await api.deleteEditLog(currentPlatform, entry.id, selectedSessionKey)
@@ -102,7 +116,14 @@ export function EditLogPanel() {
   }
 
   const handleClear = async () => {
-    if (!selectedSessionKey || editLog.length === 0 || !window.confirm(t('editLog.clearConfirm'))) return
+    if (!selectedSessionKey || editLog.length === 0) return
+    if (!await confirm({
+      title: t('editLog.clear'),
+      description: t('editLog.clearConfirm'),
+      variant: 'danger',
+      confirmLabel: t('confirm'),
+      cancelLabel: t('cancel'),
+    })) return
     setDeletingId(-1)
     try {
       await api.clearEditLogs(currentPlatform, selectedSessionKey)
@@ -215,6 +236,7 @@ export function EditLogPanel() {
           </div>
         </div>
       </div>
+      <ConfirmDialog {...confirmDialogProps} />
     </aside>
   )
 }

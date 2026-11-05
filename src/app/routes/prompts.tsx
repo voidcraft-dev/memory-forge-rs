@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   createPrompt,
   deletePrompt,
@@ -92,6 +93,7 @@ function formatTime(iso: string): string {
 
 export default function PromptsPage() {
   const { t } = useDesktop();
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
   const [prompts, setPrompts] = useState<PromptItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTag, setActiveTag] = useState("");
@@ -163,7 +165,14 @@ export default function PromptsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm("确定要删除此提示词吗？")) {
+    const accepted = await confirm({
+      title: t("deletePrompt"),
+      description: t("deletePromptConfirm"),
+      variant: "danger",
+      confirmLabel: t("confirm"),
+      cancelLabel: t("cancel"),
+    });
+    if (!accepted) {
       return;
     }
     try {
@@ -920,6 +929,7 @@ export default function PromptsPage() {
           </div>
         </div>
       )}
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 }

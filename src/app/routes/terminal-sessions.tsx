@@ -161,6 +161,8 @@ export default function TerminalSessionsPage() {
         title: t("terminal.closeRunningTitle"),
         description: t("terminal.closeRunningDesc"),
         variant: "danger",
+        confirmLabel: t("confirm"),
+        cancelLabel: t("cancel"),
       });
       if (!accepted) return;
     }
@@ -173,6 +175,8 @@ export default function TerminalSessionsPage() {
         title: t("terminal.btn.confirmForceStop"),
         description: t("terminal.forceStopDesc"),
         variant: "danger",
+        confirmLabel: t("confirm"),
+        cancelLabel: t("cancel"),
       });
       if (!accepted) return;
       await stopTerminal(terminal.id, true);

@@ -96,6 +96,7 @@ export type MessageKey =
   | "save"
   | "create"
   | "cancel"
+  | "confirm"
   | "copy"
   | "copied"
   | "usedCount"
@@ -103,6 +104,8 @@ export type MessageKey =
   | "emptyHint"
   | "createFirst"
   | "importExport"
+  | "deletePrompt"
+  | "deletePromptConfirm"
   | "exportJSON"
   | "importJSON"
   | "importSuccess"
@@ -269,6 +272,7 @@ export type MessageKey =
   | "session.invertSelection"
   | "session.selectedCount"
   | "session.batchArchive"
+  | "session.batchArchiveConfirm"
   | "session.batchUnarchive"
   | "session.batchFavorite"
   | "session.batchUnfavorite"
@@ -422,6 +426,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     save: "保存",
     create: "创建",
     cancel: "取消",
+    confirm: "确认",
     copy: "复制",
     copied: "已复制",
     usedCount: "使用 {count} 次",
@@ -429,6 +434,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     emptyHint: "点击新建按钮创建你的第一个提示词",
     createFirst: "创建第一个",
     importExport: "导入/导出",
+    deletePrompt: "删除提示词",
+    deletePromptConfirm: "确定要删除此提示词吗？删除后无法恢复。",
     exportJSON: "导出 JSON",
     importJSON: "导入 JSON",
     importSuccess: "成功导入 {count} 个提示词",
@@ -591,6 +598,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.invertSelection": "反选",
     "session.selectedCount": "已选 {count}",
     "session.batchArchive": "批量归档",
+    "session.batchArchiveConfirm": "确定归档选中的 {count} 个会话吗？归档后不会在列表中显示，可以在归档视图中恢复。",
     "session.batchUnarchive": "批量取消归档",
     "session.batchFavorite": "批量收藏",
     "session.batchUnfavorite": "批量取消收藏",
@@ -743,6 +751,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     save: "Save",
     create: "Create",
     cancel: "Cancel",
+    confirm: "Confirm",
     copy: "Copy",
     copied: "Copied",
     usedCount: "Used {count} times",
@@ -750,6 +759,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     emptyHint: "Click the button to create your first prompt",
     createFirst: "Create First",
     importExport: "Import/Export",
+    deletePrompt: "Delete prompt",
+    deletePromptConfirm: "Delete this prompt? This cannot be undone.",
     exportJSON: "Export JSON",
     importJSON: "Import JSON",
     importSuccess: "Successfully imported {count} prompts",
@@ -912,6 +923,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.invertSelection": "Invert",
     "session.selectedCount": "{count} selected",
     "session.batchArchive": "Archive",
+    "session.batchArchiveConfirm": "Archive the {count} selected sessions? They will be hidden from the list and can be restored from the archive view.",
     "session.batchUnarchive": "Unarchive",
     "session.batchFavorite": "Favorite",
     "session.batchUnfavorite": "Unfavorite",
