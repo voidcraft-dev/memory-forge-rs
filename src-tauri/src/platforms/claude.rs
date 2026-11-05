@@ -11,10 +11,10 @@ use crate::database::{
 };
 
 use super::{
-    build_commands, content_entries_to_matches, push_bounded_index_entry, tool_text_from_str,
-    tool_text_from_value, visit_bounded_jsonl_lines, ContentMatch, PlatformAdapter, SessionDetail,
-    SessionKey, SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
-    MAX_INDEX_SOURCE_LINE_BYTES,
+    build_commands, content_entries_to_matches, derive_session_title, first_conversation_text,
+    push_bounded_index_entry, strip_injected_blocks, tool_text_from_str, tool_text_from_value,
+    visit_bounded_jsonl_lines, ContentMatch, PlatformAdapter, SessionDetail, SessionKey,
+    SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock, MAX_INDEX_SOURCE_LINE_BYTES,
 };
 
 pub struct ClaudePlatform {
@@ -53,7 +53,10 @@ impl ClaudePlatform {
 
         let mut session_id = String::new();
         let mut cwd = String::new();
+        // Prefer the first real user message; fall back to the first assistant text.
         let mut preview = String::new();
+        let mut fallback_preview = String::new();
+        let mut scanned_lines = 0usize;
 
         let Ok(file) = File::open(path) else {
             return ScanSummary {
@@ -73,6 +76,7 @@ impl ClaudePlatform {
             let Ok(parsed) = serde_json::from_str::<Value>(trimmed) else {
                 continue;
             };
+            scanned_lines += 1;
 
             if session_id.is_empty() {
                 if let Some(id) = parsed.get("sessionId").and_then(Value::as_str) {
@@ -86,31 +90,20 @@ impl ClaudePlatform {
                 }
             }
 
-            if preview.is_empty() {
-                if let Some(message) = parsed.get("message") {
-                    let role = message.get("role").and_then(Value::as_str).unwrap_or("");
-                    if role == "user" || role == "assistant" {
-                        // string content
-                        if let Some(text) = message.get("content").and_then(Value::as_str) {
-                            let cleaned = clean_preview_text(text);
-                            if !cleaned.is_empty() {
-                                preview = truncate(&cleaned, 120);
+            if let Some(message) = parsed.get("message") {
+                let role = message.get("role").and_then(Value::as_str).unwrap_or("");
+                if (preview.is_empty() && role == "user")
+                    || (fallback_preview.is_empty() && role == "assistant")
+                {
+                    if let Some(text) = claude_message_text(message) {
+                        let cleaned = clean_preview_text(&text);
+                        if !cleaned.is_empty() {
+                            let excerpt = truncate(&cleaned, 120);
+                            if role == "user" && preview.is_empty() {
+                                preview = excerpt.clone();
                             }
-                        }
-                        // array content
-                        if preview.is_empty() {
-                            if let Some(items) = message.get("content").and_then(Value::as_array) {
-                                for item in items {
-                                    if item.get("type").and_then(Value::as_str) == Some("text") {
-                                        let text =
-                                            item.get("text").and_then(Value::as_str).unwrap_or("");
-                                        let cleaned = clean_preview_text(text);
-                                        if !cleaned.is_empty() {
-                                            preview = truncate(&cleaned, 120);
-                                            break;
-                                        }
-                                    }
-                                }
+                            if fallback_preview.is_empty() {
+                                fallback_preview = excerpt;
                             }
                         }
                     }
@@ -120,6 +113,14 @@ impl ClaudePlatform {
             if !session_id.is_empty() && !cwd.is_empty() && !preview.is_empty() {
                 break;
             }
+            // Do not scan huge transcripts just because the first user turn is missing.
+            if scanned_lines >= 256 && !fallback_preview.is_empty() {
+                break;
+            }
+        }
+
+        if preview.is_empty() {
+            preview = fallback_preview;
         }
 
         if session_id.is_empty() {
@@ -202,11 +203,14 @@ impl ClaudePlatform {
                 platform: "claude".to_string(),
                 session_key,
                 session_id: summary.session_id.clone(),
-                display_title: if alias.is_empty() {
-                    summary.session_id
-                } else {
-                    alias.clone()
-                },
+                display_title: derive_session_title(
+                    &alias,
+                    "",
+                    &summary.preview,
+                    &summary.cwd,
+                    &summary.session_id,
+                    "Claude",
+                ),
                 alias_title: alias,
                 preview: summary.preview,
                 updated_at: modified_nanos(path).to_string(),
@@ -775,11 +779,14 @@ impl PlatformAdapter for ClaudePlatform {
             platform: "claude".to_string(),
             session_key: session_key.to_string(),
             session_id: summary.session_id.clone(),
-            display_title: if alias.is_empty() {
-                summary.session_id
-            } else {
-                alias.clone()
-            },
+            display_title: derive_session_title(
+                &alias,
+                "",
+                &summary.preview,
+                &summary.cwd,
+                &summary.session_id,
+                "Claude",
+            ),
             alias_title: alias,
             preview: summary.preview,
             updated_at: modified_nanos(path).to_string(),
@@ -801,20 +808,26 @@ impl PlatformAdapter for ClaudePlatform {
         let lines = self.read_jsonl(path);
         let session_id = self.session_id(&lines, path);
         let alias = alias_map.get(session_key).cloned().unwrap_or_default();
+        let blocks = self.blocks(&lines, session_key);
+        let cwd = self.cwd(&lines);
+        let title = derive_session_title(
+            &alias,
+            "",
+            &first_conversation_text(&blocks),
+            &cwd,
+            &session_id,
+            "Claude",
+        );
 
         Ok(SessionDetail {
             platform: "claude".to_string(),
             session_key: session_key.to_string(),
             session_id: session_id.clone(),
-            title: if alias.is_empty() {
-                session_id.clone()
-            } else {
-                alias.clone()
-            },
+            title,
             alias_title: alias,
-            cwd: self.cwd(&lines),
+            cwd,
             commands: build_commands("claude", &session_id),
-            blocks: self.blocks(&lines, session_key),
+            blocks,
         })
     }
 
@@ -992,18 +1005,26 @@ fn collect_jsonl_recursive(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn clean_preview_text(text: &str) -> String {
-    let mut cleaned = text.trim().to_string();
-    let start_tag = "<local-command-caveat>";
-    let end_tag = "</local-command-caveat>";
-
-    if cleaned.contains(start_tag) && cleaned.contains(end_tag) {
-        if let Some(position) = cleaned.find(end_tag) {
-            cleaned = cleaned[position + end_tag.len()..].trim().to_string();
-        }
+fn claude_message_text(message: &Value) -> Option<String> {
+    if let Some(text) = message.get("content").and_then(Value::as_str) {
+        return Some(text.to_string());
     }
+    message
+        .get("content")
+        .and_then(Value::as_array)?
+        .iter()
+        .find(|item| item.get("type").and_then(Value::as_str) == Some("text"))
+        .and_then(|item| item.get("text").and_then(Value::as_str))
+        .map(ToString::to_string)
+}
 
-    if cleaned.starts_with("<command-name>") || cleaned.starts_with("<local-command-stdout>") {
+fn clean_preview_text(text: &str) -> String {
+    let cleaned = strip_injected_blocks(text).trim().to_string();
+
+    if cleaned.starts_with("<command-name>")
+        || cleaned.starts_with("<local-command-stdout>")
+        || cleaned.starts_with("<local-command-stderr>")
+    {
         return String::new();
     }
 

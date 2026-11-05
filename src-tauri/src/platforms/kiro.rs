@@ -7,8 +7,8 @@ use std::time::SystemTime;
 use serde_json::{json, Value};
 
 use super::{
-    build_commands, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
-    SessionListResult, TimelineBlock,
+    build_commands, derive_session_title, first_conversation_text, ContentMatch, PlatformAdapter,
+    SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
 };
 
 pub struct KiroPlatform {
@@ -198,13 +198,14 @@ impl PlatformAdapter for KiroPlatform {
                 platform: "kiro".to_string(),
                 session_key: session_key.clone(),
                 session_id: session_key,
-                display_title: if !alias.is_empty() {
-                    alias.clone()
-                } else if !summary.title.is_empty() {
-                    summary.title
-                } else {
-                    summary.session_id.chars().take(8).collect()
-                },
+                display_title: derive_session_title(
+                    &alias,
+                    &summary.title,
+                    &summary.preview,
+                    &summary.cwd,
+                    &summary.session_id,
+                    "Kiro",
+                ),
                 alias_title: alias,
                 preview: summary.preview,
                 updated_at: modified_nanos(meta_path).to_string(),
@@ -245,16 +246,16 @@ impl PlatformAdapter for KiroPlatform {
             .to_string();
 
         let alias = alias_map.get(session_key).cloned().unwrap_or_default();
-        let title = if !alias.is_empty() {
-            alias.clone()
-        } else if !title_raw.is_empty() {
-            title_raw
-        } else {
-            session_key.to_string()
-        };
-
         let lines = self.read_jsonl(&jsonl_path);
         let blocks = self.blocks(&lines, session_key);
+        let title = derive_session_title(
+            &alias,
+            &title_raw,
+            &first_conversation_text(&blocks),
+            &cwd,
+            session_key,
+            "Kiro",
+        );
 
         Ok(SessionDetail {
             platform: "kiro".to_string(),

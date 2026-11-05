@@ -239,6 +239,148 @@ pub fn extract_snippet(text: &str, needle: &str) -> String {
     snippet
 }
 
+/// Context blocks that CLIs inject into user messages (memory files, command output, ...).
+/// They must not be used verbatim as a session title.
+const INJECTED_BLOCK_TAGS: [&str; 10] = [
+    "system-reminder",
+    "local-command-caveat",
+    "command-name",
+    "command-message",
+    "command-args",
+    "local-command-stdout",
+    "local-command-stderr",
+    "user-prompt-submit-hook",
+    "environment_context",
+    "user_instructions",
+];
+
+pub fn strip_injected_blocks(text: &str) -> String {
+    let mut cleaned = text.to_string();
+    for tag in INJECTED_BLOCK_TAGS {
+        let start = format!("<{tag}>");
+        let end = format!("</{tag}>");
+        loop {
+            let Some(start_index) = cleaned.find(&start) else {
+                break;
+            };
+            let Some(relative_end) = cleaned[start_index..].find(&end) else {
+                cleaned.truncate(start_index);
+                break;
+            };
+            let end_index = start_index + relative_end + end.len();
+            cleaned.replace_range(start_index..end_index, " ");
+        }
+    }
+    cleaned
+}
+
+/// Collapse whitespace into single spaces and truncate to `max_chars` (char-safe).
+pub fn single_line_excerpt(text: &str, max_chars: usize) -> String {
+    let mut excerpt = String::new();
+    let mut pending_space = false;
+    let mut count = 0usize;
+
+    for ch in text.chars() {
+        if ch.is_whitespace() {
+            pending_space = !excerpt.is_empty();
+            continue;
+        }
+        if pending_space {
+            excerpt.push(' ');
+            count += 1;
+            pending_space = false;
+            if count >= max_chars {
+                break;
+            }
+        }
+        excerpt.push(ch);
+        count += 1;
+        if count >= max_chars {
+            break;
+        }
+    }
+
+    excerpt.trim().to_string()
+}
+
+pub fn cwd_display_name(cwd: &str) -> Option<String> {
+    let trimmed = cwd.trim().trim_end_matches(|c| c == '/' || c == '\\');
+    if trimmed.is_empty() {
+        return None;
+    }
+    let name = trimmed
+        .rsplit(|c| c == '/' || c == '\\')
+        .next()
+        .unwrap_or(trimmed)
+        .trim();
+    if name.is_empty() || name.ends_with(':') {
+        None
+    } else {
+        Some(name.to_string())
+    }
+}
+
+const SHORT_TITLE_CHARS: usize = 6;
+const SESSION_TITLE_CHARS: usize = 60;
+
+/// Human-readable title for a session.
+///
+/// Priority: user alias > platform title > first message preview > cwd folder name > short id.
+/// Injected context blocks are stripped so a session never gets named after a memory dump.
+pub fn derive_session_title(
+    alias: &str,
+    native_title: &str,
+    preview: &str,
+    cwd: &str,
+    session_id: &str,
+    fallback_prefix: &str,
+) -> String {
+    let alias = alias.trim();
+    if !alias.is_empty() {
+        return alias.to_string();
+    }
+
+    let cwd_name = cwd_display_name(cwd);
+
+    for candidate in [native_title, preview] {
+        let excerpt = single_line_excerpt(&strip_injected_blocks(candidate), SESSION_TITLE_CHARS);
+        if excerpt.is_empty() {
+            continue;
+        }
+        // A very short excerpt ("在吗", "hi") is not distinguishable on its own,
+        // so pair it with the project folder when available.
+        if excerpt.chars().count() <= SHORT_TITLE_CHARS {
+            if let Some(name) = cwd_name.as_ref().filter(|name| *name != &excerpt) {
+                return format!("{excerpt} · {name}");
+            }
+        }
+        return excerpt;
+    }
+
+    if let Some(name) = cwd_name {
+        return name;
+    }
+
+    let short: String = session_id.chars().take(8).collect();
+    if short.is_empty() {
+        fallback_prefix.to_string()
+    } else {
+        format!("{fallback_prefix} {short}")
+    }
+}
+
+/// First non-empty user/assistant text in a timeline, ignoring injected context blocks.
+pub fn first_conversation_text(blocks: &[TimelineBlock]) -> String {
+    for role in ["user", "assistant"] {
+        if let Some(block) = blocks.iter().find(|block| {
+            block.role == role && !strip_injected_blocks(&block.content).trim().is_empty()
+        }) {
+            return block.content.clone();
+        }
+    }
+    String::new()
+}
+
 pub fn content_entries_to_matches(
     entries: Vec<SessionContentEntry>,
     needle: &str,
@@ -362,6 +504,104 @@ mod index_reader_tests {
         fs::remove_dir_all(&root).ok();
 
         assert_eq!(lines, vec!["{\"id\":1}", "{\"id\":2}"]);
+    }
+}
+
+#[cfg(test)]
+mod title_tests {
+    use super::*;
+
+    #[test]
+    fn strips_injected_context_blocks() {
+        let raw = "<system-reminder>\n# Memory Index\n- lots of noise\n</system-reminder>\n修一下登录 bug";
+        assert_eq!(strip_injected_blocks(raw).trim(), "修一下登录 bug");
+    }
+
+    #[test]
+    fn title_prefers_message_over_uuid() {
+        let title = derive_session_title(
+            "",
+            "",
+            "<system-reminder>noise</system-reminder>\n修一下登录 bug",
+            "E:\\workspace\\vk-lab",
+            "bcc5b487-7b5c-4018-9789-e44b4d362261",
+            "Claude",
+        );
+        assert_eq!(title, "修一下登录 bug");
+    }
+
+    #[test]
+    fn short_title_is_paired_with_project_folder() {
+        let title = derive_session_title(
+            "",
+            "",
+            "在吗",
+            "E:\\workspace\\20260402\\vk-lab",
+            "bcc5b487-7b5c-4018-9789-e44b4d362261",
+            "Claude",
+        );
+        assert_eq!(title, "在吗 · vk-lab");
+    }
+
+    #[test]
+    fn falls_back_to_folder_then_short_id() {
+        assert_eq!(
+            derive_session_title(
+                "",
+                "",
+                "",
+                "E:\\workspace\\vk-lab",
+                "abcdef123456",
+                "Claude"
+            ),
+            "vk-lab"
+        );
+        assert_eq!(
+            derive_session_title("", "", "", "", "abcdef123456", "Claude"),
+            "Claude abcdef12"
+        );
+    }
+
+    #[test]
+    fn alias_wins_over_everything() {
+        assert_eq!(
+            derive_session_title(
+                "我的会话",
+                "native",
+                "preview",
+                "E:\\workspace\\vk-lab",
+                "abcdef123456",
+                "Claude"
+            ),
+            "我的会话"
+        );
+    }
+
+    #[test]
+    fn injected_only_preview_falls_through_to_folder() {
+        let title = derive_session_title(
+            "",
+            "",
+            "<system-reminder>\n# Memory Index\n</system-reminder>",
+            "/home/me/project",
+            "abcdef123456",
+            "Claude",
+        );
+        assert_eq!(title, "project");
+    }
+
+    #[test]
+    fn cwd_display_name_handles_windows_and_unix_paths() {
+        assert_eq!(
+            cwd_display_name("E:\\workspace\\vk-lab").as_deref(),
+            Some("vk-lab")
+        );
+        assert_eq!(
+            cwd_display_name("/home/me/project/").as_deref(),
+            Some("project")
+        );
+        assert_eq!(cwd_display_name("E:\\"), None);
+        assert_eq!(cwd_display_name(""), None);
     }
 }
 

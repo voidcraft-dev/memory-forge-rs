@@ -9,9 +9,9 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use super::{
-    build_commands, extract_snippet, tool_text_from_value, visit_bounded_jsonl_lines, ContentMatch,
-    PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
-    ToolCallBlock, MAX_INDEX_SOURCE_LINE_BYTES,
+    build_commands, derive_session_title, extract_snippet, first_conversation_text,
+    tool_text_from_value, visit_bounded_jsonl_lines, ContentMatch, PlatformAdapter, SessionDetail,
+    SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock, MAX_INDEX_SOURCE_LINE_BYTES,
 };
 
 const EXECUTION_LOG_SCAN_MAX_BYTES: u64 = 8 * 1024 * 1024;
@@ -121,19 +121,14 @@ impl KiroIdePlatform {
                 };
                 let session_key = format!("{workspace_key}::{session_id}");
                 let alias = alias_map.get(&session_key).cloned().unwrap_or_default();
-                let display_title = if !alias.is_empty() {
-                    alias.clone()
-                } else if !meta.title.trim().is_empty() {
-                    meta.title.clone()
-                } else {
-                    session_id.clone()
-                };
                 let cwd = meta
                     .workspace_paths
                     .first()
                     .or_else(|| meta.root_paths.first())
                     .cloned()
                     .unwrap_or_default();
+                let display_title =
+                    derive_session_title(&alias, &meta.title, "", &cwd, &session_id, "Kiro IDE");
                 let updated_at = if meta.last_modified_at.is_empty() {
                     meta.created_at.clone()
                 } else {
@@ -171,13 +166,6 @@ impl KiroIdePlatform {
         let dir = self.new_session_dir(workspace_key, session_id);
         let meta = read_new_session_meta(&dir.join("session.json"))?;
         let alias = alias_map.get(session_key).cloned().unwrap_or_default();
-        let title = if !alias.is_empty() {
-            alias.clone()
-        } else if !meta.title.trim().is_empty() {
-            meta.title
-        } else {
-            session_id.to_string()
-        };
         let cwd = meta
             .workspace_paths
             .first()
@@ -185,6 +173,14 @@ impl KiroIdePlatform {
             .cloned()
             .unwrap_or_default();
         let blocks = build_new_layout_blocks(session_key, &dir.join("messages.jsonl"));
+        let title = derive_session_title(
+            &alias,
+            &meta.title,
+            &first_conversation_text(&blocks),
+            &cwd,
+            session_id,
+            "Kiro IDE",
+        );
 
         Ok(SessionDetail {
             platform: "kiro-ide".to_string(),
@@ -260,15 +256,14 @@ impl KiroIdePlatform {
             for entry in self.read_index(&workspace_key) {
                 let session_key = format!("{workspace_key}::{}", entry.session_id);
                 let alias = alias_map.get(&session_key).cloned().unwrap_or_default();
-                let display_title = if alias.is_empty() {
-                    if entry.title.trim().is_empty() {
-                        entry.session_id.clone()
-                    } else {
-                        entry.title.clone()
-                    }
-                } else {
-                    alias.clone()
-                };
+                let display_title = derive_session_title(
+                    &alias,
+                    &entry.title,
+                    "",
+                    &entry.workspace_directory,
+                    &entry.session_id,
+                    "Kiro IDE",
+                );
 
                 items.push(SessionListItem {
                     platform: "kiro-ide".to_string(),
@@ -329,19 +324,18 @@ impl KiroIdePlatform {
             .as_ref()
             .map(|entry| entry.title.as_str())
             .unwrap_or(session_id);
-        let title = if alias.is_empty() {
-            if title_raw.trim().is_empty() {
-                session_id.to_string()
-            } else {
-                title_raw.to_string()
-            }
-        } else {
-            alias.clone()
-        };
         let cwd = index
             .as_ref()
             .map(|entry| entry.workspace_directory.clone())
             .unwrap_or_default();
+        let title = derive_session_title(
+            &alias,
+            title_raw,
+            &self.legacy_preview(workspace_key, session_id),
+            &cwd,
+            session_id,
+            "Kiro IDE",
+        );
 
         let history = session.get("history").and_then(Value::as_array);
         let execution_ids: HashSet<String> = history

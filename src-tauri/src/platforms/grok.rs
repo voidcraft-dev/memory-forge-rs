@@ -11,9 +11,9 @@ use serde_json::{json, Value};
 use crate::database::{SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 
 use super::{
-    build_commands, content_entries_to_matches, tool_text_from_value, ContentMatch,
-    PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult, TimelineBlock,
-    ToolCallBlock,
+    build_commands, content_entries_to_matches, derive_session_title, tool_text_from_value,
+    ContentMatch, PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult,
+    TimelineBlock, ToolCallBlock,
 };
 
 pub struct GrokPlatform {
@@ -129,17 +129,14 @@ impl GrokPlatform {
     }
 
     fn session_title(summary: &GrokSummary, alias: &str) -> String {
-        if !alias.is_empty() {
-            return alias.to_string();
-        }
-        if !summary.title.is_empty() {
-            return summary.title.clone();
-        }
-        if !summary.preview.is_empty() {
-            return summary.preview.chars().take(60).collect();
-        }
-        let prefix: String = summary.session_id.chars().take(8).collect();
-        format!("Grok {prefix}")
+        derive_session_title(
+            alias,
+            &summary.title,
+            &summary.preview,
+            &summary.cwd,
+            &summary.session_id,
+            "Grok",
+        )
     }
 
     fn list_item(

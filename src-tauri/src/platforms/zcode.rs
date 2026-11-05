@@ -5,8 +5,9 @@ use rusqlite::params;
 use serde_json::{json, Value};
 
 use super::{
-    build_commands, tool_text_from_value, ContentMatch, SessionDetail, SessionKey, SessionListItem,
-    SessionListResult, TimelineBlock, ToolCallBlock,
+    build_commands, derive_session_title, first_conversation_text, tool_text_from_value,
+    ContentMatch, SessionDetail, SessionKey, SessionListItem, SessionListResult, TimelineBlock,
+    ToolCallBlock,
 };
 
 const ZCODE_TOOL_INPUT_MAX_CHARS: usize = 8192;
@@ -101,15 +102,7 @@ impl super::PlatformAdapter for ZcodePlatform {
             let time_updated: i64 = row.get(3).unwrap_or(0);
 
             let alias = alias_map.get(&id).cloned().unwrap_or_default();
-            let display_title = if alias.is_empty() {
-                if title.is_empty() {
-                    id.clone()
-                } else {
-                    title.clone()
-                }
-            } else {
-                alias.clone()
-            };
+            let display_title = derive_session_title(&alias, &title, "", &directory, &id, "ZCode");
 
             items.push(SessionListItem {
                 platform: "zcode".into(),
@@ -277,15 +270,14 @@ impl super::PlatformAdapter for ZcodePlatform {
         }
 
         let alias = alias_map.get(session_key).cloned().unwrap_or_default();
-        let title = if alias.is_empty() {
-            if session_title.is_empty() {
-                session_key.to_string()
-            } else {
-                session_title
-            }
-        } else {
-            alias.clone()
-        };
+        let title = derive_session_title(
+            &alias,
+            &session_title,
+            &first_conversation_text(&blocks),
+            &session_cwd,
+            session_key,
+            "ZCode",
+        );
 
         Ok(SessionDetail {
             platform: "zcode".into(),

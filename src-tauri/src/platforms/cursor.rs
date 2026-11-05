@@ -8,8 +8,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use super::{
-    build_commands, extract_snippet, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
-    SessionListResult, TimelineBlock,
+    build_commands, derive_session_title, extract_snippet, first_conversation_text, ContentMatch,
+    PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
 };
 
 const COMPOSER_HEADERS_KEY: &str = "composer.composerHeaders";
@@ -328,11 +328,14 @@ impl PlatformAdapter for CursorPlatform {
                     .get(&header.composer_id)
                     .cloned()
                     .unwrap_or_default();
-                let display_title = if alias.is_empty() {
-                    header.title()
-                } else {
-                    alias.clone()
-                };
+                let display_title = derive_session_title(
+                    &alias,
+                    &header.title(),
+                    &header.subtitle,
+                    &header.cwd(),
+                    &header.composer_id,
+                    "Cursor",
+                );
                 let updated_at = header.updated_at_value().to_string();
                 let cwd = header.cwd();
                 SessionListItem {
@@ -398,19 +401,23 @@ impl PlatformAdapter for CursorPlatform {
         }
 
         let alias = alias_map.get(session_key).cloned().unwrap_or_default();
-        let title = if alias.is_empty() {
-            header
-                .as_ref()
-                .map(CursorComposerHeader::title)
-                .unwrap_or_else(|| data.title(session_key))
-        } else {
-            alias.clone()
-        };
         let cwd = header
             .as_ref()
             .map(CursorComposerHeader::cwd)
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| data.cwd());
+        let native_title = header
+            .as_ref()
+            .map(CursorComposerHeader::title)
+            .unwrap_or_else(|| data.title(session_key));
+        let title = derive_session_title(
+            &alias,
+            &native_title,
+            &first_conversation_text(&blocks),
+            &cwd,
+            session_key,
+            "Cursor",
+        );
 
         Ok(SessionDetail {
             platform: "cursor".to_string(),

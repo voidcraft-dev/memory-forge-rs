@@ -11,9 +11,9 @@ use crate::database::{
 };
 
 use super::{
-    build_commands, content_entries_to_matches, read_head_tail_lines, tool_text_from_str,
-    tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionKey,
-    SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
+    build_commands, content_entries_to_matches, derive_session_title, read_head_tail_lines,
+    tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail,
+    SessionKey, SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
 };
 
 pub struct PiPlatform {
@@ -309,20 +309,15 @@ impl PiPlatform {
         entries
     }
 
-    fn session_title(session_key: &str, scan: &QuickScan, alias: &str) -> String {
-        if !alias.is_empty() {
-            return alias.to_string();
-        }
-        if !scan.title.is_empty() {
-            return scan.title.clone();
-        }
-        if !scan.preview.is_empty() {
-            return scan.preview.chars().take(60).collect();
-        }
-        scan.session_id
-            .get(..8)
-            .map(|prefix| format!("Pi {prefix}"))
-            .unwrap_or_else(|| session_key.to_string())
+    fn session_title(_session_key: &str, scan: &QuickScan, alias: &str) -> String {
+        derive_session_title(
+            alias,
+            &scan.title,
+            &scan.preview,
+            &scan.cwd,
+            &scan.session_id,
+            "Pi",
+        )
     }
 }
 

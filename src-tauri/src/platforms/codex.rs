@@ -11,10 +11,10 @@ use crate::database::{
 };
 
 use super::{
-    build_commands, content_entries_to_matches, push_bounded_index_entry, tool_text_from_str,
-    tool_text_from_value, visit_bounded_jsonl_lines, ContentMatch, PlatformAdapter,
-    SessionAgentGroup, SessionDetail, SessionKey, SessionListItem, SessionListResult,
-    TimelineBlock, ToolCallBlock, MAX_INDEX_SOURCE_LINE_BYTES,
+    build_commands, content_entries_to_matches, derive_session_title, first_conversation_text,
+    push_bounded_index_entry, tool_text_from_str, tool_text_from_value, visit_bounded_jsonl_lines,
+    ContentMatch, PlatformAdapter, SessionAgentGroup, SessionDetail, SessionKey, SessionListItem,
+    SessionListResult, TimelineBlock, ToolCallBlock, MAX_INDEX_SOURCE_LINE_BYTES,
 };
 
 pub struct CodexPlatform {
@@ -784,20 +784,26 @@ impl PlatformAdapter for CodexPlatform {
         let lines = self.read_jsonl(path);
         let thread_id = self.thread_id(&lines, path);
         let alias = alias_map.get(session_key).cloned().unwrap_or_default();
+        let blocks = self.blocks(&lines, session_key);
+        let cwd = self.cwd(&lines);
+        let title = derive_session_title(
+            &alias,
+            "",
+            &first_conversation_text(&blocks),
+            &cwd,
+            &thread_id,
+            "Codex",
+        );
 
         Ok(SessionDetail {
             platform: "codex".to_string(),
             session_key: session_key.to_string(),
             session_id: thread_id.clone(),
-            title: if alias.is_empty() {
-                thread_id.clone()
-            } else {
-                alias.clone()
-            },
+            title,
             alias_title: alias,
-            cwd: self.cwd(&lines),
+            cwd,
             commands: build_commands("codex", &thread_id),
-            blocks: self.blocks(&lines, session_key),
+            blocks,
         })
     }
 
@@ -1235,11 +1241,14 @@ impl CodexPlatform {
             platform: "codex".to_string(),
             session_key,
             session_id: summary.session_id.clone(),
-            display_title: if alias.is_empty() {
-                summary.session_id
-            } else {
-                alias.clone()
-            },
+            display_title: derive_session_title(
+                &alias,
+                "",
+                &summary.preview,
+                &summary.cwd,
+                &summary.session_id,
+                "Codex",
+            ),
             alias_title: alias,
             preview: summary.preview,
             updated_at: modified_nanos(path).to_string(),
