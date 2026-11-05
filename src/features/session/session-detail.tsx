@@ -8,7 +8,13 @@ import { useDesktop } from '@/features/desktop/provider'
 import { api } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
 import type { EditorTarget, TimelineBlock, ToolCallBlock } from '@/features/desktop/types'
-import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play, FolderOpen, MousePointer2, Code, Sparkles } from 'lucide-react'
+import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play, FolderOpen, MousePointer2, Code, Sparkles, ShieldAlert } from 'lucide-react'
+import {
+  type InjectedSegment,
+  isInjectedOnly,
+  splitInjectedContext,
+  stripInjectedContext,
+} from './injected-context'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
@@ -1215,6 +1221,7 @@ export function SessionDetail() {
                 <div className="p-2 space-y-0.5">
                   {filteredBlocks.map((block, index) => {
                     if (block.role !== 'user') return null
+                    const snippet = stripInjectedContext(block.content) || t('session.injectedContext')
                     return (
                       <button
                         key={block.id}
@@ -1226,8 +1233,8 @@ export function SessionDetail() {
                         className="w-full text-left rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors truncate"
                       >
                         <span className="text-muted-foreground/50 mr-1.5">#{index + 1}</span>
-                        {block.content.slice(0, 60).replace(/\n/g, ' ')}
-                        {block.content.length > 60 && '...'}
+                        {snippet.slice(0, 60).replace(/\n/g, ' ')}
+                        {snippet.length > 60 && '...'}
                       </button>
                     )
                   })}
@@ -1429,6 +1436,56 @@ function ToolCallsConsole({ toolCalls, canErase, eraseLabel, erasingToolCallId, 
   )
 }
 
+function InjectedContextPanel({
+  segment,
+  t,
+  searchHighlight,
+  hideLabel = false,
+}: {
+  segment: InjectedSegment
+  t: (key: MessageKey, params?: Record<string, string | number>) => string
+  searchHighlight?: string
+  hideLabel?: boolean
+}) {
+  const body = segment.body.trim()
+  const containsHit = Boolean(
+    searchHighlight && body.toLowerCase().includes(searchHighlight.toLowerCase())
+  )
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    if (containsHit) setExpanded(true)
+  }, [containsHit])
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5">
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="flex w-full select-none items-center gap-2 px-3 py-2 text-left text-[11px] font-semibold text-amber-600/90 transition-colors hover:bg-amber-500/10 dark:text-amber-400/90"
+      >
+        <ShieldAlert className="size-3.5 shrink-0" />
+        {!hideLabel && <span className="shrink-0">{t('session.injectedContext')}</span>}
+        <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-normal text-amber-600/80 dark:text-amber-400/70">
+          {segment.tag}
+        </span>
+        <span className="font-normal text-muted-foreground/50">
+          {t('session.injectedChars', { count: body.length })}
+        </span>
+        <span className="ml-auto flex items-center gap-1">
+          {expanded ? t('session.injectedCollapse') : t('session.injectedExpand')}
+          {expanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+        </span>
+      </button>
+      {expanded && (
+        <div className="max-h-80 overflow-y-auto border-t border-amber-500/20 bg-background/60 px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground/80 whitespace-pre-wrap break-words">
+          {parseContentWithCodeBlocks(body, searchHighlight)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const MessageBlock = forwardRef<HTMLDivElement, {
   block: {
     role: string
@@ -1453,6 +1510,10 @@ const MessageBlock = forwardRef<HTMLDivElement, {
 }>(function MessageBlock({ block, index, onEdit, onErase, onEraseToolCall, canEraseToolCalls, erasingToolCallId, onLoadExecutionOutput, loadingExecutionOutput, t, searchHighlight, isCurrentMatch }, ref) {
   const [thinkingExpanded, setThinkingExpanded] = useState(false)
   const [longContentExpanded, setLongContentExpanded] = useState(false)
+
+  const segments = useMemo(() => splitInjectedContext(block.content), [block.content])
+  const hasInjected = segments.some((segment) => segment.kind === 'injected')
+  const injectedOnly = useMemo(() => isInjectedOnly(block.content), [block.content])
 
   const roleConfig = {
     user: {
@@ -1480,7 +1541,18 @@ const MessageBlock = forwardRef<HTMLDivElement, {
       badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30'
     },
   }
-  const config = roleConfig[block.role as keyof typeof roleConfig] || roleConfig.assistant
+  const baseConfig = roleConfig[block.role as keyof typeof roleConfig] || roleConfig.assistant
+  // A message that only carries injected context is not the user's own words.
+  const config = injectedOnly
+    ? {
+        label: t('session.injectedContext'),
+        icon: ShieldAlert,
+        bgGradient: 'from-amber-500/8 via-amber-500/2 to-transparent',
+        borderColor: 'border-l-amber-500/50 border-l-dashed',
+        iconBg: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+        badgeClass: 'bg-amber-500/12 text-amber-600 border-amber-500/30 dark:text-amber-400',
+      }
+    : baseConfig
   const Icon = config.icon
   const isKiroExecutionPlaceholder = block.role === 'assistant'
     && block.content.trim() === 'On it.'
@@ -1536,14 +1608,37 @@ const MessageBlock = forwardRef<HTMLDivElement, {
                     "overflow-hidden rounded-xl p-4 bg-background/55 border border-border/30",
                     isThinking && "bg-amber-500/3 border-dashed border-amber-500/20"
                   )}>
-                    <div className={cn(
-                      "text-sm font-sans leading-relaxed text-foreground whitespace-pre-wrap break-words",
-                      isThinking && "font-mono text-xs text-quiet"
-                    )}>
-                      {parseContentWithCodeBlocks(displayContent, searchHighlight)}
-                    </div>
+                    {hasInjected && !isThinking ? (
+                      <div className="space-y-2">
+                        {segments.map((segment, segmentIndex) =>
+                          segment.kind === 'injected' ? (
+                            <InjectedContextPanel
+                              key={`${block.id}-injected-${segmentIndex}`}
+                              segment={segment}
+                              t={t}
+                              searchHighlight={searchHighlight}
+                              hideLabel={injectedOnly}
+                            />
+                          ) : segment.content.trim() ? (
+                            <div
+                              key={`${block.id}-text-${segmentIndex}`}
+                              className="text-sm font-sans leading-relaxed text-foreground whitespace-pre-wrap break-words"
+                            >
+                              {parseContentWithCodeBlocks(segment.content, searchHighlight)}
+                            </div>
+                          ) : null
+                        )}
+                      </div>
+                    ) : (
+                      <div className={cn(
+                        "text-sm font-sans leading-relaxed text-foreground whitespace-pre-wrap break-words",
+                        isThinking && "font-mono text-xs text-quiet"
+                      )}>
+                        {parseContentWithCodeBlocks(displayContent, searchHighlight)}
+                      </div>
+                    )}
                   </div>
-                  {isLongContent && !isSearchHit && (
+                  {isLongContent && !isSearchHit && !hasInjected && (
                     <button
                       type="button"
                       onClick={() => setLongContentExpanded(value => !value)}

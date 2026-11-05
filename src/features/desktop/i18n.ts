@@ -202,6 +202,10 @@ export type MessageKey =
   | "session.eraseConfirm"
   | "session.eraseToolCall"
   | "session.eraseToolCallConfirm"
+  | "session.injectedContext"
+  | "session.injectedExpand"
+  | "session.injectedCollapse"
+  | "session.injectedChars"
   | "session.toolCallErased"
   | "session.restore"
   | "session.restoreConfirm"
@@ -521,6 +525,10 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.eraseConfirm": "确定擦除这条消息的内容吗？此操作不可撤销。",
     "session.eraseToolCall": "擦除工具调用",
     "session.eraseToolCallConfirm": "确定擦除这条工具调用吗？名称、输入、输出、错误和状态都会从 OpenCode 会话中删除，可通过修改记录复原。",
+    "session.injectedContext": "系统注入",
+    "session.injectedExpand": "展开内容",
+    "session.injectedCollapse": "收起内容",
+    "session.injectedChars": "{count} 字符",
     "session.toolCallErased": "工具调用已擦除",
     "session.restore": "复原",
     "session.restoreConfirm": "确定复原这条消息到修改前的内容吗？复原也会记录在修改记录中。",
@@ -838,6 +846,10 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.eraseConfirm": "Are you sure you want to erase this message? This cannot be undone.",
     "session.eraseToolCall": "Erase tool call",
     "session.eraseToolCallConfirm": "Erase this tool call? Its name, input, output, error, and status will be removed from the OpenCode session. You can restore it from the edit log.",
+    "session.injectedContext": "Injected context",
+    "session.injectedExpand": "Show content",
+    "session.injectedCollapse": "Hide content",
+    "session.injectedChars": "{count} chars",
     "session.toolCallErased": "Tool call erased",
     "session.restore": "Restore",
     "session.restoreConfirm": "Restore this message to its previous content? The restore will also be recorded in the edit log.",
