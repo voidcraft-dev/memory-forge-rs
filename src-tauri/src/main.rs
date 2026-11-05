@@ -103,7 +103,7 @@ async fn session_list(
 }
 
 #[tauri::command]
-fn session_detail(
+async fn session_detail(
     db: tauri::State<'_, DbState>,
     settings_state: tauri::State<'_, SharedSettingsState>,
     platform: String,
@@ -112,8 +112,15 @@ fn session_detail(
     let settings = settings_state
         .settings
         .lock()
-        .map_err(|_| "lock error".to_string())?;
-    session_service::session_detail(&db, &settings, &platform, &session_key)
+        .map_err(|_| "lock error".to_string())?
+        .clone();
+    let db_path = db.db_path.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = DbState::new(&db_path)?;
+        session_service::session_detail(&db, &settings, &platform, &session_key)
+    })
+    .await
+    .map_err(|e| format!("Task error: {e}"))?
 }
 
 #[tauri::command]
