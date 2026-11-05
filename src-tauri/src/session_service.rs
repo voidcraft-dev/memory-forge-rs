@@ -912,16 +912,20 @@ pub fn session_restore_message(
     )
 }
 
-fn format_timestamp(value: &str) -> String {
+/// Adapters expose `updated_at` either as an epoch number (seconds,
+/// milliseconds, microseconds or nanoseconds) or as an RFC 3339 string
+/// (Kiro, Gemini, Grok). Normalize both to seconds since the epoch.
+fn timestamp_seconds(value: &str) -> Option<i128> {
     let text = value.trim();
     if text.is_empty() {
-        return String::new();
+        return None;
     }
 
-    let Ok(mut number) = text.parse::<i128>() else {
-        return text.to_string();
-    };
+    if let Ok(date_time) = chrono::DateTime::parse_from_rfc3339(text) {
+        return Some(date_time.timestamp() as i128);
+    }
 
+    let mut number = text.parse::<i128>().ok()?;
     if number > 100_000_000_000_000_000 {
         number /= 1_000_000_000;
     } else if number > 1_000_000_000_000_000 {
@@ -929,8 +933,15 @@ fn format_timestamp(value: &str) -> String {
     } else if number > 1_000_000_000_000 {
         number /= 1_000;
     }
+    Some(number)
+}
 
-    let Some(date_time) = Local.timestamp_opt(number as i64, 0).single() else {
+fn format_timestamp(value: &str) -> String {
+    let Some(seconds) = timestamp_seconds(value) else {
+        return String::new();
+    };
+
+    let Some(date_time) = Local.timestamp_opt(seconds as i64, 0).single() else {
         return String::new();
     };
 
@@ -938,24 +949,7 @@ fn format_timestamp(value: &str) -> String {
 }
 
 fn timestamp_sort_key(value: &str) -> i128 {
-    let text = value.trim();
-    if text.is_empty() {
-        return 0;
-    }
-
-    let Ok(mut number) = text.parse::<i128>() else {
-        return 0;
-    };
-
-    if number > 100_000_000_000_000_000 {
-        number /= 1_000_000_000;
-    } else if number > 1_000_000_000_000_000 {
-        number /= 1_000_000;
-    } else if number > 1_000_000_000_000 {
-        number /= 1_000;
-    }
-
-    number
+    timestamp_seconds(value).unwrap_or(0)
 }
 
 #[allow(dead_code)]
@@ -1267,5 +1261,29 @@ mod tests {
         assert_eq!(included.len(), 3);
         assert!(included.contains("root.jsonl"));
         assert!(included.contains("child.jsonl"));
+    }
+
+    #[test]
+    fn timestamp_helpers_accept_epoch_and_rfc3339() {
+        // 2026-10-23T02:15:03.415Z
+        let expected = 1_792_721_703_i128;
+
+        assert_eq!(timestamp_seconds("2026-10-23T02:15:03.415Z"), Some(expected));
+        assert_eq!(timestamp_seconds(&format!("{expected}")), Some(expected));
+        assert_eq!(timestamp_seconds(&format!("{}", expected * 1_000)), Some(expected));
+        assert_eq!(
+            timestamp_seconds(&format!("{}", expected * 1_000_000)),
+            Some(expected)
+        );
+        assert_eq!(
+            timestamp_seconds(&format!("{}", expected * 1_000_000_000)),
+            Some(expected)
+        );
+
+        assert_eq!(format_timestamp("2026-10-23T02:15:03.415Z"), "2026-10-23");
+        assert_eq!(format_timestamp(""), "");
+        assert_eq!(format_timestamp("not-a-date"), "");
+        assert_eq!(timestamp_sort_key("not-a-date"), 0);
+        assert!(timestamp_sort_key("2026-10-23T02:15:03.415Z") > 0);
     }
 }

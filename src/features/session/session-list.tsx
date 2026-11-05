@@ -10,40 +10,27 @@ import { api } from '@/features/desktop/api'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore, ChevronDown, ChevronUp, CheckSquare, X, Upload, FileJson, AlertTriangle } from 'lucide-react'
 import type { RawJsonlImportPreview, Session } from '@/features/desktop/types'
+import { parseTimestamp } from './session-time'
 
 function formatTime(timestamp: string, justNowLabel: string): string {
-  try {
-    const num = parseInt(timestamp)
-    let date: Date
-    if (num > 10 ** 17) date = new Date(num / 1_000_000)
-    else if (num > 10 ** 15) date = new Date(num / 1_000)
-    else if (num > 10 ** 12) date = new Date(num)
-    else date = new Date(num * 1000)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const hours = diff / (1000 * 60 * 60)
-    if (hours < 1) return justNowLabel
-    if (hours < 24) return `${Math.floor(hours)}h`
-    if (hours < 48) return '1d'
-    return `${Math.floor(hours / 24)}d`
-  } catch {
-    return ''
-  }
+  const date = parseTimestamp(timestamp)
+  if (!date) return ''
+
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const hours = diff / (1000 * 60 * 60)
+  if (hours < 1) return justNowLabel
+  if (hours < 24) return `${Math.floor(hours)}h`
+  if (hours < 48) return '1d'
+  return `${Math.floor(hours / 24)}d`
 }
 
 function formatDateTime(timestamp: string): string {
-  try {
-    const num = parseInt(timestamp)
-    let date: Date
-    if (num > 10 ** 17) date = new Date(num / 1_000_000)
-    else if (num > 10 ** 15) date = new Date(num / 1_000)
-    else if (num > 10 ** 12) date = new Date(num)
-    else date = new Date(num * 1000)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-  } catch {
-    return ''
-  }
+  const date = parseTimestamp(timestamp)
+  if (!date) return ''
+
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
 const platformColors = {
