@@ -1,3 +1,4 @@
+pub mod cindy;
 pub mod claude;
 pub mod codex;
 pub mod cursor;
@@ -538,6 +539,24 @@ pub fn get_adapter(
                 .unwrap_or_else(|| home.join(".workbuddy"));
             Ok(Box::new(workbuddy::WorkBuddyPlatform::new(path)))
         }
+        "cindy" => {
+            let path = settings
+                .cindy_home
+                .as_ref()
+                .map(PathBuf::from)
+                .or_else(|| dirs::config_dir().map(|dir| dir.join("Cindy")))
+                .unwrap_or_else(|| home.join("AppData").join("Roaming").join("Cindy"));
+            Ok(Box::new(cindy::CindyPlatform::new(path, "cindy")))
+        }
+        "cindy-global" => {
+            let path = settings
+                .cindy_global_home
+                .as_ref()
+                .map(PathBuf::from)
+                .or_else(|| dirs::config_dir().map(|dir| dir.join("CindyGlobal")))
+                .unwrap_or_else(|| home.join("AppData").join("Roaming").join("CindyGlobal"));
+            Ok(Box::new(cindy::CindyPlatform::new(path, "cindy-global")))
+        }
         _ => Err(format!("Unknown platform: {platform}")),
     }
 }
@@ -576,6 +595,7 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         "kiro-ide" => HashMap::new(),
         "zcode" => HashMap::new(),
         "workbuddy" => HashMap::new(),
+        "cindy" | "cindy-global" => HashMap::new(),
         "gemini" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("gemini --resume '{session_id}'"));

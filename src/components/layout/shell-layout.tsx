@@ -17,6 +17,7 @@ import {
   Pi,
   Zap,
   MessageSquare,
+  Globe,
   SquareTerminal,
   type LucideIcon,
 } from "lucide-react";
@@ -47,6 +48,8 @@ const navigation: Array<{
   { to: "/pi", labelKey: "platformPi", icon: Pi, navigationId: "pi" },
   { to: "/zcode", labelKey: "platformZcode", icon: Zap, navigationId: "zcode" },
   { to: "/workbuddy", labelKey: "platformWorkbuddy", icon: MessageSquare, navigationId: "workbuddy" },
+  { to: "/cindy", labelKey: "platformCindy", icon: Bot, navigationId: "cindy" },
+  { to: "/cindy-global", labelKey: "platformCindyGlobal", icon: Globe, navigationId: "cindy-global" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },

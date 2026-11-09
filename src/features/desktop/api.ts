@@ -37,6 +37,8 @@ const defaultSettings = {
   piHome: null,
   zcodeHome: null,
   workbuddyHome: null,
+  cindyHome: null,
+  cindyGlobalHome: null,
   preferredTerminal: null,
   visiblePlatforms: ["claude", "codex", "opencode", "grok", "pi"] as string[],
   navigationItems: [

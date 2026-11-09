@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap, MessageSquare } from "lucide-react";
+import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap, MessageSquare, Globe } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/logo";
@@ -117,6 +117,26 @@ const platformMeta = [
     border: "border-indigo-500/20 hover:border-indigo-500/40",
     iconBg: "bg-indigo-500/15 text-indigo-400 group-hover:scale-110",
     hoverGlow: "hover:shadow-[0_8px_30px_rgba(99,102,241,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "cindy",
+    label: "Cindy",
+    icon: Bot,
+    to: "/cindy",
+    gradient: "from-rose-500/10 to-pink-600/5",
+    border: "border-rose-500/20 hover:border-pink-500/40",
+    iconBg: "bg-rose-500/15 text-rose-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(244,63,94,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "cindy-global",
+    label: "Cindy Global",
+    icon: Globe,
+    to: "/cindy-global",
+    gradient: "from-sky-500/10 to-blue-600/5",
+    border: "border-sky-500/20 hover:border-blue-500/40",
+    iconBg: "bg-sky-500/15 text-sky-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(14,165,233,0.12)] hover:-translate-y-1"
   },
 ] as const;
 

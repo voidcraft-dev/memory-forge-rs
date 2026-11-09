@@ -6,6 +6,7 @@ import {
   ExternalLink,
   Folder,
   Gem,
+  Globe,
   Maximize2,
   MessageSquare,
   Minimize2,
@@ -59,6 +60,8 @@ const platformConfigs: Record<
   pi: { label: "Pi", icon: PiIcon, color: "text-pink-400", hoverColor: "group-hover:text-pink-300" },
   zcode: { label: "ZCode", icon: Zap, color: "text-teal-400", hoverColor: "group-hover:text-teal-300" },
   workbuddy: { label: "WorkBuddy", icon: MessageSquare, color: "text-indigo-400", hoverColor: "group-hover:text-indigo-300" },
+  cindy: { label: "Cindy", icon: Bot, color: "text-rose-400", hoverColor: "group-hover:text-rose-300" },
+  "cindy-global": { label: "Cindy Global", icon: Globe, color: "text-sky-400", hoverColor: "group-hover:text-sky-300" },
 };
 
 function getPlatformConfig(platform: string | null) {

@@ -43,6 +43,10 @@ pub struct AppSettings {
     #[serde(default)]
     pub workbuddy_home: Option<String>,
     #[serde(default)]
+    pub cindy_home: Option<String>,
+    #[serde(default)]
+    pub cindy_global_home: Option<String>,
+    #[serde(default)]
     pub preferred_terminal: Option<String>,
     #[serde(default = "default_visible_platforms")]
     pub visible_platforms: Vec<String>,
@@ -134,6 +138,8 @@ impl Default for AppSettings {
             pi_home: None,
             zcode_home: None,
             workbuddy_home: None,
+            cindy_home: None,
+            cindy_global_home: None,
             preferred_terminal: None,
             visible_platforms: default_visible_platforms(),
             navigation_items: Some(default_navigation_items(&default_visible_platforms())),
@@ -161,6 +167,8 @@ pub struct AppSettingsPatch {
     pub pi_home: Option<Option<String>>,
     pub zcode_home: Option<Option<String>>,
     pub workbuddy_home: Option<Option<String>>,
+    pub cindy_home: Option<Option<String>>,
+    pub cindy_global_home: Option<Option<String>>,
     pub preferred_terminal: Option<Option<String>>,
     pub visible_platforms: Option<Vec<String>>,
     pub navigation_items: Option<Vec<String>>,
@@ -303,6 +311,14 @@ pub fn update_settings(
 
     if let Some(workbuddy_home) = patch.workbuddy_home {
         settings.workbuddy_home = workbuddy_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(cindy_home) = patch.cindy_home {
+        settings.cindy_home = cindy_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(cindy_global_home) = patch.cindy_global_home {
+        settings.cindy_global_home = cindy_global_home.filter(|s| !s.trim().is_empty());
     }
 
     if let Some(preferred_terminal) = patch.preferred_terminal {

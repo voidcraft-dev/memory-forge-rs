@@ -58,6 +58,8 @@ const platformColors = {
   pi: 'bg-gradient-to-br from-rose-500 via-pink-500 to-cyan-500',
   zcode: 'bg-gradient-to-br from-cyan-500 to-teal-600',
   workbuddy: 'bg-gradient-to-br from-indigo-500 to-sky-600',
+  cindy: 'bg-gradient-to-br from-rose-500 to-pink-600',
+  'cindy-global': 'bg-gradient-to-br from-sky-500 to-blue-600',
 }
 
 
@@ -417,6 +419,8 @@ export function SessionList() {
               if (currentPlatform === 'grok') return 'Grok Build'
               if (currentPlatform === 'zcode') return 'ZCode'
               if (currentPlatform === 'workbuddy') return 'WorkBuddy'
+              if (currentPlatform === 'cindy') return 'Cindy'
+              if (currentPlatform === 'cindy-global') return 'Cindy Global'
               return currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)
             })()} {showArchived ? t('session.archiveView') : t('session.sessions')}
           </h2>
@@ -761,7 +765,9 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
                 platform === 'cursor' && "bg-gradient-to-b from-sky-400 to-blue-500",
                 platform === 'pi' && "bg-gradient-to-b from-rose-400 to-cyan-500",
                 platform === 'zcode' && "bg-gradient-to-b from-cyan-400 to-teal-500",
-                platform === 'workbuddy' && "bg-gradient-to-b from-indigo-400 to-sky-500"
+                platform === 'workbuddy' && "bg-gradient-to-b from-indigo-400 to-sky-500",
+                platform === 'cindy' && "bg-gradient-to-b from-rose-400 to-pink-500",
+                platform === 'cindy-global' && "bg-gradient-to-b from-sky-400 to-blue-500"
               )
         )}
       />

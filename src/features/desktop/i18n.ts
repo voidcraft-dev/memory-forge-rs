@@ -22,6 +22,8 @@ export type MessageKey =
   | "platformGrok"
   | "platformZcode"
   | "platformWorkbuddy"
+  | "platformCindy"
+  | "platformCindyGlobal"
   // Dashboard
   | "welcomeTitle"
   | "welcomeDesc"
@@ -248,6 +250,8 @@ export type MessageKey =
   | "piHome"
   | "zcodeHome"
   | "workbuddyHome"
+  | "cindyHome"
+  | "cindyGlobalHome"
   | "pathPlaceholder"
   | "pathSaved"
   | "defaultPath"
@@ -349,6 +353,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformGrok: "Grok Build",
     platformZcode: "ZCode",
     platformWorkbuddy: "WorkBuddy",
+    platformCindy: "Cindy",
+    platformCindyGlobal: "Cindy 国际版",
     welcomeTitle: "停止重开，直接编辑。",
     welcomeDesc: "AI 对话走偏了？别重新开始 — 直接改掉历史记录。注入上下文、纠正错误、删除废话，然后无缝继续对话。",
     totalSessions: "总会话数",
@@ -568,6 +574,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "piHome": "Pi 数据目录",
     "zcodeHome": "ZCode 主目录路径",
     "workbuddyHome": "WorkBuddy 数据目录",
+    "cindyHome": "Cindy 数据目录",
+    "cindyGlobalHome": "Cindy 国际版数据目录",
     "pathPlaceholder": "留空使用默认路径",
     "pathSaved": "路径已保存",
     "defaultPath": "默认: {path}",
@@ -668,6 +676,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformGrok: "Grok Build",
     platformZcode: "ZCode",
     platformWorkbuddy: "WorkBuddy",
+    platformCindy: "Cindy",
+    platformCindyGlobal: "Cindy Global",
     welcomeTitle: "Stop resetting. Start editing.",
     welcomeDesc: "AI went off track? Don't restart — edit the history directly. Inject context, fix errors, remove noise, then seamlessly continue.",
     totalSessions: "Total Sessions",
@@ -887,6 +897,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "piHome": "Pi Data Directory",
     "zcodeHome": "ZCode Home Path",
     "workbuddyHome": "WorkBuddy Data Directory",
+    "cindyHome": "Cindy Data Directory",
+    "cindyGlobalHome": "Cindy Global Data Directory",
     "pathPlaceholder": "Leave empty for default",
     "pathSaved": "Path saved",
     "defaultPath": "Default: {path}",

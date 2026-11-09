@@ -28,6 +28,8 @@ const PLATFORM_ITEMS = [
   { id: "gemini", labelKey: "platformGemini" as const, isPlatform: true },
   { id: "zcode", labelKey: "platformZcode" as const, isPlatform: true },
   { id: "workbuddy", labelKey: "platformWorkbuddy" as const, isPlatform: true },
+  { id: "cindy", labelKey: "platformCindy" as const, isPlatform: true },
+  { id: "cindy-global", labelKey: "platformCindyGlobal" as const, isPlatform: true },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -520,6 +522,20 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ workbuddyHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.workbuddyHome ?? ""}
+            />
+            <PathRow
+              defaultHint="%APPDATA%\\Cindy"
+              label={t("cindyHome")}
+              onSave={(v) => updateSettings({ cindyHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.cindyHome ?? ""}
+            />
+            <PathRow
+              defaultHint="%APPDATA%\\CindyGlobal"
+              label={t("cindyGlobalHome")}
+              onSave={(v) => updateSettings({ cindyGlobalHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.cindyGlobalHome ?? ""}
             />
           </div>
         </section>
