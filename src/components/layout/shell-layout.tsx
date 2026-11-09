@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Brain,
   ChevronLeft,
   ChevronRight,
   Info,
@@ -19,6 +20,7 @@ import {
   MessageSquare,
   Globe,
   SquareTerminal,
+  SquarePen,
   type LucideIcon,
 } from "lucide-react";
 import { AppLogo } from "@/components/logo";
@@ -50,6 +52,8 @@ const navigation: Array<{
   { to: "/workbuddy", labelKey: "platformWorkbuddy", icon: MessageSquare, navigationId: "workbuddy" },
   { to: "/cindy", labelKey: "platformCindy", icon: Bot, navigationId: "cindy" },
   { to: "/cindy-global", labelKey: "platformCindyGlobal", icon: Globe, navigationId: "cindy-global" },
+  { to: "/zed", labelKey: "platformZed", icon: SquarePen, navigationId: "zed" },
+  { to: "/dsh", labelKey: "platformDsh", icon: Brain, navigationId: "dsh" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },

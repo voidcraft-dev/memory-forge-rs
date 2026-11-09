@@ -30,6 +30,8 @@ const PLATFORM_ITEMS = [
   { id: "workbuddy", labelKey: "platformWorkbuddy" as const, isPlatform: true },
   { id: "cindy", labelKey: "platformCindy" as const, isPlatform: true },
   { id: "cindy-global", labelKey: "platformCindyGlobal" as const, isPlatform: true },
+  { id: "zed", labelKey: "platformZed" as const, isPlatform: true },
+  { id: "dsh", labelKey: "platformDsh" as const, isPlatform: true },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -536,6 +538,20 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ cindyGlobalHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.cindyGlobalHome ?? ""}
+            />
+            <PathRow
+              defaultHint="%LOCALAPPDATA%\\Zed"
+              label={t("zedHome")}
+              onSave={(v) => updateSettings({ zedHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.zedHome ?? ""}
+            />
+            <PathRow
+              defaultHint="~/.dsh"
+              label={t("dshHome")}
+              onSave={(v) => updateSettings({ dshHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.dshHome ?? ""}
             />
           </div>
         </section>

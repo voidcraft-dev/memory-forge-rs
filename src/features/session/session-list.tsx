@@ -60,6 +60,8 @@ const platformColors = {
   workbuddy: 'bg-gradient-to-br from-indigo-500 to-sky-600',
   cindy: 'bg-gradient-to-br from-rose-500 to-pink-600',
   'cindy-global': 'bg-gradient-to-br from-sky-500 to-blue-600',
+  zed: 'bg-gradient-to-br from-slate-500 to-blue-600',
+  dsh: 'bg-gradient-to-br from-teal-500 to-cyan-600',
 }
 
 
@@ -767,7 +769,9 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
                 platform === 'zcode' && "bg-gradient-to-b from-cyan-400 to-teal-500",
                 platform === 'workbuddy' && "bg-gradient-to-b from-indigo-400 to-sky-500",
                 platform === 'cindy' && "bg-gradient-to-b from-rose-400 to-pink-500",
-                platform === 'cindy-global' && "bg-gradient-to-b from-sky-400 to-blue-500"
+                platform === 'cindy-global' && "bg-gradient-to-b from-sky-400 to-blue-500",
+                platform === 'zed' && "bg-gradient-to-b from-slate-300 to-blue-500",
+                platform === 'dsh' && "bg-gradient-to-b from-teal-300 to-cyan-500"
               )
         )}
       />

@@ -2,6 +2,7 @@ pub mod cindy;
 pub mod claude;
 pub mod codex;
 pub mod cursor;
+pub mod dsh;
 pub mod gemini;
 pub mod grok;
 pub mod kiro;
@@ -10,6 +11,7 @@ pub mod opencode;
 pub mod pi;
 pub mod workbuddy;
 pub mod zcode;
+pub mod zed;
 
 use serde::Serialize;
 use std::collections::HashMap;
@@ -557,6 +559,23 @@ pub fn get_adapter(
                 .unwrap_or_else(|| home.join("AppData").join("Roaming").join("CindyGlobal"));
             Ok(Box::new(cindy::CindyPlatform::new(path, "cindy-global")))
         }
+        "zed" => {
+            let path = settings
+                .zed_home
+                .as_ref()
+                .map(PathBuf::from)
+                .or_else(|| dirs::data_local_dir().map(|dir| dir.join("Zed")))
+                .unwrap_or_else(|| home.join("AppData").join("Local").join("Zed"));
+            Ok(Box::new(zed::ZedPlatform::new(path)))
+        }
+        "dsh" => {
+            let path = settings
+                .dsh_home
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".dsh"));
+            Ok(Box::new(dsh::DshPlatform::new(path)))
+        }
         _ => Err(format!("Unknown platform: {platform}")),
     }
 }
@@ -595,7 +614,7 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         "kiro-ide" => HashMap::new(),
         "zcode" => HashMap::new(),
         "workbuddy" => HashMap::new(),
-        "cindy" | "cindy-global" => HashMap::new(),
+        "cindy" | "cindy-global" | "zed" | "dsh" => HashMap::new(),
         "gemini" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("gemini --resume '{session_id}'"));

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap, MessageSquare, Globe } from "lucide-react";
+import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap, MessageSquare, Globe, SquarePen } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/logo";
@@ -137,6 +137,26 @@ const platformMeta = [
     border: "border-sky-500/20 hover:border-blue-500/40",
     iconBg: "bg-sky-500/15 text-sky-400 group-hover:scale-110",
     hoverGlow: "hover:shadow-[0_8px_30px_rgba(14,165,233,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "zed",
+    label: "Zed",
+    icon: SquarePen,
+    to: "/zed",
+    gradient: "from-slate-500/10 to-blue-600/5",
+    border: "border-slate-500/20 hover:border-blue-500/40",
+    iconBg: "bg-slate-500/15 text-slate-300 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "dsh",
+    label: "DeepSeek Harness",
+    icon: Brain,
+    to: "/dsh",
+    gradient: "from-teal-500/10 to-cyan-600/5",
+    border: "border-teal-500/20 hover:border-cyan-500/40",
+    iconBg: "bg-teal-500/15 text-teal-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1"
   },
 ] as const;
 

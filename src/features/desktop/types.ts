@@ -23,6 +23,8 @@ export type DesktopSettings = {
   workbuddyHome: string | null;
   cindyHome: string | null;
   cindyGlobalHome: string | null;
+  zedHome: string | null;
+  dshHome: string | null;
   preferredTerminal: string | null;
   visiblePlatforms: string[];
   navigationItems: string[];
@@ -45,7 +47,7 @@ export type DesktopSnapshot = {
 
 // ─── Session ───
 
-export type Platform = "claude" | "codex" | "cursor" | "opencode" | "kiro" | "kiro-ide" | "gemini" | "grok" | "pi" | "zcode" | "workbuddy" | "cindy" | "cindy-global";
+export type Platform = "claude" | "codex" | "cursor" | "opencode" | "kiro" | "kiro-ide" | "gemini" | "grok" | "pi" | "zcode" | "workbuddy" | "cindy" | "cindy-global" | "zed" | "dsh";
 
 export type ContentMatch = {
   snippet: string;

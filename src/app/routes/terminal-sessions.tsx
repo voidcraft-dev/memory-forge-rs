@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
+  Brain,
   Code,
   Copy,
   ExternalLink,
@@ -18,6 +19,7 @@ import {
   Sparkles,
   Square,
   SquareTerminal,
+  SquarePen,
   Terminal,
   X,
   Zap,
@@ -62,6 +64,8 @@ const platformConfigs: Record<
   workbuddy: { label: "WorkBuddy", icon: MessageSquare, color: "text-indigo-400", hoverColor: "group-hover:text-indigo-300" },
   cindy: { label: "Cindy", icon: Bot, color: "text-rose-400", hoverColor: "group-hover:text-rose-300" },
   "cindy-global": { label: "Cindy Global", icon: Globe, color: "text-sky-400", hoverColor: "group-hover:text-sky-300" },
+  zed: { label: "Zed", icon: SquarePen, color: "text-slate-300", hoverColor: "group-hover:text-slate-200" },
+  dsh: { label: "DeepSeek Harness", icon: Brain, color: "text-teal-400", hoverColor: "group-hover:text-teal-300" },
 };
 
 function getPlatformConfig(platform: string | null) {
