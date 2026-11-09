@@ -36,6 +36,7 @@ const defaultSettings = {
   grokHome: null,
   piHome: null,
   zcodeHome: null,
+  workbuddyHome: null,
   preferredTerminal: null,
   visiblePlatforms: ["claude", "codex", "opencode", "grok", "pi"] as string[],
   navigationItems: [

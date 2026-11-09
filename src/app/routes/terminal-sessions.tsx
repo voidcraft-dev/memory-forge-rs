@@ -7,6 +7,7 @@ import {
   Folder,
   Gem,
   Maximize2,
+  MessageSquare,
   Minimize2,
   MousePointer2,
   Orbit,
@@ -57,6 +58,7 @@ const platformConfigs: Record<
   grok: { label: "Grok", icon: Orbit, color: "text-cyan-400", hoverColor: "group-hover:text-cyan-300" },
   pi: { label: "Pi", icon: PiIcon, color: "text-pink-400", hoverColor: "group-hover:text-pink-300" },
   zcode: { label: "ZCode", icon: Zap, color: "text-teal-400", hoverColor: "group-hover:text-teal-300" },
+  workbuddy: { label: "WorkBuddy", icon: MessageSquare, color: "text-indigo-400", hoverColor: "group-hover:text-indigo-300" },
 };
 
 function getPlatformConfig(platform: string | null) {

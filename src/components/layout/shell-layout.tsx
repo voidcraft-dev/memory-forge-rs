@@ -16,6 +16,7 @@ import {
   Orbit,
   Pi,
   Zap,
+  MessageSquare,
   SquareTerminal,
   type LucideIcon,
 } from "lucide-react";
@@ -45,6 +46,7 @@ const navigation: Array<{
   { to: "/grok", labelKey: "platformGrok", icon: Orbit, navigationId: "grok" },
   { to: "/pi", labelKey: "platformPi", icon: Pi, navigationId: "pi" },
   { to: "/zcode", labelKey: "platformZcode", icon: Zap, navigationId: "zcode" },
+  { to: "/workbuddy", labelKey: "platformWorkbuddy", icon: MessageSquare, navigationId: "workbuddy" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },

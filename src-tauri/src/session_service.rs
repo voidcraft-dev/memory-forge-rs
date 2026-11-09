@@ -38,8 +38,18 @@ pub struct DashboardSummary {
     pub recent_sessions: Vec<SessionListItem>,
 }
 
-const DASHBOARD_PLATFORM_NAMES: [&str; 10] = [
-    "claude", "codex", "opencode", "grok", "pi", "cursor", "kiro", "kiro-ide", "gemini", "zcode",
+const DASHBOARD_PLATFORM_NAMES: [&str; 11] = [
+    "claude",
+    "codex",
+    "opencode",
+    "grok",
+    "pi",
+    "cursor",
+    "kiro",
+    "kiro-ide",
+    "gemini",
+    "zcode",
+    "workbuddy",
 ];
 
 const SEARCH_PAGE_SIZE: usize = 50;

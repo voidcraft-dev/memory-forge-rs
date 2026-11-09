@@ -57,6 +57,7 @@ const platformColors = {
   grok: 'bg-gradient-to-br from-zinc-700 via-zinc-500 to-orange-500',
   pi: 'bg-gradient-to-br from-rose-500 via-pink-500 to-cyan-500',
   zcode: 'bg-gradient-to-br from-cyan-500 to-teal-600',
+  workbuddy: 'bg-gradient-to-br from-indigo-500 to-sky-600',
 }
 
 
@@ -415,6 +416,7 @@ export function SessionList() {
               if (currentPlatform === 'pi') return 'Pi'
               if (currentPlatform === 'grok') return 'Grok Build'
               if (currentPlatform === 'zcode') return 'ZCode'
+              if (currentPlatform === 'workbuddy') return 'WorkBuddy'
               return currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)
             })()} {showArchived ? t('session.archiveView') : t('session.sessions')}
           </h2>
@@ -758,7 +760,8 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
                 platform === 'grok' && "bg-gradient-to-b from-zinc-300 to-orange-500",
                 platform === 'cursor' && "bg-gradient-to-b from-sky-400 to-blue-500",
                 platform === 'pi' && "bg-gradient-to-b from-rose-400 to-cyan-500",
-                platform === 'zcode' && "bg-gradient-to-b from-cyan-400 to-teal-500"
+                platform === 'zcode' && "bg-gradient-to-b from-cyan-400 to-teal-500",
+                platform === 'workbuddy' && "bg-gradient-to-b from-indigo-400 to-sky-500"
               )
         )}
       />
@@ -781,7 +784,7 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
             "w-7 h-7 rounded-xl flex items-center justify-center text-white font-black text-xs flex-shrink-0 shadow-lg shadow-black/10 border border-white/10 select-none",
             platformColors[platform as keyof typeof platformColors] || platformColors.claude
           )}>
-            {platform === 'kiro-ide' ? 'K' : platform === 'opencode' ? 'O' : platform === 'pi' ? 'P' : platform === 'grok' ? 'G' : platform === 'zcode' ? 'Z' : platform[0].toUpperCase()}
+            {platform === 'kiro-ide' ? 'K' : platform === 'opencode' ? 'O' : platform === 'pi' ? 'P' : platform === 'grok' ? 'G' : platform === 'zcode' ? 'Z' : platform === 'workbuddy' ? 'W' : platform[0].toUpperCase()}
           </span>
           <h3 className={cn("font-bold text-sm truncate min-w-0 transition-colors duration-200 flex-1", highlightAsSelection ? "text-primary" : "text-foreground group-hover:text-foreground")}>
             {session.displayTitle || session.sessionId || untitledLabel}

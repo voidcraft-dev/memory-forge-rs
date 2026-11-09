@@ -27,6 +27,7 @@ const PLATFORM_ITEMS = [
   { id: "kiro-ide", labelKey: "platformKiroIde" as const, isPlatform: true },
   { id: "gemini", labelKey: "platformGemini" as const, isPlatform: true },
   { id: "zcode", labelKey: "platformZcode" as const, isPlatform: true },
+  { id: "workbuddy", labelKey: "platformWorkbuddy" as const, isPlatform: true },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -512,6 +513,13 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ zcodeHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.zcodeHome ?? ""}
+            />
+            <PathRow
+              defaultHint="~/.workbuddy"
+              label={t("workbuddyHome")}
+              onSave={(v) => updateSettings({ workbuddyHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.workbuddyHome ?? ""}
             />
           </div>
         </section>
