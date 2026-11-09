@@ -427,7 +427,9 @@ fn main() {
             let state = app.state::<SharedSettingsState>();
             settings::initialize(app.handle(), state.inner())?;
             shell::sync_close_to_tray_flag(settings::close_to_tray_enabled(state.inner()));
-            shell::setup_tray(app.handle())?;
+            if let Err(error) = shell::setup_tray(app.handle()) {
+                eprintln!("tray icon unavailable: {error}");
+            }
 
             // Database
             let data_dir = settings::ensure_data_dir(app.handle())?;
