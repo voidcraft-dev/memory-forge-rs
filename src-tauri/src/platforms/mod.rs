@@ -7,6 +7,7 @@ pub mod kiro;
 pub mod kiro_ide;
 pub mod opencode;
 pub mod pi;
+pub mod workbuddy;
 pub mod zcode;
 
 use serde::Serialize;
@@ -529,6 +530,14 @@ pub fn get_adapter(
                 .unwrap_or_else(|| home.join(".zcode"));
             Ok(Box::new(zcode::ZcodePlatform::new(path)))
         }
+        "workbuddy" => {
+            let path = settings
+                .workbuddy_home
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".workbuddy"));
+            Ok(Box::new(workbuddy::WorkBuddyPlatform::new(path)))
+        }
         _ => Err(format!("Unknown platform: {platform}")),
     }
 }
@@ -566,6 +575,7 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         }
         "kiro-ide" => HashMap::new(),
         "zcode" => HashMap::new(),
+        "workbuddy" => HashMap::new(),
         "gemini" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("gemini --resume '{session_id}'"));

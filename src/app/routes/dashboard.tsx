@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap } from "lucide-react";
+import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap, MessageSquare } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/logo";
@@ -107,6 +107,16 @@ const platformMeta = [
     border: "border-cyan-500/20 hover:border-cyan-500/40",
     iconBg: "bg-cyan-500/15 text-cyan-400 group-hover:scale-110",
     hoverGlow: "hover:shadow-[0_8px_30px_rgba(6,182,212,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "workbuddy",
+    label: "WorkBuddy",
+    icon: MessageSquare,
+    to: "/workbuddy",
+    gradient: "from-indigo-500/10 to-sky-600/5",
+    border: "border-indigo-500/20 hover:border-indigo-500/40",
+    iconBg: "bg-indigo-500/15 text-indigo-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(99,102,241,0.12)] hover:-translate-y-1"
   },
 ] as const;
 
