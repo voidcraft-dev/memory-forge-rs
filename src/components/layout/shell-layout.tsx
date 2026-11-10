@@ -84,6 +84,16 @@ export default function ShellLayout() {
     "opencode",
     "grok",
     "pi",
+    "cursor",
+    "kiro",
+    "kiro-ide",
+    "gemini",
+    "zcode",
+    "workbuddy",
+    "cindy",
+    "cindy-global",
+    "zed",
+    "dsh",
   ];
   const visibleNavigation = [
     navigation[0],
@@ -183,7 +193,7 @@ export default function ShellLayout() {
             </div>
 
             {/* Navigation */}
-            <nav className={cn("mt-6 space-y-2", sidebarCollapsed && "mt-4 space-y-1.5")}>
+            <nav className={cn("scrollbar-invisible mt-6 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1", sidebarCollapsed && "mt-4 space-y-1.5 pr-0")}>
               {visibleNavigation.map((item) => {
                 const Icon = item.icon;
                 return (

@@ -65,6 +65,16 @@ fn default_visible_platforms() -> Vec<String> {
         "opencode".to_string(),
         "grok".to_string(),
         "pi".to_string(),
+        "cursor".to_string(),
+        "kiro".to_string(),
+        "kiro-ide".to_string(),
+        "gemini".to_string(),
+        "zcode".to_string(),
+        "workbuddy".to_string(),
+        "cindy".to_string(),
+        "cindy-global".to_string(),
+        "zed".to_string(),
+        "dsh".to_string(),
     ]
 }
 

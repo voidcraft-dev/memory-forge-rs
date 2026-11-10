@@ -432,6 +432,15 @@
       0 0 0 5px color-mix(in srgb, var(--primary) 14%, transparent),
       0 0 16px color-mix(in srgb, var(--primary) 10%, transparent);
   }
+
+  /* Scrollable but with no visible scrollbar. */
+  .scrollbar-invisible {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-invisible::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 :root[data-reduce-motion="true"] *,

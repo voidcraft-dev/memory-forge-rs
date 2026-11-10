@@ -1,7 +1,7 @@
 {
   "name": "memory-forge-v3",
-  "version": "3.5.0",
-  "description": "Stop resetting. Start editing. — Local AI session manager for Claude Code, Codex CLI, OpenCode, Kiro CLI, Kiro IDE & Gemini CLI",
+  "version": "3.6.0",
+  "description": "Stop resetting. Start editing. — Local AI session manager for Claude Code, Codex CLI, OpenCode, Cursor, Kiro, Gemini CLI, ZCode, WorkBuddy, Cindy, Zed & DeepSeek Harness",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -137,6 +137,8 @@ export type MessageKey =
   | "session.searchIndexIncomplete"
   | "session.noSessions"
   | "session.justNow"
+  | "session.hoursAgo"
+  | "session.daysAgo"
   | "session.untitled"
   | "session.noPreview"
   | "session.subagents"
@@ -466,6 +468,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.searchIndexIncomplete": "搜索索引尚未完成，当前结果可能不完整",
     "session.noSessions": "暂无会话",
     "session.justNow": "刚刚",
+    "session.hoursAgo": "{count} 小时前",
+    "session.daysAgo": "{count} 天前",
     "session.untitled": "无标题",
     "session.noPreview": "无预览",
     "session.subagents": "子代理",
@@ -793,6 +797,8 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "session.searchIndexIncomplete": "Search index is not complete; results may be incomplete",
     "session.noSessions": "No sessions",
     "session.justNow": "Just now",
+    "session.hoursAgo": "{count}h ago",
+    "session.daysAgo": "{count}d ago",
     "session.untitled": "Untitled",
     "session.noPreview": "No preview",
     "session.subagents": "Subagents",

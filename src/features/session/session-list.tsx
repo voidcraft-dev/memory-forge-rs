@@ -11,7 +11,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { RefreshCw, Search, CheckCircle, Copy, Check, Clock, FolderOpen, User, Bot, MessageSquareText, Star, Archive, ArchiveRestore, ChevronDown, ChevronUp, CheckSquare, X, Upload, FileJson, AlertTriangle } from 'lucide-react'
 import type { RawJsonlImportPreview, Session } from '@/features/desktop/types'
 
-function formatTime(timestamp: string, justNowLabel: string): string {
+function formatTime(timestamp: string, justNowLabel: string, hoursAgoLabel: string, daysAgoLabel: string): string {
   try {
     const num = parseInt(timestamp)
     let date: Date
@@ -23,9 +23,10 @@ function formatTime(timestamp: string, justNowLabel: string): string {
     const diff = now.getTime() - date.getTime()
     const hours = diff / (1000 * 60 * 60)
     if (hours < 1) return justNowLabel
-    if (hours < 24) return `${Math.floor(hours)}h`
-    if (hours < 48) return '1d'
-    return `${Math.floor(hours / 24)}d`
+    if (hours < 24) {
+      return hoursAgoLabel.replace('{count}', String(Math.floor(hours)))
+    }
+    return daysAgoLabel.replace('{count}', String(Math.floor(hours / 24)))
   } catch {
     return ''
   }
@@ -597,6 +598,8 @@ export function SessionList() {
                   onToggleFavorite={handleToggleFavorite}
                   onToggleArchive={handleToggleArchive}
                   justNowLabel={t('session.justNow')}
+                  hoursAgoLabel={t('session.hoursAgo')}
+                  daysAgoLabel={t('session.daysAgo')}
                   untitledLabel={t('session.untitled')}
                   noPreviewLabel={t('session.noPreview')}
                   archiveLabel={showArchived ? t('session.unarchive') : t('session.archive')}
@@ -691,7 +694,7 @@ export function SessionList() {
   )
 }
 
-function SessionCard({ session, isSelected, selectedSessionKey, showArchived, selectionMode, isMultiSelected, onClick, onOpenSession, onToggleFavorite, onToggleArchive, justNowLabel, untitledLabel, noPreviewLabel, archiveLabel, subagentsLabel, expandSubagentsLabel, collapseSubagentsLabel, orphanedSubagentLabel, agentDepthLabel, agentRoleLabel, favoriteLabel, unfavoriteLabel, autoExpandSubagents }: {
+function SessionCard({ session, isSelected, selectedSessionKey, showArchived, selectionMode, isMultiSelected, onClick, onOpenSession, onToggleFavorite, onToggleArchive, justNowLabel, hoursAgoLabel, daysAgoLabel, untitledLabel, noPreviewLabel, archiveLabel, subagentsLabel, expandSubagentsLabel, collapseSubagentsLabel, orphanedSubagentLabel, agentDepthLabel, agentRoleLabel, favoriteLabel, unfavoriteLabel, autoExpandSubagents }: {
   session: Session
   isSelected: boolean
   selectedSessionKey: string | null
@@ -703,6 +706,8 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
   onToggleFavorite: (session: Session, e: React.MouseEvent) => void
   onToggleArchive: (session: Session, e: React.MouseEvent) => void
   justNowLabel: string
+  hoursAgoLabel: string
+  daysAgoLabel: string
   untitledLabel: string
   noPreviewLabel: string
   archiveLabel: string
@@ -805,8 +810,11 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
             {session.favorite && (
               <Star className="w-3.5 h-3.5 text-amber-400 fill-current flex-shrink-0 animate-in zoom-in-50 duration-200" />
             )}
-            <span className="text-[10px] text-muted-foreground/60 bg-muted/40 border border-border/30 px-2 py-0.5 rounded-lg select-none flex-shrink-0">
-              {formatTime(session.updatedAt, justNowLabel)}
+            <span
+              className="text-[10px] text-muted-foreground/60 bg-muted/40 border border-border/30 px-2 py-0.5 rounded-lg select-none flex-shrink-0"
+              title={formatDateTime(session.updatedAt)}
+            >
+              {formatTime(session.updatedAt, justNowLabel, hoursAgoLabel, daysAgoLabel)}
             </span>
           </div>
         )}
