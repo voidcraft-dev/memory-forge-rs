@@ -9,9 +9,9 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use super::{
-    build_commands, extract_snippet, tool_text_from_value, visit_bounded_jsonl_lines, ContentMatch,
-    PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
-    ToolCallBlock, MAX_INDEX_SOURCE_LINE_BYTES,
+    build_commands, extract_snippet, timestamp_millis_string, tool_text_from_value,
+    visit_bounded_jsonl_lines, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
+    SessionListResult, TimelineBlock, ToolCallBlock, MAX_INDEX_SOURCE_LINE_BYTES,
 };
 
 const EXECUTION_LOG_SCAN_MAX_BYTES: u64 = 8 * 1024 * 1024;
@@ -134,11 +134,12 @@ impl KiroIdePlatform {
                     .or_else(|| meta.root_paths.first())
                     .cloned()
                     .unwrap_or_default();
-                let updated_at = if meta.last_modified_at.is_empty() {
-                    meta.created_at.clone()
+                let raw_updated_at = if meta.last_modified_at.is_empty() {
+                    &meta.created_at
                 } else {
-                    meta.last_modified_at
+                    &meta.last_modified_at
                 };
+                let updated_at = timestamp_millis_string(raw_updated_at).unwrap_or_default();
 
                 items.push(SessionListItem {
                     platform: "kiro-ide".to_string(),
@@ -153,6 +154,7 @@ impl KiroIdePlatform {
                     content_matches: vec![],
                     total_content_matches: 0,
                     favorite: false,
+                    source_label: String::new(),
                     agent_group: None,
                 });
             }
@@ -277,12 +279,14 @@ impl KiroIdePlatform {
                     display_title,
                     alias_title: alias,
                     preview: self.legacy_preview(&workspace_key, &entry.session_id),
-                    updated_at: entry.date_created,
+                    updated_at: timestamp_millis_string(&entry.date_created)
+                        .unwrap_or_default(),
                     cwd: entry.workspace_directory,
                     editable: true,
                     content_matches: vec![],
                     total_content_matches: 0,
                     favorite: false,
+                    source_label: String::new(),
                     agent_group: None,
                 });
             }

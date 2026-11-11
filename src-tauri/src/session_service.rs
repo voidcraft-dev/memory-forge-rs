@@ -1018,6 +1018,7 @@ mod tests {
             content_matches: Vec::new(),
             total_content_matches: 0,
             favorite: false,
+            source_label: String::new(),
             agent_group: parent.map(|parent| SessionAgentGroup {
                 parent_session_id: Some(parent.to_string()),
                 depth: None,

@@ -1248,6 +1248,7 @@ impl CodexPlatform {
             content_matches: vec![],
             total_content_matches: 0,
             favorite: false,
+            source_label: String::new(),
             agent_group: summary.agent.map(|agent| SessionAgentGroup {
                 parent_session_id: agent.parent_session_id,
                 depth: agent.depth,

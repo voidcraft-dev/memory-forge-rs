@@ -7,8 +7,9 @@ use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Value};
 
 use super::{
-    extract_snippet, tool_text_from_str, tool_text_from_value, ContentMatch, PlatformAdapter,
-    SessionDetail, SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
+    extract_snippet, file_mtime_millis_string, tool_text_from_str, tool_text_from_value, ContentMatch,
+    PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
+    ToolCallBlock,
 };
 
 /// Antigravity keeps an index of conversations in
@@ -39,18 +40,19 @@ impl AntigravityPlatform {
     }
 
     fn transcript_path(&self, conversation_id: &str) -> Option<PathBuf> {
-        let logs = self
-            .home
-            .join("brain")
-            .join(conversation_id)
-            .join(".system_generated")
-            .join("logs");
-        let full = logs.join("transcript_full.jsonl");
-        if full.exists() {
-            return Some(full);
+        self.transcript_origin(conversation_id)
+            .map(|(path, _)| path)
+    }
+
+    /// Returns the transcript path and whether it lives in the sibling
+    /// `antigravity-cli` store. Both apps share one conversation index, but a
+    /// conversation started from the CLI keeps its transcript there.
+    fn transcript_origin(&self, conversation_id: &str) -> Option<(PathBuf, bool)> {
+        if let Some(path) = transcript_in(&self.home, conversation_id) {
+            return Some((path, false));
         }
-        let plain = logs.join("transcript.jsonl");
-        plain.exists().then_some(plain)
+        let cli_home = self.home.parent()?.join("antigravity-cli");
+        transcript_in(&cli_home, conversation_id).map(|path| (path, true))
     }
 
     fn connect(&self) -> Result<Connection, String> {
@@ -113,7 +115,12 @@ impl AntigravityPlatform {
     }
 
     fn item(&self, row: &SummaryRow, alias_map: &HashMap<String, String>) -> Option<SessionListItem> {
-        self.transcript_path(&row.conversation_id)?;
+        let (transcript, from_cli) = self.transcript_origin(&row.conversation_id)?;
+        let updated_at = if row.updated_at.is_empty() {
+            file_mtime_millis_string(&transcript).unwrap_or_default()
+        } else {
+            row.updated_at.clone()
+        };
         let first_user = || self.first_user_text(&row.conversation_id);
         let title = if !row.title.trim().is_empty() {
             row.title.trim().to_string()
@@ -150,12 +157,13 @@ impl AntigravityPlatform {
             display_title,
             alias_title,
             preview,
-            updated_at: row.updated_at.clone(),
+            updated_at,
             cwd: row.cwd.clone(),
             editable: false,
             content_matches: vec![],
             total_content_matches: 0,
             favorite: false,
+            source_label: if from_cli { "CLI".to_string() } else { String::new() },
             agent_group: None,
         })
     }
@@ -289,12 +297,30 @@ impl AntigravityPlatform {
     }
 }
 
+fn transcript_in(root: &Path, conversation_id: &str) -> Option<PathBuf> {
+    let logs = root
+        .join("brain")
+        .join(conversation_id)
+        .join(".system_generated")
+        .join("logs");
+    let full = logs.join("transcript_full.jsonl");
+    if full.exists() {
+        return Some(full);
+    }
+    let plain = logs.join("transcript.jsonl");
+    plain.exists().then_some(plain)
+}
+
+/// Antigravity writes timestamps like `2026-08-21 08:00:53.1234567+00:00`.
+/// The rest of the app expects epoch milliseconds as a string, so convert here
+/// and treat the protobuf zero value (`0001-01-01`) as unknown.
 fn normalize_time(value: &str) -> String {
     chrono::DateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f%:z")
-        .map(|date| {
-            date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
-        })
-        .unwrap_or_else(|_| value.to_string())
+        .ok()
+        .map(|date| date.timestamp_millis())
+        .filter(|millis| *millis > 0)
+        .map(|millis| millis.to_string())
+        .unwrap_or_default()
 }
 
 fn is_useful_preview(preview: &str) -> bool {
@@ -486,12 +512,8 @@ impl PlatformAdapter for AntigravityPlatform {
             .filter_map(|row| self.item(row, alias_map))
             .collect();
         items.sort_by(|left, right| {
-            let left = chrono::DateTime::parse_from_rfc3339(&left.updated_at)
-                .map(|date| date.timestamp_millis())
-                .unwrap_or_default();
-            let right = chrono::DateTime::parse_from_rfc3339(&right.updated_at)
-                .map(|date| date.timestamp_millis())
-                .unwrap_or_default();
+            let left = left.updated_at.parse::<i64>().unwrap_or_default();
+            let right = right.updated_at.parse::<i64>().unwrap_or_default();
             right.cmp(&left)
         });
 
@@ -684,7 +706,8 @@ mod tests {
         assert_eq!(listed.items[0].platform, "antigravity");
         assert_eq!(listed.items[0].display_title, "UWB 可视化");
         assert_eq!(listed.items[0].cwd, "e:\\workspace\\20260402");
-        assert!(listed.items[0].updated_at.starts_with("2026-08-21T08:00:53"));
+        assert_eq!(listed.items[0].updated_at, "1787299253123");
+        assert_eq!(listed.items[0].source_label, "");
         assert!(!listed.items[0].editable);
 
         let detail = platform
@@ -703,6 +726,69 @@ mod tests {
         assert_eq!(detail.blocks[3].content, "我已经看完了。");
 
         fs::remove_dir_all(&home).ok();
+    }
+
+    #[test]
+    fn normalizes_antigravity_timestamps_to_epoch_millis() {
+        assert_eq!(
+            normalize_time("2026-08-21 08:00:53.1234567+00:00"),
+            "1787299253123"
+        );
+        assert_eq!(normalize_time("0001-01-01 00:00:00+00:00"), "");
+        assert_eq!(normalize_time(""), "");
+    }
+
+    #[test]
+    fn lists_cli_transcript_with_badge() {
+        let base = std::env::temp_dir().join(format!("antigravity-cli-{}", Uuid::new_v4()));
+        let home = base.join("antigravity");
+        let cli_home = base.join("antigravity-cli");
+        fs::create_dir_all(&home).expect("create home");
+
+        let conn = Connection::open(home.join("conversation_summaries.db")).expect("open db");
+        conn.execute_batch(
+            "CREATE TABLE conversation_summaries (
+                conversation_id TEXT,
+                title TEXT NOT NULL DEFAULT '',
+                preview TEXT NOT NULL DEFAULT '',
+                last_modified_time TEXT NOT NULL DEFAULT '',
+                workspace_uris TEXT NOT NULL DEFAULT '[]',
+                parent_conversation_id TEXT,
+                nesting_depth NUMERIC NOT NULL DEFAULT 0
+            );",
+        )
+        .expect("create schema");
+        conn.execute(
+            "INSERT INTO conversation_summaries
+             (conversation_id, title, preview, last_modified_time, workspace_uris)
+             VALUES ('cli-1', '', '', '0001-01-01 00:00:00+00:00', '[]')",
+            [],
+        )
+        .expect("insert summary");
+        drop(conn);
+
+        let logs = cli_home
+            .join("brain")
+            .join("cli-1")
+            .join(".system_generated")
+            .join("logs");
+        fs::create_dir_all(&logs).expect("create logs");
+        let step = json!({"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT",
+            "content":"<USER_REQUEST>\n来自 CLI 的会话\n</USER_REQUEST>"});
+        fs::write(
+            logs.join("transcript.jsonl"),
+            format!("{}\n", serde_json::to_string(&step).unwrap()),
+        )
+        .expect("write transcript");
+
+        let platform = AntigravityPlatform::new(home);
+        let listed = platform.list_sessions(&HashMap::new(), None, 0);
+        assert_eq!(listed.total, 1, "CLI transcript should be listed");
+        assert_eq!(listed.items[0].source_label, "CLI");
+        assert_eq!(listed.items[0].display_title, "来自 CLI 的会话");
+        assert!(!listed.items[0].updated_at.is_empty(), "falls back to file mtime");
+
+        fs::remove_dir_all(&base).ok();
     }
 
     #[test]

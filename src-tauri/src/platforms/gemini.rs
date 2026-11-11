@@ -6,8 +6,8 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::{
-    extract_snippet, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
-    SessionListResult, TimelineBlock,
+    extract_snippet, timestamp_millis_string, ContentMatch, PlatformAdapter, SessionDetail,
+    SessionListItem, SessionListResult, TimelineBlock,
 };
 
 pub struct GeminiPlatform {
@@ -405,12 +405,13 @@ impl PlatformAdapter for GeminiPlatform {
                     display_title,
                     alias_title,
                     preview: scan.preview,
-                    updated_at: scan.last_updated,
+                    updated_at: timestamp_millis_string(&scan.last_updated).unwrap_or_default(),
                     cwd,
                     editable: true,
                     content_matches: vec![],
                     total_content_matches: 0,
                     favorite: false,
+                    source_label: String::new(),
                     agent_group: None,
                 })
             })

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
 
 use serde_json::{json, Value};
 
 use super::{
-    extract_snippet, tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail,
-    SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
+    extract_snippet, file_mtime_millis_string, timestamp_millis_string, tool_text_from_value,
+    ContentMatch, PlatformAdapter, SessionListItem, SessionListResult, SessionDetail, TimelineBlock,
+    ToolCallBlock,
 };
 
 /// Cline 4.x stores sessions under `<home>/data/sessions/<session-id>/`:
@@ -103,8 +103,8 @@ impl ClinePlatform {
             .as_ref()
             .and_then(|messages| messages.get("updated_at"))
             .and_then(Value::as_str)
-            .map(ToString::to_string)
-            .or_else(|| file_mtime_iso(&file.messages_path))
+            .and_then(timestamp_millis_string)
+            .or_else(|| file_mtime_millis_string(&file.messages_path))
             .unwrap_or_default();
 
         Some(SessionListItem {
@@ -120,6 +120,7 @@ impl ClinePlatform {
             content_matches: vec![],
             total_content_matches: 0,
             favorite: false,
+            source_label: String::new(),
             agent_group: None,
         })
     }
@@ -279,12 +280,6 @@ fn merge_result(blocks: &mut [TimelineBlock], result: &ToolCallBlock) -> bool {
     false
 }
 
-fn file_mtime_iso(path: &Path) -> Option<String> {
-    let modified = fs::metadata(path).ok()?.modified().ok()?;
-    let millis = modified.duration_since(UNIX_EPOCH).ok()?.as_millis() as i64;
-    chrono::DateTime::from_timestamp_millis(millis).map(|dt| dt.to_rfc3339())
-}
-
 impl PlatformAdapter for ClinePlatform {
     fn list_sessions(
         &self,
@@ -299,12 +294,8 @@ impl PlatformAdapter for ClinePlatform {
             .collect();
 
         items.sort_by(|a, b| {
-            let left = chrono::DateTime::parse_from_rfc3339(&a.updated_at)
-                .map(|dt| dt.timestamp_millis())
-                .unwrap_or_default();
-            let right = chrono::DateTime::parse_from_rfc3339(&b.updated_at)
-                .map(|dt| dt.timestamp_millis())
-                .unwrap_or_default();
+            let left = a.updated_at.parse::<i64>().unwrap_or_default();
+            let right = b.updated_at.parse::<i64>().unwrap_or_default();
             right.cmp(&left)
         });
 

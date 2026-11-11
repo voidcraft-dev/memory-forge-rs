@@ -13,12 +13,14 @@ import type { RawJsonlImportPreview, Session } from '@/features/desktop/types'
 
 function formatTime(timestamp: string, justNowLabel: string, hoursAgoLabel: string, daysAgoLabel: string): string {
   try {
-    const num = parseInt(timestamp)
+    const num = parseInt(timestamp, 10)
+    if (!Number.isFinite(num) || num <= 0) return ''
     let date: Date
     if (num > 10 ** 17) date = new Date(num / 1_000_000)
     else if (num > 10 ** 15) date = new Date(num / 1_000)
     else if (num > 10 ** 12) date = new Date(num)
     else date = new Date(num * 1000)
+    if (!Number.isFinite(date.getTime())) return ''
     const now = new Date()
     const diff = now.getTime() - date.getTime()
     const hours = diff / (1000 * 60 * 60)
@@ -34,12 +36,14 @@ function formatTime(timestamp: string, justNowLabel: string, hoursAgoLabel: stri
 
 function formatDateTime(timestamp: string): string {
   try {
-    const num = parseInt(timestamp)
+    const num = parseInt(timestamp, 10)
+    if (!Number.isFinite(num) || num <= 0) return ''
     let date: Date
     if (num > 10 ** 17) date = new Date(num / 1_000_000)
     else if (num > 10 ** 15) date = new Date(num / 1_000)
     else if (num > 10 ** 12) date = new Date(num)
     else date = new Date(num * 1000)
+    if (!Number.isFinite(date.getTime())) return ''
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   } catch {
@@ -750,6 +754,8 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
   }
 
   const highlightAsSelection = selectionMode ? isMultiSelected : isSelected
+  const relativeTime = formatTime(session.updatedAt, justNowLabel, hoursAgoLabel, daysAgoLabel)
+  const absoluteTime = formatDateTime(session.updatedAt)
 
   return (
     <div
@@ -822,12 +828,22 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
             {session.favorite && (
               <Star className="w-3.5 h-3.5 text-amber-400 fill-current flex-shrink-0 animate-in zoom-in-50 duration-200" />
             )}
-            <span
-              className="text-[10px] text-muted-foreground/60 bg-muted/40 border border-border/30 px-2 py-0.5 rounded-lg select-none flex-shrink-0"
-              title={formatDateTime(session.updatedAt)}
-            >
-              {formatTime(session.updatedAt, justNowLabel, hoursAgoLabel, daysAgoLabel)}
-            </span>
+            {session.sourceLabel && (
+              <span
+                className="text-[10px] font-medium text-sky-300 bg-sky-500/10 border border-sky-400/30 px-1.5 py-0.5 rounded-md select-none flex-shrink-0"
+                title={`${session.sourceLabel} 创建的会话`}
+              >
+                {session.sourceLabel}
+              </span>
+            )}
+            {relativeTime && (
+              <span
+                className="text-[10px] text-muted-foreground/60 bg-muted/40 border border-border/30 px-2 py-0.5 rounded-lg select-none flex-shrink-0"
+                title={absoluteTime}
+              >
+                {relativeTime}
+              </span>
+            )}
           </div>
         )}
         {selectionMode && session.favorite && (
@@ -872,11 +888,11 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
           )}
         </div>
       )}
-      {session.updatedAt && (
+      {absoluteTime && (
         <div className="flex items-center justify-between gap-1.5 mt-2.5 text-[10px] text-muted-foreground/55">
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/40" />
-            <span>{formatDateTime(session.updatedAt)}</span>
+            <span>{absoluteTime}</span>
           </div>
           {!session.cwd && !selectionMode && (
             <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">

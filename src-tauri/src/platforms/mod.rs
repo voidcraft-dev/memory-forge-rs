@@ -21,13 +21,47 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::database::{SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 use crate::settings::AppSettings;
 
 const MAX_IN_MEMORY_SESSION_INDEX_BYTES: usize = 256 * 1024;
 pub const MAX_INDEX_SOURCE_LINE_BYTES: usize = 1024 * 1024;
+
+/// Coerce a timestamp into epoch milliseconds as a string, the format the
+/// frontend expects. Accepts RFC 3339 text as well as epoch seconds,
+/// milliseconds, microseconds or nanoseconds.
+pub(crate) fn timestamp_millis_string(value: &str) -> Option<String> {
+    let text = value.trim();
+    if text.is_empty() {
+        return None;
+    }
+    if let Ok(number) = text.parse::<i128>() {
+        let millis = if number > 100_000_000_000_000_000 {
+            number / 1_000_000
+        } else if number > 1_000_000_000_000_000 {
+            number / 1_000
+        } else if number > 1_000_000_000_000 {
+            number
+        } else {
+            number * 1_000
+        };
+        return Some(millis.to_string());
+    }
+    chrono::DateTime::parse_from_rfc3339(text)
+        .ok()
+        .map(|date| date.timestamp_millis().to_string())
+}
+
+pub(crate) fn file_mtime_millis_string(path: &Path) -> Option<String> {
+    let modified = std::fs::metadata(path).ok()?.modified().ok()?;
+    let millis = modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis();
+    Some(millis.to_string())
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -69,6 +103,10 @@ pub struct SessionListItem {
     pub total_content_matches: usize,
     #[serde(default)]
     pub favorite: bool,
+    /// Optional badge shown on session cards, e.g. `CLI` for conversations
+    /// that only have a transcript in the Antigravity CLI store.
+    #[serde(default)]
+    pub source_label: String,
     #[serde(default)]
     pub agent_group: Option<SessionAgentGroup>,
 }

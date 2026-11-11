@@ -520,6 +520,7 @@ impl super::PlatformAdapter for DshPlatform {
                     content_matches: vec![],
                     total_content_matches: 0,
                     favorite: false,
+                    source_label: String::new(),
                     agent_group: None,
                 }
             })
@@ -573,6 +574,7 @@ impl super::PlatformAdapter for DshPlatform {
             content_matches: vec![],
             total_content_matches: 0,
             favorite: false,
+            source_label: String::new(),
             agent_group: None,
         })
     }

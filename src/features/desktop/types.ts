@@ -85,6 +85,7 @@ export type Session = {
   contentMatches?: ContentMatch[];
   totalContentMatches?: number;
   favorite?: boolean;
+  sourceLabel?: string;
   agentGroup?: {
     parentSessionId?: string | null;
     depth?: number | null;
