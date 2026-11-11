@@ -33,6 +33,8 @@ const PLATFORM_ITEMS = [
   { id: "zed", labelKey: "platformZed" as const, isPlatform: true },
   { id: "dsh", labelKey: "platformDsh" as const, isPlatform: true },
   { id: "qoder-cn", labelKey: "platformQoderCn" as const, isPlatform: true },
+  { id: "qwen", labelKey: "platformQwen" as const, isPlatform: true },
+  { id: "cline", labelKey: "platformCline" as const, isPlatform: true },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -560,6 +562,20 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ qoderCnHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.qoderCnHome ?? ""}
+            />
+            <PathRow
+              defaultHint="~/.qwen"
+              label={t("qwenHome")}
+              onSave={(v) => updateSettings({ qwenHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.qwenHome ?? ""}
+            />
+            <PathRow
+              defaultHint="~/.cline"
+              label={t("clineHome")}
+              onSave={(v) => updateSettings({ clineHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.clineHome ?? ""}
             />
           </div>
         </section>

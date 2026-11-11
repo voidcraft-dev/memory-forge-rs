@@ -53,6 +53,10 @@ pub struct AppSettings {
     #[serde(default)]
     pub qoder_cn_home: Option<String>,
     #[serde(default)]
+    pub qwen_home: Option<String>,
+    #[serde(default)]
+    pub cline_home: Option<String>,
+    #[serde(default)]
     pub preferred_terminal: Option<String>,
     #[serde(default = "default_visible_platforms")]
     pub visible_platforms: Vec<String>,
@@ -78,6 +82,8 @@ fn default_visible_platforms() -> Vec<String> {
         "zed".to_string(),
         "dsh".to_string(),
         "qoder-cn".to_string(),
+        "qwen".to_string(),
+        "cline".to_string(),
     ]
 }
 
@@ -160,6 +166,8 @@ impl Default for AppSettings {
             zed_home: None,
             dsh_home: None,
             qoder_cn_home: None,
+            qwen_home: None,
+            cline_home: None,
             preferred_terminal: None,
             visible_platforms: default_visible_platforms(),
             navigation_items: Some(default_navigation_items(&default_visible_platforms())),
@@ -192,6 +200,8 @@ pub struct AppSettingsPatch {
     pub zed_home: Option<Option<String>>,
     pub dsh_home: Option<Option<String>>,
     pub qoder_cn_home: Option<Option<String>>,
+    pub qwen_home: Option<Option<String>>,
+    pub cline_home: Option<Option<String>>,
     pub preferred_terminal: Option<Option<String>>,
     pub visible_platforms: Option<Vec<String>>,
     pub navigation_items: Option<Vec<String>>,
@@ -354,6 +364,14 @@ pub fn update_settings(
 
     if let Some(qoder_cn_home) = patch.qoder_cn_home {
         settings.qoder_cn_home = qoder_cn_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(qwen_home) = patch.qwen_home {
+        settings.qwen_home = qwen_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(cline_home) = patch.cline_home {
+        settings.cline_home = cline_home.filter(|s| !s.trim().is_empty());
     }
 
     if let Some(preferred_terminal) = patch.preferred_terminal {

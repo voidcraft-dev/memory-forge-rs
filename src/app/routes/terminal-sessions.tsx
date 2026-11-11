@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
+  Boxes,
   Brain,
+  Cpu,
   Code,
   Copy,
   ExternalLink,
@@ -67,6 +69,8 @@ const platformConfigs: Record<
   zed: { label: "Zed", icon: SquarePen, color: "text-slate-300", hoverColor: "group-hover:text-slate-200" },
   dsh: { label: "DeepSeek Harness", icon: Brain, color: "text-teal-400", hoverColor: "group-hover:text-teal-300" },
   "qoder-cn": { label: "Qoder CN", icon: Bot, color: "text-orange-400", hoverColor: "group-hover:text-orange-300" },
+  qwen: { label: "Qwen Code", icon: Cpu, color: "text-cyan-400", hoverColor: "group-hover:text-cyan-300" },
+  cline: { label: "Cline", icon: Boxes, color: "text-fuchsia-400", hoverColor: "group-hover:text-fuchsia-300" },
 };
 
 function getPlatformConfig(platform: string | null) {

@@ -42,6 +42,8 @@ const defaultSettings = {
   zedHome: null,
   dshHome: null,
   qoderCnHome: null,
+  qwenHome: null,
+  clineHome: null,
   preferredTerminal: null,
   visiblePlatforms: [
     "claude",
@@ -60,6 +62,8 @@ const defaultSettings = {
     "zed",
     "dsh",
     "qoder-cn",
+    "qwen",
+    "cline",
   ] as string[],
   navigationItems: [
     "claude",
@@ -79,6 +83,8 @@ const defaultSettings = {
     "zed",
     "dsh",
     "qoder-cn",
+    "qwen",
+    "cline",
   ] as string[],
 };
 

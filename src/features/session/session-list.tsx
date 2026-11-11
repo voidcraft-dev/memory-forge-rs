@@ -64,6 +64,8 @@ const platformColors = {
   zed: 'bg-gradient-to-br from-slate-500 to-blue-600',
   dsh: 'bg-gradient-to-br from-teal-500 to-cyan-600',
   'qoder-cn': 'bg-gradient-to-br from-orange-500 to-amber-600',
+  qwen: 'bg-gradient-to-br from-cyan-500 to-sky-600',
+  cline: 'bg-gradient-to-br from-fuchsia-500 to-purple-600',
 }
 
 
@@ -426,6 +428,8 @@ export function SessionList() {
               if (currentPlatform === 'cindy') return 'Cindy'
               if (currentPlatform === 'cindy-global') return 'Cindy Global'
               if (currentPlatform === 'qoder-cn') return 'Qoder CN'
+              if (currentPlatform === 'qwen') return 'Qwen Code'
+              if (currentPlatform === 'cline') return 'Cline'
               return currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)
             })()} {showArchived ? t('session.archiveView') : t('session.sessions')}
           </h2>
@@ -779,7 +783,9 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
                 platform === 'cindy-global' && "bg-gradient-to-b from-sky-400 to-blue-500",
                 platform === 'zed' && "bg-gradient-to-b from-slate-300 to-blue-500",
                 platform === 'dsh' && "bg-gradient-to-b from-teal-300 to-cyan-500",
-                platform === 'qoder-cn' && "bg-gradient-to-b from-orange-300 to-amber-500"
+                platform === 'qoder-cn' && "bg-gradient-to-b from-orange-300 to-amber-500",
+                platform === 'qwen' && "bg-gradient-to-b from-cyan-300 to-sky-500",
+                platform === 'cline' && "bg-gradient-to-b from-fuchsia-300 to-purple-500"
               )
         )}
       />

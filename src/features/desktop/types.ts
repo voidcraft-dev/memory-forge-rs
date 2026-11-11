@@ -26,6 +26,8 @@ export type DesktopSettings = {
   zedHome: string | null;
   dshHome: string | null;
   qoderCnHome: string | null;
+  qwenHome: string | null;
+  clineHome: string | null;
   preferredTerminal: string | null;
   visiblePlatforms: string[];
   navigationItems: string[];
@@ -48,7 +50,7 @@ export type DesktopSnapshot = {
 
 // ─── Session ───
 
-export type Platform = "claude" | "codex" | "cursor" | "opencode" | "kiro" | "kiro-ide" | "gemini" | "grok" | "pi" | "zcode" | "workbuddy" | "cindy" | "cindy-global" | "zed" | "dsh" | "qoder-cn";
+export type Platform = "claude" | "codex" | "cursor" | "opencode" | "kiro" | "kiro-ide" | "gemini" | "grok" | "pi" | "zcode" | "workbuddy" | "cindy" | "cindy-global" | "zed" | "dsh" | "qoder-cn" | "qwen" | "cline";
 
 export type ContentMatch = {
   snippet: string;

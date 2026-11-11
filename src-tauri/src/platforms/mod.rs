@@ -1,5 +1,6 @@
 pub mod cindy;
 pub mod claude;
+pub mod cline;
 pub mod codex;
 pub mod cursor;
 pub mod dsh;
@@ -10,6 +11,7 @@ pub mod kiro_ide;
 pub mod opencode;
 pub mod pi;
 pub mod qoder;
+pub mod qwen;
 pub mod workbuddy;
 pub mod zcode;
 pub mod zed;
@@ -585,6 +587,22 @@ pub fn get_adapter(
                 .unwrap_or_else(|| home.join(".qoder-cn"));
             Ok(Box::new(qoder::QoderPlatform::new(path)))
         }
+        "qwen" => {
+            let path = settings
+                .qwen_home
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".qwen"));
+            Ok(Box::new(qwen::QwenPlatform::new(path)))
+        }
+        "cline" => {
+            let path = settings
+                .cline_home
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".cline"));
+            Ok(Box::new(cline::ClinePlatform::new(path)))
+        }
         _ => Err(format!("Unknown platform: {platform}")),
     }
 }
@@ -623,7 +641,7 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         "kiro-ide" => HashMap::new(),
         "zcode" => HashMap::new(),
         "workbuddy" => HashMap::new(),
-        "cindy" | "cindy-global" | "zed" | "dsh" | "qoder-cn" => HashMap::new(),
+        "cindy" | "cindy-global" | "zed" | "dsh" | "qoder-cn" | "qwen" | "cline" => HashMap::new(),
         "gemini" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("gemini --resume '{session_id}'"));

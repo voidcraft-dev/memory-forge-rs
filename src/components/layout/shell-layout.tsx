@@ -1,6 +1,8 @@
 import {
   BookOpen,
+  Boxes,
   Brain,
+  Cpu,
   ChevronLeft,
   ChevronRight,
   Info,
@@ -55,6 +57,8 @@ const navigation: Array<{
   { to: "/zed", labelKey: "platformZed", icon: SquarePen, navigationId: "zed" },
   { to: "/dsh", labelKey: "platformDsh", icon: Brain, navigationId: "dsh" },
   { to: "/qoder-cn", labelKey: "platformQoderCn", icon: Bot, navigationId: "qoder-cn" },
+  { to: "/qwen", labelKey: "platformQwen", icon: Cpu, navigationId: "qwen" },
+  { to: "/cline", labelKey: "platformCline", icon: Boxes, navigationId: "cline" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },
@@ -96,6 +100,8 @@ export default function ShellLayout() {
     "zed",
     "dsh",
     "qoder-cn",
+    "qwen",
+    "cline",
   ];
   const visibleNavigation = [
     navigation[0],

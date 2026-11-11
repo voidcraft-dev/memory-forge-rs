@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Bot, Brain, Code, Flame, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap, MessageSquare, Globe, SquarePen } from "lucide-react";
+import { ArrowRight, Bot, Boxes, Brain, Code, Cpu, Flame, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap, MessageSquare, Globe, SquarePen } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/logo";
@@ -168,6 +168,26 @@ const platformMeta = [
     iconBg: "bg-orange-500/15 text-orange-400 group-hover:scale-110",
     hoverGlow: "hover:shadow-[0_8px_30px_rgba(249,115,22,0.12)] hover:-translate-y-1"
   },
+  {
+    key: "qwen",
+    label: "Qwen Code",
+    icon: Cpu,
+    to: "/qwen",
+    gradient: "from-cyan-500/10 to-sky-600/5",
+    border: "border-cyan-500/20 hover:border-sky-500/40",
+    iconBg: "bg-cyan-500/15 text-cyan-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(6,182,212,0.12)] hover:-translate-y-1"
+  },
+  {
+    key: "cline",
+    label: "Cline",
+    icon: Boxes,
+    to: "/cline",
+    gradient: "from-fuchsia-500/10 to-purple-600/5",
+    border: "border-fuchsia-500/20 hover:border-purple-500/40",
+    iconBg: "bg-fuchsia-500/15 text-fuchsia-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(217,70,239,0.12)] hover:-translate-y-1"
+  },
 ] as const;
 
 export default function DashboardPage() {
@@ -176,7 +196,7 @@ export default function DashboardPage() {
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? [
     "claude", "codex", "opencode", "grok", "pi", "cursor", "kiro", "kiro-ide",
-    "gemini", "zcode", "workbuddy", "cindy", "cindy-global", "zed", "dsh", "qoder-cn",
+    "gemini", "zcode", "workbuddy", "cindy", "cindy-global", "zed", "dsh", "qoder-cn", "qwen", "cline",
   ];
   const visiblePlatformsKey = visiblePlatforms.join("|");
   const snapshotReady = Boolean(snapshot);
