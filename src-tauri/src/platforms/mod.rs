@@ -1,3 +1,4 @@
+pub mod antigravity;
 pub mod cindy;
 pub mod claude;
 pub mod cline;
@@ -603,6 +604,14 @@ pub fn get_adapter(
                 .unwrap_or_else(|| home.join(".cline"));
             Ok(Box::new(cline::ClinePlatform::new(path)))
         }
+        "antigravity" => {
+            let path = settings
+                .antigravity_home
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".gemini").join("antigravity"));
+            Ok(Box::new(antigravity::AntigravityPlatform::new(path)))
+        }
         _ => Err(format!("Unknown platform: {platform}")),
     }
 }
@@ -641,7 +650,9 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         "kiro-ide" => HashMap::new(),
         "zcode" => HashMap::new(),
         "workbuddy" => HashMap::new(),
-        "cindy" | "cindy-global" | "zed" | "dsh" | "qoder-cn" | "qwen" | "cline" => HashMap::new(),
+        "cindy" | "cindy-global" | "zed" | "dsh" | "qoder-cn" | "qwen" | "cline" | "antigravity" => {
+            HashMap::new()
+        }
         "gemini" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("gemini --resume '{session_id}'"));

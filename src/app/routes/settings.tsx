@@ -35,6 +35,7 @@ const PLATFORM_ITEMS = [
   { id: "qoder-cn", labelKey: "platformQoderCn" as const, isPlatform: true },
   { id: "qwen", labelKey: "platformQwen" as const, isPlatform: true },
   { id: "cline", labelKey: "platformCline" as const, isPlatform: true },
+  { id: "antigravity", labelKey: "platformAntigravity" as const, isPlatform: true },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -576,6 +577,13 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ clineHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.clineHome ?? ""}
+            />
+            <PathRow
+              defaultHint="~/.gemini/antigravity"
+              label={t("antigravityHome")}
+              onSave={(v) => updateSettings({ antigravityHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.antigravityHome ?? ""}
             />
           </div>
         </section>

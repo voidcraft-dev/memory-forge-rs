@@ -44,6 +44,7 @@ const defaultSettings = {
   qoderCnHome: null,
   qwenHome: null,
   clineHome: null,
+  antigravityHome: null,
   preferredTerminal: null,
   visiblePlatforms: [
     "claude",
@@ -64,6 +65,7 @@ const defaultSettings = {
     "qoder-cn",
     "qwen",
     "cline",
+    "antigravity",
   ] as string[],
   navigationItems: [
     "claude",
@@ -85,6 +87,7 @@ const defaultSettings = {
     "qoder-cn",
     "qwen",
     "cline",
+    "antigravity",
   ] as string[],
 };
 

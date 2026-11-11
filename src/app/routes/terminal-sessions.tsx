@@ -4,6 +4,7 @@ import {
   Boxes,
   Brain,
   Cpu,
+  Rocket,
   Code,
   Copy,
   ExternalLink,
@@ -71,6 +72,7 @@ const platformConfigs: Record<
   "qoder-cn": { label: "Qoder CN", icon: Bot, color: "text-orange-400", hoverColor: "group-hover:text-orange-300" },
   qwen: { label: "Qwen Code", icon: Cpu, color: "text-cyan-400", hoverColor: "group-hover:text-cyan-300" },
   cline: { label: "Cline", icon: Boxes, color: "text-fuchsia-400", hoverColor: "group-hover:text-fuchsia-300" },
+  antigravity: { label: "Antigravity", icon: Rocket, color: "text-blue-400", hoverColor: "group-hover:text-blue-300" },
 };
 
 function getPlatformConfig(platform: string | null) {

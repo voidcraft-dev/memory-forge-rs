@@ -57,6 +57,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub cline_home: Option<String>,
     #[serde(default)]
+    pub antigravity_home: Option<String>,
+    #[serde(default)]
     pub preferred_terminal: Option<String>,
     #[serde(default = "default_visible_platforms")]
     pub visible_platforms: Vec<String>,
@@ -84,6 +86,7 @@ fn default_visible_platforms() -> Vec<String> {
         "qoder-cn".to_string(),
         "qwen".to_string(),
         "cline".to_string(),
+        "antigravity".to_string(),
     ]
 }
 
@@ -168,6 +171,7 @@ impl Default for AppSettings {
             qoder_cn_home: None,
             qwen_home: None,
             cline_home: None,
+            antigravity_home: None,
             preferred_terminal: None,
             visible_platforms: default_visible_platforms(),
             navigation_items: Some(default_navigation_items(&default_visible_platforms())),
@@ -202,6 +206,7 @@ pub struct AppSettingsPatch {
     pub qoder_cn_home: Option<Option<String>>,
     pub qwen_home: Option<Option<String>>,
     pub cline_home: Option<Option<String>>,
+    pub antigravity_home: Option<Option<String>>,
     pub preferred_terminal: Option<Option<String>>,
     pub visible_platforms: Option<Vec<String>>,
     pub navigation_items: Option<Vec<String>>,
@@ -372,6 +377,10 @@ pub fn update_settings(
 
     if let Some(cline_home) = patch.cline_home {
         settings.cline_home = cline_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(antigravity_home) = patch.antigravity_home {
+        settings.antigravity_home = antigravity_home.filter(|s| !s.trim().is_empty());
     }
 
     if let Some(preferred_terminal) = patch.preferred_terminal {

@@ -3,6 +3,7 @@ import {
   Boxes,
   Brain,
   Cpu,
+  Rocket,
   ChevronLeft,
   ChevronRight,
   Info,
@@ -59,6 +60,7 @@ const navigation: Array<{
   { to: "/qoder-cn", labelKey: "platformQoderCn", icon: Bot, navigationId: "qoder-cn" },
   { to: "/qwen", labelKey: "platformQwen", icon: Cpu, navigationId: "qwen" },
   { to: "/cline", labelKey: "platformCline", icon: Boxes, navigationId: "cline" },
+  { to: "/antigravity", labelKey: "platformAntigravity", icon: Rocket, navigationId: "antigravity" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },
@@ -102,6 +104,7 @@ export default function ShellLayout() {
     "qoder-cn",
     "qwen",
     "cline",
+    "antigravity",
   ];
   const visibleNavigation = [
     navigation[0],
