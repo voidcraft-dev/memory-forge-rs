@@ -36,7 +36,7 @@ interface TerminalContextType {
   setActiveTerminal: (terminalId: string | null) => void;
   startTerminal: (
     sessionKey: string,
-    commandKind: "resume" | "fork",
+    commandKind: TerminalCommandKind,
     command: string,
     cwd: string | null,
     metadata?: { platform?: string | null; sessionTitle?: string }
@@ -207,9 +207,13 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
       const sameKindCount = currentList.filter(
         (terminal) => terminal.commandKind === input.commandKind
       ).length;
-      const title = `${input.commandKind === "resume" ? "Resume" : "Fork"}${
-        sameKindCount > 0 ? ` ${sameKindCount + 1}` : ""
-      }`;
+      const baseTitle =
+        input.commandKind === "resume"
+          ? "Resume"
+          : input.commandKind === "fork"
+            ? "Fork"
+            : "Terminal";
+      const title = `${baseTitle}${sameKindCount > 0 ? ` ${sameKindCount + 1}` : ""}`;
       const terminal: EmbeddedTerminalSession = {
         id: input.terminalId,
         sessionKey: input.sessionKey,
@@ -238,7 +242,7 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
   const startTerminal = useCallback(
     async (
       sessionKey: string,
-      commandKind: "resume" | "fork",
+      commandKind: TerminalCommandKind,
       command: string,
       cwd: string | null,
       metadata?: { platform?: string | null; sessionTitle?: string }
@@ -342,7 +346,7 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
       const terminal = Object.values(terminalsRef.current)
         .flat()
         .find((candidate) => candidate.id === terminalId);
-      if (!terminal || terminal.commandKind === "shell") return null;
+      if (!terminal) return null;
 
       try {
         await api.stopEmbeddedTerminal(terminalId, true);

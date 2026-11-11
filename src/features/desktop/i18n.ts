@@ -345,7 +345,17 @@ export type MessageKey =
   | "terminal.workspace.runningCount"
   | "terminal.workspace.openedAt"
   | "terminal.workspace.source"
-  | "terminal.workspace.externalFailed";
+  | "terminal.workspace.externalFailed"
+  | "terminal.new.title"
+  | "terminal.new.desc"
+  | "terminal.new.launcher"
+  | "terminal.new.cwd"
+  | "terminal.new.cwdPlaceholder"
+  | "terminal.new.browse"
+  | "terminal.new.start"
+  | "terminal.new.starting"
+  | "terminal.new.cancel"
+  | "terminal.new.limit";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -679,11 +689,21 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.workspace.subtitle": "集中管理已打开的内嵌终端。切换到其他页面时，运行中的命令不会停止。",
     "terminal.workspace.collection": "会话集合",
     "terminal.workspace.emptyTitle": "还没有打开终端会话",
-    "terminal.workspace.emptyDesc": "进入任意历史会话，从终端菜单选择“内嵌恢复”或“内嵌分支”，这里就会自动接管。",
+    "terminal.workspace.emptyDesc": "点击“新建会话”直接启动终端或 AI CLI，也可以进入历史会话选择“内嵌恢复”或“内嵌分支”。",
     "terminal.workspace.runningCount": "{running}/{total} 运行中",
     "terminal.workspace.openedAt": "打开于 {time}",
     "terminal.workspace.source": "来源：{platform}",
     "terminal.workspace.externalFailed": "外部终端启动失败，命令已复制到剪贴板。",
+    "terminal.new.title": "新建会话",
+    "terminal.new.desc": "选择一个终端或 AI CLI，指定工作目录后，直接在应用内打开交互式会话。",
+    "terminal.new.launcher": "启动方式",
+    "terminal.new.cwd": "工作目录",
+    "terminal.new.cwdPlaceholder": "留空则使用应用当前目录",
+    "terminal.new.browse": "选择目录",
+    "terminal.new.start": "启动",
+    "terminal.new.starting": "正在启动…",
+    "terminal.new.cancel": "取消",
+    "terminal.new.limit": "无法创建更多终端，请先关闭一些会话。",
   },
   en: {
     appName: "Memory Forge",
@@ -1016,11 +1036,21 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.workspace.subtitle": "Manage opened embedded terminals in one place. Running commands continue when you visit other pages.",
     "terminal.workspace.collection": "Session Collection",
     "terminal.workspace.emptyTitle": "No terminal sessions yet",
-    "terminal.workspace.emptyDesc": "Open any history session and choose Embedded Resume or Embedded Fork from its terminal menu. It will appear here automatically.",
+    "terminal.workspace.emptyDesc": "Click New Session to launch a terminal or AI CLI directly, or open a history session and choose Embedded Resume / Embedded Fork.",
     "terminal.workspace.runningCount": "{running}/{total} running",
     "terminal.workspace.openedAt": "Opened at {time}",
     "terminal.workspace.source": "Source: {platform}",
     "terminal.workspace.externalFailed": "Could not open an external terminal. The command was copied to the clipboard.",
+    "terminal.new.title": "New Session",
+    "terminal.new.desc": "Pick a terminal or AI CLI and a working directory to open an interactive session inside the app.",
+    "terminal.new.launcher": "Launcher",
+    "terminal.new.cwd": "Working Directory",
+    "terminal.new.cwdPlaceholder": "Leave empty to use the app working directory",
+    "terminal.new.browse": "Choose folder",
+    "terminal.new.start": "Start",
+    "terminal.new.starting": "Starting…",
+    "terminal.new.cancel": "Cancel",
+    "terminal.new.limit": "Could not create another terminal. Close some sessions first.",
   },
 };
 

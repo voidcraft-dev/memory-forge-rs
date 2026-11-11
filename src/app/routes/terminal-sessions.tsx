@@ -18,6 +18,7 @@ import {
   Orbit,
   PenLine,
   Pi as PiIcon,
+  Plus,
   RotateCw,
   Sparkles,
   Square,
@@ -32,6 +33,7 @@ import { api } from "@/features/desktop/api";
 import type { MessageKey } from "@/features/desktop/i18n";
 import { useDesktop } from "@/features/desktop/provider";
 import { EmbeddedTerminalPanel } from "@/features/terminal/embedded-terminal-panel";
+import { NewSessionDialog } from "@/features/terminal/new-session-dialog";
 import { useTerminal } from "@/features/terminal/terminal-context";
 import { terminalTheme } from "@/features/terminal/terminal-theme";
 import type { EmbeddedTerminalSession } from "@/features/terminal/terminal-types";
@@ -73,6 +75,7 @@ const platformConfigs: Record<
   qwen: { label: "Qwen Code", icon: Cpu, color: "text-cyan-400", hoverColor: "group-hover:text-cyan-300" },
   cline: { label: "Cline", icon: Boxes, color: "text-fuchsia-400", hoverColor: "group-hover:text-fuchsia-300" },
   antigravity: { label: "Antigravity", icon: Rocket, color: "text-blue-400", hoverColor: "group-hover:text-blue-300" },
+  shell: { label: "Shell", icon: Terminal, color: "text-emerald-400", hoverColor: "group-hover:text-emerald-300" },
 };
 
 function getPlatformConfig(platform: string | null) {
@@ -106,6 +109,7 @@ export default function TerminalSessionsPage() {
 
   // States for maximize mode
   const [isMaximized, setIsMaximized] = useState(false);
+  const [newSessionOpen, setNewSessionOpen] = useState(false);
 
   const toggleMaximize = () => {
     const next = !isMaximized;
@@ -240,6 +244,10 @@ export default function TerminalSessionsPage() {
           <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
             {t("terminal.workspace.emptyDesc")}
           </p>
+          <Button className="mt-5 gap-2" onClick={() => setNewSessionOpen(true)}>
+            <Plus className="size-4" />
+            {t("terminal.new.title")}
+          </Button>
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -414,6 +422,17 @@ export default function TerminalSessionsPage() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 rounded-md text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400"
+                    onClick={() => setNewSessionOpen(true)}
+                    title={t("terminal.new.title")}
+                    aria-label={t("terminal.new.title")}
+                  >
+                    <Plus className="size-3.5" />
+                  </Button>
+
                   {canRestart && (
                     <Button
                       variant="ghost"
@@ -641,6 +660,12 @@ export default function TerminalSessionsPage() {
       })()}
 
       <ConfirmDialog {...dialogProps} />
+
+      <NewSessionDialog
+        open={newSessionOpen}
+        onOpenChange={setNewSessionOpen}
+        defaultCwd={selectedTerminal?.cwd ?? allTerminals[0]?.cwd ?? null}
+      />
     </section>
   );
 }
