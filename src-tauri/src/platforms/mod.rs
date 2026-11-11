@@ -9,6 +9,7 @@ pub mod kiro;
 pub mod kiro_ide;
 pub mod opencode;
 pub mod pi;
+pub mod qoder;
 pub mod workbuddy;
 pub mod zcode;
 pub mod zed;
@@ -576,6 +577,14 @@ pub fn get_adapter(
                 .unwrap_or_else(|| home.join(".dsh"));
             Ok(Box::new(dsh::DshPlatform::new(path)))
         }
+        "qoder-cn" => {
+            let path = settings
+                .qoder_cn_home
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".qoder-cn"));
+            Ok(Box::new(qoder::QoderPlatform::new(path)))
+        }
         _ => Err(format!("Unknown platform: {platform}")),
     }
 }
@@ -614,7 +623,7 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         "kiro-ide" => HashMap::new(),
         "zcode" => HashMap::new(),
         "workbuddy" => HashMap::new(),
-        "cindy" | "cindy-global" | "zed" | "dsh" => HashMap::new(),
+        "cindy" | "cindy-global" | "zed" | "dsh" | "qoder-cn" => HashMap::new(),
         "gemini" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("gemini --resume '{session_id}'"));

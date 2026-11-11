@@ -26,6 +26,7 @@ export type MessageKey =
   | "platformCindyGlobal"
   | "platformZed"
   | "platformDsh"
+  | "platformQoderCn"
   // Dashboard
   | "welcomeTitle"
   | "welcomeDesc"
@@ -258,6 +259,7 @@ export type MessageKey =
   | "cindyGlobalHome"
   | "zedHome"
   | "dshHome"
+  | "qoderCnHome"
   | "pathPlaceholder"
   | "pathSaved"
   | "defaultPath"
@@ -363,6 +365,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformCindyGlobal: "Cindy 国际版",
     platformZed: "Zed",
     platformDsh: "DeepSeek Harness",
+    platformQoderCn: "Qoder CN",
     welcomeTitle: "停止重开，直接编辑。",
     welcomeDesc: "AI 对话走偏了？别重新开始 — 直接改掉历史记录。注入上下文、纠正错误、删除废话，然后无缝继续对话。",
     totalSessions: "总会话数",
@@ -588,6 +591,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "cindyGlobalHome": "Cindy 国际版数据目录",
     "zedHome": "Zed 数据目录",
     "dshHome": "DeepSeek Harness 数据目录",
+    "qoderCnHome": "Qoder CN 数据目录",
     "pathPlaceholder": "留空使用默认路径",
     "pathSaved": "路径已保存",
     "defaultPath": "默认: {path}",
@@ -692,6 +696,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformCindyGlobal: "Cindy Global",
     platformZed: "Zed",
     platformDsh: "DeepSeek Harness",
+    platformQoderCn: "Qoder CN",
     welcomeTitle: "Stop resetting. Start editing.",
     welcomeDesc: "AI went off track? Don't restart — edit the history directly. Inject context, fix errors, remove noise, then seamlessly continue.",
     totalSessions: "Total Sessions",
@@ -917,6 +922,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "cindyGlobalHome": "Cindy Global Data Directory",
     "zedHome": "Zed Data Directory",
     "dshHome": "DeepSeek Harness Data Directory",
+    "qoderCnHome": "Qoder CN Data Directory",
     "pathPlaceholder": "Leave empty for default",
     "pathSaved": "Path saved",
     "defaultPath": "Default: {path}",

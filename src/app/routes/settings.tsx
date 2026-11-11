@@ -32,6 +32,7 @@ const PLATFORM_ITEMS = [
   { id: "cindy-global", labelKey: "platformCindyGlobal" as const, isPlatform: true },
   { id: "zed", labelKey: "platformZed" as const, isPlatform: true },
   { id: "dsh", labelKey: "platformDsh" as const, isPlatform: true },
+  { id: "qoder-cn", labelKey: "platformQoderCn" as const, isPlatform: true },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -552,6 +553,13 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ dshHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.dshHome ?? ""}
+            />
+            <PathRow
+              defaultHint="~/.qoder-cn"
+              label={t("qoderCnHome")}
+              onSave={(v) => updateSettings({ qoderCnHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.qoderCnHome ?? ""}
             />
           </div>
         </section>

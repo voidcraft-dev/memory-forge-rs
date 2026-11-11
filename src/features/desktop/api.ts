@@ -41,6 +41,7 @@ const defaultSettings = {
   cindyGlobalHome: null,
   zedHome: null,
   dshHome: null,
+  qoderCnHome: null,
   preferredTerminal: null,
   visiblePlatforms: [
     "claude",
@@ -58,6 +59,7 @@ const defaultSettings = {
     "cindy-global",
     "zed",
     "dsh",
+    "qoder-cn",
   ] as string[],
   navigationItems: [
     "claude",
@@ -76,6 +78,7 @@ const defaultSettings = {
     "cindy-global",
     "zed",
     "dsh",
+    "qoder-cn",
   ] as string[],
 };
 

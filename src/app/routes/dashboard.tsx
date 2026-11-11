@@ -158,6 +158,16 @@ const platformMeta = [
     iconBg: "bg-teal-500/15 text-teal-400 group-hover:scale-110",
     hoverGlow: "hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1"
   },
+  {
+    key: "qoder-cn",
+    label: "Qoder CN",
+    icon: Bot,
+    to: "/qoder-cn",
+    gradient: "from-orange-500/10 to-amber-600/5",
+    border: "border-orange-500/20 hover:border-amber-500/40",
+    iconBg: "bg-orange-500/15 text-orange-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(249,115,22,0.12)] hover:-translate-y-1"
+  },
 ] as const;
 
 export default function DashboardPage() {
@@ -166,7 +176,7 @@ export default function DashboardPage() {
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? [
     "claude", "codex", "opencode", "grok", "pi", "cursor", "kiro", "kiro-ide",
-    "gemini", "zcode", "workbuddy", "cindy", "cindy-global", "zed", "dsh",
+    "gemini", "zcode", "workbuddy", "cindy", "cindy-global", "zed", "dsh", "qoder-cn",
   ];
   const visiblePlatformsKey = visiblePlatforms.join("|");
   const snapshotReady = Boolean(snapshot);

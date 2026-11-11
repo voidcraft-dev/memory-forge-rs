@@ -66,6 +66,7 @@ const platformConfigs: Record<
   "cindy-global": { label: "Cindy Global", icon: Globe, color: "text-sky-400", hoverColor: "group-hover:text-sky-300" },
   zed: { label: "Zed", icon: SquarePen, color: "text-slate-300", hoverColor: "group-hover:text-slate-200" },
   dsh: { label: "DeepSeek Harness", icon: Brain, color: "text-teal-400", hoverColor: "group-hover:text-teal-300" },
+  "qoder-cn": { label: "Qoder CN", icon: Bot, color: "text-orange-400", hoverColor: "group-hover:text-orange-300" },
 };
 
 function getPlatformConfig(platform: string | null) {

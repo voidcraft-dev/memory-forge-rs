@@ -51,6 +51,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub dsh_home: Option<String>,
     #[serde(default)]
+    pub qoder_cn_home: Option<String>,
+    #[serde(default)]
     pub preferred_terminal: Option<String>,
     #[serde(default = "default_visible_platforms")]
     pub visible_platforms: Vec<String>,
@@ -75,6 +77,7 @@ fn default_visible_platforms() -> Vec<String> {
         "cindy-global".to_string(),
         "zed".to_string(),
         "dsh".to_string(),
+        "qoder-cn".to_string(),
     ]
 }
 
@@ -156,6 +159,7 @@ impl Default for AppSettings {
             cindy_global_home: None,
             zed_home: None,
             dsh_home: None,
+            qoder_cn_home: None,
             preferred_terminal: None,
             visible_platforms: default_visible_platforms(),
             navigation_items: Some(default_navigation_items(&default_visible_platforms())),
@@ -187,6 +191,7 @@ pub struct AppSettingsPatch {
     pub cindy_global_home: Option<Option<String>>,
     pub zed_home: Option<Option<String>>,
     pub dsh_home: Option<Option<String>>,
+    pub qoder_cn_home: Option<Option<String>>,
     pub preferred_terminal: Option<Option<String>>,
     pub visible_platforms: Option<Vec<String>>,
     pub navigation_items: Option<Vec<String>>,
@@ -345,6 +350,10 @@ pub fn update_settings(
 
     if let Some(dsh_home) = patch.dsh_home {
         settings.dsh_home = dsh_home.filter(|s| !s.trim().is_empty());
+    }
+
+    if let Some(qoder_cn_home) = patch.qoder_cn_home {
+        settings.qoder_cn_home = qoder_cn_home.filter(|s| !s.trim().is_empty());
     }
 
     if let Some(preferred_terminal) = patch.preferred_terminal {
