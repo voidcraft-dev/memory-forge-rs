@@ -45,6 +45,7 @@ const defaultSettings = {
   qwenHome: null,
   clineHome: null,
   antigravityHome: null,
+  codebuddyHome: null,
   preferredTerminal: null,
   visiblePlatforms: [
     "claude",
@@ -66,6 +67,7 @@ const defaultSettings = {
     "qwen",
     "cline",
     "antigravity",
+    "codebuddy",
   ] as string[],
   navigationItems: [
     "claude",
@@ -88,6 +90,7 @@ const defaultSettings = {
     "qwen",
     "cline",
     "antigravity",
+    "codebuddy",
   ] as string[],
 };
 

@@ -61,6 +61,7 @@ const navigation: Array<{
   { to: "/qwen", labelKey: "platformQwen", icon: Cpu, navigationId: "qwen" },
   { to: "/cline", labelKey: "platformCline", icon: Boxes, navigationId: "cline" },
   { to: "/antigravity", labelKey: "platformAntigravity", icon: Rocket, navigationId: "antigravity" },
+  { to: "/codebuddy", labelKey: "platformCodebuddy", icon: Bot, navigationId: "codebuddy" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },
@@ -105,6 +106,7 @@ export default function ShellLayout() {
     "qwen",
     "cline",
     "antigravity",
+    "codebuddy",
   ];
   const visibleNavigation = [
     navigation[0],

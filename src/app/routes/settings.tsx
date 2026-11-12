@@ -36,6 +36,7 @@ const PLATFORM_ITEMS = [
   { id: "qwen", labelKey: "platformQwen" as const, isPlatform: true },
   { id: "cline", labelKey: "platformCline" as const, isPlatform: true },
   { id: "antigravity", labelKey: "platformAntigravity" as const, isPlatform: true },
+  { id: "codebuddy", labelKey: "platformCodebuddy" as const, isPlatform: true },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -584,6 +585,13 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ antigravityHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.antigravityHome ?? ""}
+            />
+            <PathRow
+              defaultHint="~/.codebuddy"
+              label={t("codebuddyHome")}
+              onSave={(v) => updateSettings({ codebuddyHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.codebuddyHome ?? ""}
             />
           </div>
         </section>

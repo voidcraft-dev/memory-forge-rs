@@ -19,6 +19,17 @@ use super::{
 
 pub struct ClaudePlatform {
     projects_root: PathBuf,
+    dialect: ClaudeDialect,
+}
+
+/// Session file layout variants that share the Claude Code JSONL container.
+/// CodeBuddy (Tencent) writes the same overall structure but keeps `role` /
+/// `content` at the top level and renames text blocks to
+/// `input_text` / `output_text` / `reasoning_text`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ClaudeDialect {
+    Claude,
+    CodeBuddy,
 }
 
 #[derive(Clone)]
@@ -30,9 +41,24 @@ struct ScanSummary {
 
 impl ClaudePlatform {
     pub fn new(claude_home: PathBuf) -> Self {
+        Self::with_dialect(claude_home, ClaudeDialect::Claude)
+    }
+
+    pub fn with_dialect(claude_home: PathBuf, dialect: ClaudeDialect) -> Self {
         Self {
             projects_root: claude_home.join("projects"),
+            dialect,
         }
+    }
+
+    /// Rewrites a CodeBuddy line into the Claude Code shape understood by the
+    /// rest of this parser. Non-message lines are returned untouched so the
+    /// existing "no message payload" guards skip them.
+    fn normalize_line(&self, line: Value) -> Value {
+        if self.dialect == ClaudeDialect::Claude {
+            return line;
+        }
+        normalize_codebuddy_line(line)
     }
 
     fn read_jsonl(&self, path: &Path) -> Vec<Value> {
@@ -73,6 +99,7 @@ impl ClaudePlatform {
             let Ok(parsed) = serde_json::from_str::<Value>(trimmed) else {
                 continue;
             };
+            let parsed = self.normalize_line(parsed);
 
             if session_id.is_empty() {
                 if let Some(id) = parsed.get("sessionId").and_then(Value::as_str) {
@@ -385,6 +412,7 @@ impl ClaudePlatform {
                 let Ok(line) = serde_json::from_slice::<Value>(raw_line) else {
                     return true;
                 };
+                let line = self.normalize_line(line);
                 let Some(message) = line.get("message") else {
                     return true;
                 };
@@ -800,7 +828,11 @@ impl PlatformAdapter for ClaudePlatform {
         alias_map: &HashMap<String, String>,
     ) -> Result<SessionDetail, String> {
         let path = Path::new(session_key);
-        let lines = self.read_jsonl(path);
+        let lines: Vec<Value> = self
+            .read_jsonl(path)
+            .into_iter()
+            .map(|line| self.normalize_line(line))
+            .collect();
         let session_id = self.session_id(&lines, path);
         let alias = alias_map.get(session_key).cloned().unwrap_or_default();
 
@@ -840,32 +872,36 @@ impl PlatformAdapter for ClaudePlatform {
             return Err("Line index out of range".to_string());
         }
 
-        let Some(message) = rows[line_index].get_mut("message") else {
-            return Err("Missing message payload".to_string());
-        };
-
-        let old_content = if field_name == "content" {
-            let old = message
-                .get("content")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            message["content"] = Value::String(new_content.to_string());
-            old
+        let old_content = if self.dialect == ClaudeDialect::CodeBuddy {
+            update_codebuddy_line(&mut rows[line_index], content_index, new_content)?
         } else {
-            let Some(items) = message.get_mut("content").and_then(Value::as_array_mut) else {
-                return Err("Message content is not an array".to_string());
+            let Some(message) = rows[line_index].get_mut("message") else {
+                return Err("Missing message payload".to_string());
             };
-            let Some(item) = items.get_mut(content_index) else {
-                return Err("Content index out of range".to_string());
-            };
-            let old = item
-                .get(field_name)
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            item[field_name] = Value::String(new_content.to_string());
-            old
+
+            if field_name == "content" {
+                let old = message
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                message["content"] = Value::String(new_content.to_string());
+                old
+            } else {
+                let Some(items) = message.get_mut("content").and_then(Value::as_array_mut) else {
+                    return Err("Message content is not an array".to_string());
+                };
+                let Some(item) = items.get_mut(content_index) else {
+                    return Err("Content index out of range".to_string());
+                };
+                let old = item
+                    .get(field_name)
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                item[field_name] = Value::String(new_content.to_string());
+                old
+            }
         };
 
         let serialized = rows
@@ -956,6 +992,111 @@ impl PlatformAdapter for ClaudePlatform {
         let _ = index.replace("claude", session_key, &fingerprint, &entries);
         matches
     }
+}
+
+fn normalize_codebuddy_line(line: Value) -> Value {
+    let kind = line.get("type").and_then(Value::as_str).unwrap_or_default();
+    match kind {
+        "message" => {
+            let role = line.get("role").and_then(Value::as_str).unwrap_or_default();
+            if role != "user" && role != "assistant" {
+                return line;
+            }
+            let content = match line.get("content") {
+                Some(Value::Array(items)) => {
+                    Value::Array(items.iter().map(normalize_codebuddy_item).collect())
+                }
+                Some(other) => other.clone(),
+                None => Value::Array(Vec::new()),
+            };
+            json!({
+                "type": role,
+                "message": { "role": role, "content": content },
+                "timestamp": codebuddy_timestamp(line.get("timestamp")),
+                "sessionId": line.get("sessionId").cloned().unwrap_or(Value::Null),
+                "cwd": line.get("cwd").cloned().unwrap_or(Value::Null),
+            })
+        }
+        "reasoning" => {
+            let Some(items) = line.get("rawContent").and_then(Value::as_array) else {
+                return line;
+            };
+            if items.is_empty() {
+                return line;
+            }
+            let content: Vec<Value> = items.iter().map(normalize_codebuddy_item).collect();
+            json!({
+                "type": "assistant",
+                "message": { "role": "assistant", "content": content },
+                "timestamp": codebuddy_timestamp(line.get("timestamp")),
+                "sessionId": line.get("sessionId").cloned().unwrap_or(Value::Null),
+                "cwd": line.get("cwd").cloned().unwrap_or(Value::Null),
+            })
+        }
+        _ => line,
+    }
+}
+
+fn normalize_codebuddy_item(item: &Value) -> Value {
+    match item.get("type").and_then(Value::as_str) {
+        Some("input_text") | Some("output_text") => json!({
+            "type": "text",
+            "text": item.get("text").cloned().unwrap_or(Value::Null),
+        }),
+        Some("reasoning_text") | Some("reasoning") => json!({
+            "type": "thinking",
+            "thinking": item.get("text").cloned().unwrap_or(Value::Null),
+        }),
+        _ => item.clone(),
+    }
+}
+
+fn codebuddy_timestamp(value: Option<&Value>) -> Value {
+    match value {
+        Some(Value::Number(number)) => number
+            .as_i64()
+            .and_then(chrono::DateTime::<chrono::Utc>::from_timestamp_millis)
+            .map(|time| Value::String(time.to_rfc3339()))
+            .unwrap_or(Value::Null),
+        Some(Value::String(text)) => Value::String(text.clone()),
+        _ => Value::Null,
+    }
+}
+
+/// Writes an edit back into the original CodeBuddy line. The parser works on
+/// a normalized copy, so the raw shape (`content` / `rawContent` with a plain
+/// `text` field) has to be patched here instead.
+fn update_codebuddy_line(
+    row: &mut Value,
+    content_index: usize,
+    new_content: &str,
+) -> Result<String, String> {
+    let container = match row.get("type").and_then(Value::as_str) {
+        Some("message") => row.get_mut("content"),
+        Some("reasoning") => row.get_mut("rawContent"),
+        _ => None,
+    }
+    .ok_or_else(|| "Unsupported CodeBuddy line".to_string())?;
+
+    if container.is_string() {
+        let old = container.as_str().unwrap_or_default().to_string();
+        *container = Value::String(new_content.to_string());
+        return Ok(old);
+    }
+
+    let Some(items) = container.as_array_mut() else {
+        return Err("CodeBuddy content is not an array".to_string());
+    };
+    let Some(item) = items.get_mut(content_index) else {
+        return Err("Content index out of range".to_string());
+    };
+    let old = item
+        .get("text")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    item["text"] = Value::String(new_content.to_string());
+    Ok(old)
 }
 
 fn encode_path_key(path: &Path) -> String {

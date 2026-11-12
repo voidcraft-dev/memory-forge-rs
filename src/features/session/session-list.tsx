@@ -71,6 +71,7 @@ const platformColors = {
   qwen: 'bg-gradient-to-br from-cyan-500 to-sky-600',
   cline: 'bg-gradient-to-br from-fuchsia-500 to-purple-600',
   antigravity: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+  codebuddy: 'bg-gradient-to-br from-emerald-500 to-teal-600',
 }
 
 
@@ -436,6 +437,7 @@ export function SessionList() {
               if (currentPlatform === 'qwen') return 'Qwen Code'
               if (currentPlatform === 'cline') return 'Cline'
               if (currentPlatform === 'antigravity') return 'Antigravity'
+              if (currentPlatform === 'codebuddy') return 'CodeBuddy'
               return currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)
             })()} {showArchived ? t('session.archiveView') : t('session.sessions')}
           </h2>
@@ -794,7 +796,8 @@ function SessionCard({ session, isSelected, selectedSessionKey, showArchived, se
                 platform === 'qoder-cn' && "bg-gradient-to-b from-orange-300 to-amber-500",
                 platform === 'qwen' && "bg-gradient-to-b from-cyan-300 to-sky-500",
                 platform === 'cline' && "bg-gradient-to-b from-fuchsia-300 to-purple-500",
-                platform === 'antigravity' && "bg-gradient-to-b from-blue-300 to-indigo-500"
+                platform === 'antigravity' && "bg-gradient-to-b from-blue-300 to-indigo-500",
+                platform === 'codebuddy' && "bg-gradient-to-b from-emerald-300 to-teal-500"
               )
         )}
       />

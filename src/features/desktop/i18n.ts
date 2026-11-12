@@ -30,6 +30,7 @@ export type MessageKey =
   | "platformQwen"
   | "platformCline"
   | "platformAntigravity"
+  | "platformCodebuddy"
   // Dashboard
   | "welcomeTitle"
   | "welcomeDesc"
@@ -266,6 +267,7 @@ export type MessageKey =
   | "qwenHome"
   | "clineHome"
   | "antigravityHome"
+  | "codebuddyHome"
   | "pathPlaceholder"
   | "pathSaved"
   | "defaultPath"
@@ -385,6 +387,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformQwen: "Qwen Code",
     platformCline: "Cline",
     platformAntigravity: "Antigravity",
+    platformCodebuddy: "CodeBuddy",
     welcomeTitle: "停止重开，直接编辑。",
     welcomeDesc: "AI 对话走偏了？别重新开始 — 直接改掉历史记录。注入上下文、纠正错误、删除废话，然后无缝继续对话。",
     totalSessions: "总会话数",
@@ -614,6 +617,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "qwenHome": "Qwen Code 数据目录",
     "clineHome": "Cline 数据目录",
     "antigravityHome": "Antigravity 数据目录（只读）",
+    "codebuddyHome": "CodeBuddy 数据目录",
     "pathPlaceholder": "留空使用默认路径",
     "pathSaved": "路径已保存",
     "defaultPath": "默认: {path}",
@@ -732,6 +736,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     platformQwen: "Qwen Code",
     platformCline: "Cline",
     platformAntigravity: "Antigravity",
+    platformCodebuddy: "CodeBuddy",
     welcomeTitle: "Stop resetting. Start editing.",
     welcomeDesc: "AI went off track? Don't restart — edit the history directly. Inject context, fix errors, remove noise, then seamlessly continue.",
     totalSessions: "Total Sessions",
@@ -961,6 +966,7 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "qwenHome": "Qwen Code Data Directory",
     "clineHome": "Cline Data Directory",
     "antigravityHome": "Antigravity Data Directory (read-only)",
+    "codebuddyHome": "CodeBuddy Data Directory",
     "pathPlaceholder": "Leave empty for default",
     "pathSaved": "Path saved",
     "defaultPath": "Default: {path}",

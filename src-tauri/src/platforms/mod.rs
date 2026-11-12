@@ -2,6 +2,7 @@ pub mod antigravity;
 pub mod cindy;
 pub mod claude;
 pub mod cline;
+pub mod codebuddy;
 pub mod codex;
 pub mod cursor;
 pub mod dsh;
@@ -650,6 +651,14 @@ pub fn get_adapter(
                 .unwrap_or_else(|| home.join(".gemini").join("antigravity"));
             Ok(Box::new(antigravity::AntigravityPlatform::new(path)))
         }
+        "codebuddy" => {
+            let path = settings
+                .codebuddy_home
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".codebuddy"));
+            Ok(Box::new(codebuddy::CodeBuddyPlatform::new(path)))
+        }
         _ => Err(format!("Unknown platform: {platform}")),
     }
 }
@@ -708,6 +717,11 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         "pi" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("pi --session {session_id}"));
+            m
+        }
+        "codebuddy" => {
+            let mut m = HashMap::new();
+            m.insert("resume".into(), format!("codebuddy --resume {session_id}"));
             m
         }
         _ => {

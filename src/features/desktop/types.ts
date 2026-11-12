@@ -29,6 +29,7 @@ export type DesktopSettings = {
   qwenHome: string | null;
   clineHome: string | null;
   antigravityHome: string | null;
+  codebuddyHome: string | null;
   preferredTerminal: string | null;
   visiblePlatforms: string[];
   navigationItems: string[];
@@ -51,7 +52,7 @@ export type DesktopSnapshot = {
 
 // ─── Session ───
 
-export type Platform = "claude" | "codex" | "cursor" | "opencode" | "kiro" | "kiro-ide" | "gemini" | "grok" | "pi" | "zcode" | "workbuddy" | "cindy" | "cindy-global" | "zed" | "dsh" | "qoder-cn" | "qwen" | "cline" | "antigravity";
+export type Platform = "claude" | "codex" | "cursor" | "opencode" | "kiro" | "kiro-ide" | "gemini" | "grok" | "pi" | "zcode" | "workbuddy" | "cindy" | "cindy-global" | "zed" | "dsh" | "qoder-cn" | "qwen" | "cline" | "antigravity" | "codebuddy";
 
 export type ContentMatch = {
   snippet: string;

@@ -75,6 +75,7 @@ const platformConfigs: Record<
   qwen: { label: "Qwen Code", icon: Cpu, color: "text-cyan-400", hoverColor: "group-hover:text-cyan-300" },
   cline: { label: "Cline", icon: Boxes, color: "text-fuchsia-400", hoverColor: "group-hover:text-fuchsia-300" },
   antigravity: { label: "Antigravity", icon: Rocket, color: "text-blue-400", hoverColor: "group-hover:text-blue-300" },
+  codebuddy: { label: "CodeBuddy", icon: Bot, color: "text-emerald-400", hoverColor: "group-hover:text-emerald-300" },
   shell: { label: "Shell", icon: Terminal, color: "text-emerald-400", hoverColor: "group-hover:text-emerald-300" },
 };
 

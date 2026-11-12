@@ -198,6 +198,16 @@ const platformMeta = [
     iconBg: "bg-blue-500/15 text-blue-400 group-hover:scale-110",
     hoverGlow: "hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] hover:-translate-y-1"
   },
+  {
+    key: "codebuddy",
+    label: "CodeBuddy",
+    icon: Bot,
+    to: "/codebuddy",
+    gradient: "from-emerald-500/10 to-teal-600/5",
+    border: "border-emerald-500/20 hover:border-teal-500/40",
+    iconBg: "bg-emerald-500/15 text-emerald-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(16,185,129,0.12)] hover:-translate-y-1"
+  },
 ] as const;
 
 export default function DashboardPage() {
@@ -206,7 +216,7 @@ export default function DashboardPage() {
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? [
     "claude", "codex", "opencode", "grok", "pi", "cursor", "kiro", "kiro-ide",
-    "gemini", "zcode", "workbuddy", "cindy", "cindy-global", "zed", "dsh", "qoder-cn", "qwen", "cline", "antigravity",
+    "gemini", "zcode", "workbuddy", "cindy", "cindy-global", "zed", "dsh", "qoder-cn", "qwen", "cline", "antigravity", "codebuddy",
   ];
   const visiblePlatformsKey = visiblePlatforms.join("|");
   const snapshotReady = Boolean(snapshot);
