@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
 
+use super::safe_write::JsonlEditor;
 use super::{
     extract_snippet, file_mtime_millis_string, timestamp_millis_string, tool_text_from_value,
     ContentMatch, PlatformAdapter, SessionDetail, SessionListItem, SessionListResult, TimelineBlock,
@@ -638,29 +639,26 @@ impl PlatformAdapter for QwenPlatform {
         }
 
         let path = self.path_for(project, stem);
-        let raw = fs::read_to_string(&path).map_err(|e| format!("cannot read session: {e}"))?;
-        let mut lines: Vec<String> = raw.lines().map(ToString::to_string).collect();
-        let line = lines
-            .get_mut(line_index)
-            .ok_or_else(|| format!("line {line_index} not found"))?;
-        let mut record: Value =
-            serde_json::from_str(line).map_err(|e| format!("cannot parse line: {e}"))?;
-        let part = record
-            .get_mut("message")
-            .and_then(|message| message.get_mut("parts"))
-            .and_then(Value::as_array_mut)
-            .and_then(|parts| parts.get_mut(part_index))
-            .ok_or_else(|| format!("part {part_index} not found"))?;
-        let old = part
-            .get("text")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        part["text"] = Value::String(new_content.to_string());
-
-        *line = serde_json::to_string(&record).map_err(|e| format!("cannot serialize line: {e}"))?;
-        fs::write(&path, format!("{}\n", lines.join("\n")))
-            .map_err(|e| format!("cannot write session: {e}"))?;
+        let mut editor = JsonlEditor::open(&path)?;
+        if line_index >= editor.line_count() {
+            return Err(format!("line {line_index} not found"));
+        }
+        let old = editor.edit_line(line_index, |record| {
+            let part = record
+                .get_mut("message")
+                .and_then(|message| message.get_mut("parts"))
+                .and_then(Value::as_array_mut)
+                .and_then(|parts| parts.get_mut(part_index))
+                .ok_or_else(|| format!("part {part_index} not found"))?;
+            let old = part
+                .get("text")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            part["text"] = Value::String(new_content.to_string());
+            Ok(old)
+        })?;
+        editor.commit()?;
         Ok(old)
     }
 

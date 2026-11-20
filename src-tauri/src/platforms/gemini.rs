@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use serde_json::Value;
 
+use super::safe_write::{replace_json_file, JsonStyle, JsonlEditor};
 use super::{
     extract_snippet, timestamp_millis_string, ContentMatch, PlatformAdapter, SessionDetail,
     SessionListItem, SessionListResult, TimelineBlock,
@@ -307,19 +308,14 @@ fn update_jsonl_message(
     field: &str,
     new_content: &str,
 ) -> Result<String, String> {
-    let raw = fs::read_to_string(path).map_err(|e| format!("cannot read session file: {e}"))?;
-    let mut updated_lines = Vec::new();
+    let mut editor = JsonlEditor::open(path)?;
     let mut old_content = None;
 
-    for line in raw.lines() {
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        let mut value: Value =
-            serde_json::from_str(line).map_err(|e| format!("cannot parse jsonl line: {e}"))?;
-
-        if value.get("id").and_then(Value::as_str) == Some(message_id) {
+    for raw_index in editor.lines_mentioning(message_id) {
+        let outcome = editor.try_edit_line(raw_index, |value| {
+            if value.get("id").and_then(Value::as_str) != Some(message_id) {
+                return Ok(None);
+            }
             let old = match field {
                 "text" => {
                     let old = value["content"]
@@ -343,20 +339,18 @@ fn update_jsonl_message(
                 }
                 _ => return Err(format!("unknown field: {field}")),
             };
-            old_content = Some(old);
+            Ok(Some(old))
+        })?;
+        if outcome.is_some() {
+            old_content = outcome;
         }
-
-        updated_lines.push(
-            serde_json::to_string(&value)
-                .map_err(|e| format!("cannot serialize jsonl line: {e}"))?,
-        );
     }
 
     let Some(old_content) = old_content else {
         return Err(format!("message {message_id} not found"));
     };
 
-    updated_lines.push(
+    editor.append_line(
         serde_json::to_string(&serde_json::json!({
             "$set": {
                 "lastUpdated": chrono::Utc::now().to_rfc3339()
@@ -364,9 +358,7 @@ fn update_jsonl_message(
         }))
         .map_err(|e| format!("cannot serialize update marker: {e}"))?,
     );
-
-    fs::write(path, format!("{}\n", updated_lines.join("\n")))
-        .map_err(|e| format!("cannot write session file: {e}"))?;
+    editor.commit()?;
 
     Ok(old_content)
 }
@@ -630,9 +622,7 @@ impl PlatformAdapter for GeminiPlatform {
 
         json["lastUpdated"] = Value::String(chrono::Utc::now().to_rfc3339());
 
-        let updated = serde_json::to_string_pretty(&json)
-            .map_err(|e| format!("cannot serialize session: {e}"))?;
-        fs::write(&path, updated).map_err(|e| format!("cannot write session file: {e}"))?;
+        replace_json_file(&path, &raw, &json, JsonStyle::Pretty)?;
 
         Ok(old_content)
     }

@@ -10,6 +10,7 @@ use crate::database::{
     CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache,
 };
 
+use super::safe_write::JsonlEditor;
 use super::{
     build_commands, content_entries_to_matches, push_bounded_index_entry, tool_text_from_str,
     tool_text_from_value, visit_bounded_jsonl_lines, ContentMatch, PlatformAdapter, SessionDetail,
@@ -867,15 +868,19 @@ impl PlatformAdapter for ClaudePlatform {
             .map_err(|error| format!("Invalid content index: {error}"))?;
         let field_name = parts[3];
 
-        let mut rows = self.read_jsonl(file_path);
-        if line_index >= rows.len() {
-            return Err("Line index out of range".to_string());
-        }
+        // Block line indices count the rows `read_jsonl` yields, which skips
+        // blank and unparsable lines.
+        let mut editor = JsonlEditor::open(file_path)?;
+        let raw_index = editor
+            .raw_index_of_parsed(line_index)
+            .ok_or_else(|| "Line index out of range".to_string())?;
+        let dialect = self.dialect;
 
-        let old_content = if self.dialect == ClaudeDialect::CodeBuddy {
-            update_codebuddy_line(&mut rows[line_index], content_index, new_content)?
-        } else {
-            let Some(message) = rows[line_index].get_mut("message") else {
+        let old_content = editor.edit_line(raw_index, |row| {
+            if dialect == ClaudeDialect::CodeBuddy {
+                return update_codebuddy_line(row, content_index, new_content);
+            }
+            let Some(message) = row.get_mut("message") else {
                 return Err("Missing message payload".to_string());
             };
 
@@ -886,7 +891,7 @@ impl PlatformAdapter for ClaudePlatform {
                     .unwrap_or_default()
                     .to_string();
                 message["content"] = Value::String(new_content.to_string());
-                old
+                Ok(old)
             } else {
                 let Some(items) = message.get_mut("content").and_then(Value::as_array_mut) else {
                     return Err("Message content is not an array".to_string());
@@ -900,18 +905,10 @@ impl PlatformAdapter for ClaudePlatform {
                     .unwrap_or_default()
                     .to_string();
                 item[field_name] = Value::String(new_content.to_string());
-                old
+                Ok(old)
             }
-        };
-
-        let serialized = rows
-            .iter()
-            .map(serde_json::to_string)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| format!("Serialize error: {error}"))?;
-
-        fs::write(file_path, format!("{}\n", serialized.join("\n")))
-            .map_err(|error| format!("Write error: {error}"))?;
+        })?;
+        editor.commit()?;
 
         Ok(old_content)
     }
@@ -1312,5 +1309,38 @@ mod tests {
         assert_eq!(blocks[3].role, "assistant");
         assert_eq!(blocks[3].content, "Now I can continue.");
         assert!(blocks[3].tool_calls.is_empty());
+    }
+
+    #[test]
+    fn update_message_leaves_other_lines_untouched() {
+        let root = std::env::temp_dir().join(format!(
+            "memory-forge-claude-update-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temp dir");
+        let path = root.join("session.jsonl");
+        // A half-written line and unusual key order / number text: none of
+        // it may change when a different message is edited.
+        let original = concat!(
+            r#"{"type":"user","uuid":"u1","message":{"role":"user","content":"first"},"cost":0.10}"#,
+            "\n",
+            "{\"truncated\": \n",
+            r#"{"zeta":1,"message":{"role":"assistant","content":[{"type":"text","text":"old answer"}]},"alpha":2.50}"#,
+            "\n",
+        );
+        fs::write(&path, original).expect("write session");
+
+        let platform = ClaudePlatform::new(PathBuf::from("unused"));
+        // Rows are numbered over parsable lines, so the assistant row is 1.
+        let edit_target = format!("{}::1::0::text", path.to_string_lossy());
+        let old = platform
+            .update_message(&edit_target, "new answer")
+            .expect("update message");
+        let updated = fs::read_to_string(&path).expect("read session");
+        fs::remove_dir_all(&root).ok();
+
+        assert_eq!(old, "old answer");
+        assert_eq!(updated, original.replace("old answer", "new answer"));
     }
 }

@@ -6,6 +6,7 @@ use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde_json::Value;
 
 use super::pi::PiPlatform;
+use super::safe_write::JsonlEditor;
 use super::{
     build_commands, ContentMatch, SessionDetail, SessionKey, SessionListItem, SessionListResult,
 };
@@ -313,24 +314,16 @@ impl super::PlatformAdapter for CindyPlatform {
 
         let path = inner_path(&self.pi_home(), inner_key)
             .ok_or_else(|| format!("Cindy session not found: {inner_key}"))?;
-        let raw = fs::read_to_string(&path).map_err(|error| {
-            format!("Cannot read Cindy transcript '{}': {error}", path.display())
-        })?;
-
-        let mut lines = Vec::new();
+        let mut editor = JsonlEditor::open(&path)?;
         let mut old_display = None;
 
-        for line in raw.lines() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            let mut value: Value = serde_json::from_str(trimmed)
-                .map_err(|error| format!("Cannot parse Cindy transcript line: {error}"))?;
-
-            if value.get("type").and_then(Value::as_str) == Some("message")
-                && value.get("id").and_then(Value::as_str) == Some(entry_id)
-            {
+        for raw_index in editor.lines_mentioning(entry_id) {
+            let outcome = editor.try_edit_line(raw_index, |value| {
+                if value.get("type").and_then(Value::as_str) != Some("message")
+                    || value.get("id").and_then(Value::as_str) != Some(entry_id)
+                {
+                    return Ok(None);
+                }
                 let role = value
                     .get("message")
                     .and_then(|message| message.get("role"))
@@ -357,29 +350,22 @@ impl super::PlatformAdapter for CindyPlatform {
                     new_content.to_string()
                 };
                 item["text"] = Value::String(updated);
-                old_display = Some(if role == "user" {
+                Ok(Some(if role == "user" {
                     strip_cindy_note(&old)
                 } else {
                     old
-                });
+                }))
+            })?;
+            if outcome.is_some() {
+                old_display = outcome;
             }
-
-            lines.push(
-                serde_json::to_string(&value)
-                    .map_err(|error| format!("Cannot serialize Cindy transcript line: {error}"))?,
-            );
         }
 
         let Some(old_display) = old_display else {
             return Err(format!("Cindy message entry not found: {entry_id}"));
         };
 
-        fs::write(&path, format!("{}\n", lines.join("\n"))).map_err(|error| {
-            format!(
-                "Cannot write Cindy transcript '{}': {error}",
-                path.display()
-            )
-        })?;
+        editor.commit()?;
 
         Ok(old_display)
     }

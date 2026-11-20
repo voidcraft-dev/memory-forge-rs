@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
+use super::safe_write::{edit_json_file, replace_json_file, JsonStyle, JsonlEditor};
 use super::{
     build_commands, extract_snippet, timestamp_millis_string, tool_text_from_value,
     visit_bounded_jsonl_lines, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
@@ -803,10 +804,7 @@ impl KiroIdePlatform {
             }
             let old = replace_execution_say_output(&mut parsed, execution_id, new_content)?;
             context_replacements += replace_bot_text_occurrences(&mut parsed, &old, new_content);
-            let serialized = serde_json::to_string_pretty(&parsed)
-                .map_err(|e| format!("Serialize execution log error: {e}"))?;
-            fs::write(path, format!("{serialized}\n"))
-                .map_err(|e| format!("Write execution log error: {e}"))?;
+            replace_json_file(path, &raw, &parsed, JsonStyle::PrettyWithNewline)?;
             old_content = Some(old);
             updated_files += 1;
             break;
@@ -850,10 +848,7 @@ impl KiroIdePlatform {
             if count == 0 {
                 continue;
             }
-            let serialized = serde_json::to_string_pretty(&parsed)
-                .map_err(|e| format!("Serialize context log error: {e}"))?;
-            fs::write(path, format!("{serialized}\n"))
-                .map_err(|e| format!("Write context log error: {e}"))?;
+            replace_json_file(path, &raw, &parsed, JsonStyle::PrettyWithNewline)?;
             context_replacements += count;
             updated_files += 1;
         }
@@ -958,30 +953,27 @@ impl PlatformAdapter for KiroIdePlatform {
         }
 
         let path = self.session_path(workspace_key, session_id);
-        let mut session = self.read_session_json(workspace_key, session_id)?;
-        let history = session
-            .get_mut("history")
-            .and_then(Value::as_array_mut)
-            .ok_or_else(|| "Missing history".to_string())?;
+        edit_json_file(&path, JsonStyle::PrettyWithNewline, |session| {
+            let history = session
+                .get_mut("history")
+                .and_then(Value::as_array_mut)
+                .ok_or_else(|| "Missing history".to_string())?;
 
-        for entry in history {
-            let Some(message) = entry.get_mut("message") else {
-                continue;
-            };
-            if message.get("id").and_then(Value::as_str) != Some(message_ref) {
-                continue;
+            for entry in history {
+                let Some(message) = entry.get_mut("message") else {
+                    continue;
+                };
+                if message.get("id").and_then(Value::as_str) != Some(message_ref) {
+                    continue;
+                }
+                let content = message
+                    .get_mut("content")
+                    .ok_or_else(|| "Missing message content".to_string())?;
+                return replace_message_text(content, new_content);
             }
-            let content = message
-                .get_mut("content")
-                .ok_or_else(|| "Missing message content".to_string())?;
-            let old = replace_message_text(content, new_content)?;
-            let serialized = serde_json::to_string_pretty(&session)
-                .map_err(|e| format!("Serialize error: {e}"))?;
-            fs::write(&path, format!("{serialized}\n")).map_err(|e| format!("Write error: {e}"))?;
-            return Ok(old);
-        }
 
-        Err(format!("Message not found: {message_ref}"))
+            Err(format!("Message not found: {message_ref}"))
+        })
     }
 
     fn matches_query(&self, session_key: &str, query: &str) -> bool {
@@ -1280,58 +1272,53 @@ fn update_new_layout_message(
     event_ref: &str,
     new_content: &str,
 ) -> Result<String, String> {
-    let raw = fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read Kiro messages '{}': {e}", path.display()))?;
-    let mut lines: Vec<String> = raw.lines().map(str::to_string).collect();
+    let mut editor = JsonlEditor::open(path)?;
 
     if let Some(index_part) = event_ref.strip_prefix("line:") {
         let line_index: usize = index_part
             .parse()
             .map_err(|e| format!("Invalid line index '{event_ref}': {e}"))?;
-        let Some(line) = lines.get_mut(line_index) else {
+        if line_index >= editor.line_count() {
             return Err("Line index out of range".to_string());
-        };
-        let old = replace_new_layout_line_content(line, new_content)?;
-        fs::write(path, format!("{}\n", lines.join("\n")))
-            .map_err(|e| format!("Write error: {e}"))?;
+        }
+        let old = editor.edit_line(line_index, |event| {
+            replace_new_layout_event_content(event, new_content)
+        })?;
+        editor.commit()?;
         return Ok(old);
     }
 
-    for line in &mut lines {
-        let Ok(parsed) = serde_json::from_str::<Value>(line) else {
-            continue;
-        };
-        if parsed.get("id").and_then(Value::as_str) != Some(event_ref) {
-            continue;
+    for raw_index in editor.lines_mentioning(event_ref) {
+        let outcome = editor.try_edit_line(raw_index, |event| {
+            if event.get("id").and_then(Value::as_str) != Some(event_ref) {
+                return Ok(None);
+            }
+            let event_type = event
+                .pointer("/payload/type")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if event_type != "user" && event_type != "assistant" {
+                return Err(format!("Event '{event_ref}' is not an editable message"));
+            }
+            replace_new_layout_event_content(event, new_content).map(Some)
+        })?;
+        if let Some(old) = outcome {
+            editor.commit()?;
+            return Ok(old);
         }
-        let event_type = parsed
-            .pointer("/payload/type")
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        if event_type != "user" && event_type != "assistant" {
-            return Err(format!("Event '{event_ref}' is not an editable message"));
-        }
-        let old = replace_new_layout_line_content(line, new_content)?;
-        fs::write(path, format!("{}\n", lines.join("\n")))
-            .map_err(|e| format!("Write error: {e}"))?;
-        return Ok(old);
     }
 
     Err(format!("Message not found: {event_ref}"))
 }
 
-fn replace_new_layout_line_content(line: &mut String, new_content: &str) -> Result<String, String> {
-    let mut parsed: Value = serde_json::from_str(line)
-        .map_err(|e| format!("Failed to parse Kiro message line: {e}"))?;
-    let Some(content) = parsed
+fn replace_new_layout_event_content(event: &mut Value, new_content: &str) -> Result<String, String> {
+    let Some(content) = event
         .get_mut("payload")
         .and_then(|payload| payload.get_mut("content"))
     else {
         return Err("Missing message content".to_string());
     };
-    let old = replace_message_text(content, new_content)?;
-    *line = serde_json::to_string(&parsed).map_err(|e| format!("Serialize error: {e}"))?;
-    Ok(old)
+    replace_message_text(content, new_content)
 }
 
 fn new_layout_content_search(path: &Path, needle: &str) -> Vec<ContentMatch> {

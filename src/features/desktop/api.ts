@@ -334,6 +334,12 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   return data.data ?? data;
 }
 
+/** Append the backend's reason to a generic failure message. */
+export function describeSaveError(fallback: string, error: unknown): string {
+  const detail = typeof error === "string" ? error : error instanceof Error ? error.message : "";
+  return detail ? `${fallback}: ${detail}` : fallback;
+}
+
 export const api = {
   // Dashboard
   async getDashboard(): Promise<DashboardSummary> {
@@ -458,9 +464,21 @@ export const api = {
     });
   },
 
-  async editMessage(platform: string, messageId: string, content: string, sessionKey: string) {
+  async editMessage(
+    platform: string,
+    messageId: string,
+    content: string,
+    sessionKey: string,
+    expectedContent?: string
+  ) {
     if (isTauriRuntime()) {
-      return invoke("session_edit_message", { platform, messageId, content, sessionKey });
+      return invoke("session_edit_message", {
+        platform,
+        messageId,
+        content,
+        sessionKey,
+        expectedContent: expectedContent ?? null,
+      });
     }
     return fetchJSON(`${API_BASE}/platforms/${platform}/messages/${encodeURIComponent(messageId)}/edit`, {
       method: "POST",
@@ -504,11 +522,25 @@ export const api = {
     throw new Error("Edit log deletion is not supported in web preview");
   },
 
-  async exportRawJsonl(platform: string, sessionKey: string, outputPath: string): Promise<RawJsonlExportResult> {
+  /** Resolves to `null` when the user cancels the save dialog. */
+  async exportRawJsonl(
+    platform: string,
+    sessionKey: string,
+    defaultName: string
+  ): Promise<RawJsonlExportResult | null> {
     if (isTauriRuntime()) {
-      return invoke<RawJsonlExportResult>("session_export_raw_jsonl", { platform, sessionKey, outputPath });
+      return invoke<RawJsonlExportResult | null>("session_export_raw_jsonl", {
+        platform,
+        sessionKey,
+        defaultName,
+      });
     }
     throw new Error("Raw JSONL export is only available in the desktop app");
+  },
+
+  /** Resolves to `false` when the user cancels the save dialog. */
+  async exportMarkdown(defaultName: string, content: string): Promise<boolean> {
+    return invoke<boolean>("session_export_markdown", { defaultName, content });
   },
 
   async probeJsonlImport(platform: string, inputPath: string): Promise<RawJsonlImportPreview> {

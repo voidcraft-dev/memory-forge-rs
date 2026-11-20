@@ -2,14 +2,16 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
+use rusqlite::{params, Connection, OpenFlags};
 use serde_json::{json, Value};
 
 use crate::database::{
     CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache,
 };
 
+use super::safe_write::{splice_changed_strings, JsonlEditor, LineChange};
 use super::{
     build_commands, content_entries_to_matches, push_bounded_index_entry, tool_text_from_str,
     tool_text_from_value, visit_bounded_jsonl_lines, ContentMatch, PlatformAdapter,
@@ -811,46 +813,48 @@ impl PlatformAdapter for CodexPlatform {
         let line_index: usize = parts[1]
             .parse()
             .map_err(|error| format!("Invalid line index: {error}"))?;
-        let mut rows = self.read_jsonl(path);
-
-        let (old_content, role) = if parts.len() == 2 {
-            let Some(row) = rows.get_mut(line_index) else {
-                return Err("Line index out of range".to_string());
-            };
-            let Some(payload) = row.get_mut("payload") else {
-                return Err("Missing payload".to_string());
-            };
-            let role = match payload.get("type").and_then(Value::as_str) {
-                Some("user_message") => "user",
-                Some("agent_message") => "assistant",
-                _ => "",
-            }
-            .to_string();
-
-            let old_content = payload
-                .get("message")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            payload["message"] = Value::String(new_content.to_string());
-            (old_content, role)
+        // Block line indices count the rows `read_jsonl` yields, which skips
+        // blank and unparsable lines.
+        let mut editor = JsonlEditor::open(path)?;
+        let parsed_lines = editor.parsed_line_indices().to_vec();
+        let Some(&raw_index) = parsed_lines.get(line_index) else {
+            return Err("Line index out of range".to_string());
+        };
+        let direct_event = parts.len() == 2;
+        let content_index: usize = if direct_event {
+            0
         } else {
-            let content_index: usize = parts[2]
+            parts[2]
                 .parse()
-                .map_err(|error| format!("Invalid content index: {error}"))?;
-            let field_name = parts[3];
+                .map_err(|error| format!("Invalid content index: {error}"))?
+        };
+        let field_name = if direct_event { "" } else { parts[3] };
 
-            let Some(row) = rows.get_mut(line_index) else {
-                return Err("Line index out of range".to_string());
-            };
+        let (old_content, role, ordinal) = editor.edit_line(raw_index, |row| {
+            let ordinal = row.get("ordinal").and_then(Value::as_i64);
             let Some(payload) = row.get_mut("payload") else {
                 return Err("Missing payload".to_string());
             };
+
+            if direct_event {
+                let role = match payload.get("type").and_then(Value::as_str) {
+                    Some("user_message") => "user",
+                    Some("agent_message") => "assistant",
+                    _ => "",
+                }
+                .to_string();
+                let old_content = payload
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                payload["message"] = Value::String(new_content.to_string());
+                return Ok((old_content, role, ordinal));
+            }
 
             if payload.get("type").and_then(Value::as_str) != Some("message") {
                 return Err("Edit target does not point to a Codex message".to_string());
             }
-
             let role = payload
                 .get("role")
                 .and_then(Value::as_str)
@@ -880,19 +884,43 @@ impl PlatformAdapter for CodexPlatform {
                 old
             };
 
-            (old_content, role)
-        };
+            Ok((old_content, role, ordinal))
+        })?;
 
-        sync_mirrored_message(&mut rows, line_index, &role, &old_content, new_content);
+        sync_mirrored_messages(
+            &mut editor,
+            &parsed_lines,
+            line_index,
+            &role,
+            &old_content,
+            new_content,
+        )?;
 
-        let serialized = rows
-            .iter()
-            .map(serde_json::to_string)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| format!("Serialize error: {error}"))?;
+        let thread_id = parsed_lines
+            .first()
+            .and_then(|first| editor.line(*first))
+            .and_then(|line| serde_json::from_str::<Value>(line).ok())
+            .and_then(|meta| {
+                meta.pointer("/payload/id")
+                    .and_then(Value::as_str)
+                    .map(ToString::to_string)
+            });
+        let changes = editor.changes();
+        let history_edit = thread_id.as_deref().map(|thread_id| CodexHistoryEdit {
+            thread_id,
+            ordinal,
+            role: &role,
+            old_content: &old_content,
+            new_content,
+            changes: &changes,
+        });
 
-        fs::write(path, format!("{}\n", serialized.join("\n")))
-            .map_err(|error| format!("Write error: {error}"))?;
+        match (self.sessions_root.parent(), history_edit) {
+            (Some(codex_home), Some(history_edit)) => {
+                commit_with_codex_history(codex_home, &history_edit, || editor.commit())?;
+            }
+            _ => editor.commit()?,
+        }
 
         Ok(old_content)
     }
@@ -1123,49 +1151,272 @@ fn collect_codex_text(value: &Value, out: &mut Vec<String>) {
     }
 }
 
-fn sync_mirrored_message(
-    rows: &mut [Value],
+/// How far from an edited message its mirrored copies are looked for.
+const CODEX_MIRROR_WINDOW: usize = 3;
+
+/// Codex writes the same message more than once: the model-facing
+/// `response_item` plus an event the UI replays (`user_message` /
+/// `agent_message` in older rollouts, `item_completed` in newer ones). Keep
+/// those copies in step with the edit.
+fn sync_mirrored_messages(
+    editor: &mut JsonlEditor,
+    parsed_lines: &[usize],
     changed_line_index: usize,
     role: &str,
     old_content: &str,
     new_content: &str,
-) {
+) -> Result<(), String> {
     if role.is_empty() || old_content.is_empty() {
-        return;
+        return Ok(());
     }
 
-    for (line_index, row) in rows.iter_mut().enumerate() {
+    let first = changed_line_index.saturating_sub(CODEX_MIRROR_WINDOW);
+    let last = (changed_line_index + CODEX_MIRROR_WINDOW).min(parsed_lines.len().saturating_sub(1));
+    for line_index in first..=last {
         if line_index == changed_line_index {
             continue;
         }
-        if line_index.abs_diff(changed_line_index) > 2 {
-            continue;
-        }
+        editor.try_edit_line(parsed_lines[line_index], |row| {
+            sync_mirrored_row(row, role, old_content, new_content);
+            Ok(Some(()))
+        })?;
+    }
 
-        let Some(payload) = row.get_mut("payload") else {
+    if role != "assistant" {
+        return Ok(());
+    }
+    // The turn summary repeats the final answer.
+    for &raw_index in parsed_lines.iter().skip(changed_line_index + 1) {
+        let is_summary = editor
+            .line(raw_index)
+            .is_some_and(|line| line.contains("\"task_complete\""));
+        if !is_summary {
             continue;
-        };
-        match payload.get("type").and_then(Value::as_str) {
-            Some("user_message") if role == "user" => {
-                if payload.get("message").and_then(Value::as_str) == Some(old_content) {
-                    payload["message"] = Value::String(new_content.to_string());
-                }
-            }
-            Some("agent_message") if role == "assistant" => {
-                if payload.get("message").and_then(Value::as_str) == Some(old_content) {
-                    payload["message"] = Value::String(new_content.to_string());
-                }
-            }
-            Some("message") => {
-                if payload.get("role").and_then(Value::as_str) != Some(role) {
-                    continue;
-                }
-                if let Some(content) = payload.get_mut("content") {
-                    update_mirrored_response_content(content, old_content, new_content);
-                }
-            }
-            _ => {}
         }
+        let reached_summary = editor.try_edit_line(raw_index, |row| {
+            let Some(payload) = row.get_mut("payload") else {
+                return Ok(None);
+            };
+            if payload.get("type").and_then(Value::as_str) != Some("task_complete") {
+                return Ok(None);
+            }
+            if payload.get("last_agent_message").and_then(Value::as_str) == Some(old_content) {
+                payload["last_agent_message"] = Value::String(new_content.to_string());
+            }
+            Ok(Some(()))
+        })?;
+        if reached_summary.is_some() {
+            break;
+        }
+    }
+    Ok(())
+}
+
+fn sync_mirrored_row(row: &mut Value, role: &str, old_content: &str, new_content: &str) {
+    let Some(payload) = row.get_mut("payload") else {
+        return;
+    };
+    match payload.get("type").and_then(Value::as_str) {
+        Some("user_message") if role == "user" => {
+            if payload.get("message").and_then(Value::as_str) == Some(old_content) {
+                payload["message"] = Value::String(new_content.to_string());
+            }
+        }
+        Some("agent_message") if role == "assistant" => {
+            if payload.get("message").and_then(Value::as_str) == Some(old_content) {
+                payload["message"] = Value::String(new_content.to_string());
+            }
+        }
+        Some("message") => {
+            if payload.get("role").and_then(Value::as_str) != Some(role) {
+                return;
+            }
+            if let Some(content) = payload.get_mut("content") {
+                update_mirrored_response_content(content, old_content, new_content);
+            }
+        }
+        Some("item_completed") => {
+            let Some(item) = payload.get_mut("item") else {
+                return;
+            };
+            let item_role = match item.get("type").and_then(Value::as_str) {
+                Some("UserMessage") => "user",
+                Some("AgentMessage") => "assistant",
+                _ => return,
+            };
+            if item_role != role {
+                return;
+            }
+            if let Some(content) = item.get_mut("content") {
+                update_mirrored_response_content(content, old_content, new_content);
+            }
+        }
+        _ => {}
+    }
+}
+
+// ─── Codex history index ───
+
+/// What changed in a rollout, for the stores Codex derives from it.
+struct CodexHistoryEdit<'a> {
+    thread_id: &'a str,
+    /// `ordinal` of the edited rollout line, when the rollout records one.
+    ordinal: Option<i64>,
+    role: &'a str,
+    old_content: &'a str,
+    new_content: &'a str,
+    changes: &'a [LineChange],
+}
+
+/// Newest `<prefix>_<n>.sqlite` in the Codex home, e.g. `state_5.sqlite`.
+fn newest_codex_database(codex_home: &Path, prefix: &str) -> Option<PathBuf> {
+    fs::read_dir(codex_home)
+        .ok()?
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let version: u32 = name
+                .strip_prefix(prefix)?
+                .strip_prefix('_')?
+                .strip_suffix(".sqlite")?
+                .parse()
+                .ok()?;
+            Some((version, entry.path()))
+        })
+        .max_by_key(|(version, _)| *version)
+        .map(|(_, path)| path)
+}
+
+fn open_codex_database(path: &Path) -> Option<Connection> {
+    let conn = Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .ok()?;
+    conn.busy_timeout(Duration::from_secs(2)).ok()?;
+    Some(conn)
+}
+
+/// Write the rollout through `commit`, keeping Codex's derived stores in step.
+///
+/// The Codex app does not render a thread from the rollout file. It reads a
+/// projection (`thread_history_*.sqlite`) that stores a copy of each message
+/// and byte offsets into the rollout, so an edit that only touches the
+/// rollout reaches the model but never the app. The projection belongs to
+/// Codex and its schema moves between versions, so syncing it is best
+/// effort: a projection that cannot be updated never blocks the edit.
+fn commit_with_codex_history(
+    codex_home: &Path,
+    edit: &CodexHistoryEdit<'_>,
+    commit: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let mut history = newest_codex_database(codex_home, "thread_history")
+        .and_then(|path| open_codex_database(&path));
+    let staged = history.as_mut().and_then(|conn| {
+        let tx = conn.transaction().ok()?;
+        stage_codex_history(&tx, edit).ok()?;
+        Some(tx)
+    });
+
+    // An uncommitted transaction rolls back when dropped, so a failed rollout
+    // write leaves the projection untouched.
+    commit()?;
+
+    if let Some(tx) = staged {
+        if let Err(error) = tx.commit() {
+            eprintln!("codex history index not updated: {error}");
+        }
+    }
+    sync_codex_thread_summary(codex_home, edit);
+    Ok(())
+}
+
+fn stage_codex_history(
+    tx: &rusqlite::Transaction<'_>,
+    edit: &CodexHistoryEdit<'_>,
+) -> rusqlite::Result<()> {
+    let item_type = match edit.role {
+        "user" => Some("userMessage"),
+        "assistant" => Some("agentMessage"),
+        _ => None,
+    };
+    if let (Some(item_type), Some(ordinal), false) =
+        (item_type, edit.ordinal, edit.old_content.is_empty())
+    {
+        let window = CODEX_MIRROR_WINDOW as i64;
+        let rows: Vec<(String, String, String)> = tx
+            .prepare(
+                "SELECT turn_id, item_id, item_json FROM thread_items
+                 WHERE thread_id = ?1 AND item_type = ?2 AND rollout_ordinal BETWEEN ?3 AND ?4",
+            )?
+            .query_map(
+                params![edit.thread_id, item_type, ordinal - window, ordinal + window],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )?
+            .collect::<rusqlite::Result<_>>()?;
+
+        for (turn_id, item_id, item_json) in rows {
+            let Ok(old_item) = serde_json::from_str::<Value>(&item_json) else {
+                continue;
+            };
+            let mut new_item = old_item.clone();
+            if new_item.get("text").and_then(Value::as_str) == Some(edit.old_content) {
+                new_item["text"] = Value::String(edit.new_content.to_string());
+            }
+            if let Some(content) = new_item.get_mut("content") {
+                update_mirrored_response_content(content, edit.old_content, edit.new_content);
+            }
+            if new_item == old_item {
+                continue;
+            }
+            let updated = splice_changed_strings(&item_json, &old_item, &new_item)
+                .unwrap_or_else(|| new_item.to_string());
+            tx.execute(
+                "UPDATE thread_items SET item_json = ?1
+                 WHERE thread_id = ?2 AND turn_id = ?3 AND item_id = ?4",
+                params![updated, edit.thread_id, turn_id, item_id],
+            )?;
+        }
+    }
+
+    // Offsets are in pre-edit coordinates; shifting from the end of the file
+    // backwards keeps every comparison valid.
+    let mut changes = edit.changes.to_vec();
+    changes.sort_by(|left, right| right.old_end.cmp(&left.old_end));
+    for change in changes {
+        let old_end = change.old_end as i64;
+        for (table, column) in [
+            ("thread_turns", "rollout_byte_offset"),
+            ("thread_turns", "rollout_end_byte_offset"),
+            ("thread_history_projection_state", "next_rollout_byte_offset"),
+        ] {
+            tx.execute(
+                &format!(
+                    "UPDATE {table} SET {column} = {column} + ?1
+                     WHERE thread_id = ?2 AND {column} >= ?3"
+                ),
+                params![change.delta, edit.thread_id, old_end],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// The thread list shows text copied from the first user message.
+fn sync_codex_thread_summary(codex_home: &Path, edit: &CodexHistoryEdit<'_>) {
+    if edit.role != "user" || edit.old_content.is_empty() || edit.new_content.is_empty() {
+        return;
+    }
+    let Some(conn) =
+        newest_codex_database(codex_home, "state").and_then(|path| open_codex_database(&path))
+    else {
+        return;
+    };
+    for column in ["title", "first_user_message", "preview"] {
+        let _ = conn.execute(
+            &format!("UPDATE threads SET {column} = ?1 WHERE id = ?2 AND {column} = ?3"),
+            params![edit.new_content, edit.thread_id, edit.old_content],
+        );
     }
 }
 
@@ -1576,5 +1827,135 @@ mod tests {
         assert_eq!(result.total, 1);
         assert_eq!(result.items[0].session_id, "inside");
         assert_eq!(result.items[0].preview, "inside");
+    }
+
+    #[test]
+    fn update_message_keeps_other_lines_and_syncs_codex_history_index() {
+        let home = std::env::temp_dir().join(format!(
+            "memory-forge-codex-history-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&home);
+        let sessions = home.join("sessions");
+        fs::create_dir_all(&sessions).expect("create temp dir");
+        let path = sessions.join("rollout-test.jsonl");
+
+        // Raw text on purpose: key order, number formatting and the line
+        // that is not JSON must all survive the edit.
+        let lines = [
+            r#"{"timestamp":"t0","ordinal":0,"type":"session_meta","payload":{"id":"thread-1","create_time":1795068955.5778801}}"#,
+            r#"{"timestamp":"t1","ordinal":1,"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"old request"}]}}"#,
+            r#"{"timestamp":"t2","ordinal":2,"type":"event_msg","payload":{"type":"item_completed","thread_id":"thread-1","item":{"type":"UserMessage","id":"item-user","content":[{"type":"text","text":"old request","text_elements":[]}]}}}"#,
+            "this line is not json",
+            r#"{"timestamp":"t3","ordinal":3,"type":"event_msg","payload":{"type":"task_started","started_at":1795068953}}"#,
+        ];
+        let original = format!("{}\n", lines.join("\n"));
+        fs::write(&path, &original).expect("write rollout");
+        let offset_of =
+            |index: usize| lines[..index].iter().map(|line| line.len() + 1).sum::<usize>() as i64;
+        let file_len = original.len() as i64;
+
+        let item_json = r#"{"type":"userMessage","id":"item-user","clientId":null,"content":[{"type":"text","text":"old request","text_elements":[]}]}"#;
+        let history = Connection::open(home.join("thread_history_1.sqlite")).expect("history db");
+        history
+            .execute_batch(
+                "CREATE TABLE thread_items (thread_id TEXT NOT NULL, turn_id TEXT NOT NULL, item_id TEXT NOT NULL, rollout_ordinal INTEGER NOT NULL, item_json TEXT NOT NULL, item_type TEXT NOT NULL DEFAULT '', PRIMARY KEY (thread_id, turn_id, item_id));
+                 CREATE TABLE thread_turns (thread_id TEXT NOT NULL, turn_id TEXT NOT NULL, rollout_byte_offset INTEGER, rollout_end_byte_offset INTEGER, PRIMARY KEY (thread_id, turn_id));
+                 CREATE TABLE thread_history_projection_state (thread_id TEXT PRIMARY KEY, next_rollout_byte_offset INTEGER NOT NULL, next_rollout_ordinal INTEGER NOT NULL);",
+            )
+            .expect("history schema");
+        history
+            .execute(
+                "INSERT INTO thread_items VALUES ('thread-1', 'turn-1', 'item-user', 2, ?1, 'userMessage')",
+                params![item_json],
+            )
+            .expect("insert item");
+        history
+            .execute(
+                "INSERT INTO thread_turns VALUES ('thread-1', 'turn-1', ?1, ?2), ('thread-1', 'turn-2', ?3, ?4)",
+                params![offset_of(1), offset_of(3), offset_of(4), file_len],
+            )
+            .expect("insert turns");
+        history
+            .execute(
+                "INSERT INTO thread_history_projection_state VALUES ('thread-1', ?1, 4)",
+                params![file_len],
+            )
+            .expect("insert projection state");
+        drop(history);
+
+        let state = Connection::open(home.join("state_5.sqlite")).expect("state db");
+        state
+            .execute_batch(
+                "CREATE TABLE threads (id TEXT PRIMARY KEY, title TEXT NOT NULL, first_user_message TEXT NOT NULL, preview TEXT NOT NULL);
+                 INSERT INTO threads VALUES ('thread-1', 'old request', 'old request', 'old request');",
+            )
+            .expect("state schema");
+        drop(state);
+
+        let platform = CodexPlatform::new(home.clone(), None);
+        let edit_target = format!("{}::1::0::text", path.to_string_lossy());
+        let old = platform
+            .update_message(&edit_target, "new and longer request")
+            .expect("update message");
+        assert_eq!(old, "old request");
+
+        // Two lines grew: the model-facing message and its UI mirror.
+        let delta = 2 * ("new and longer request".len() - "old request".len()) as i64;
+        let updated = fs::read_to_string(&path).expect("read rollout");
+        assert_eq!(
+            updated,
+            original.replace("old request", "new and longer request")
+        );
+
+        let history = Connection::open(home.join("thread_history_1.sqlite")).expect("history db");
+        let stored_item: String = history
+            .query_row("SELECT item_json FROM thread_items", [], |row| row.get(0))
+            .expect("read item");
+        assert_eq!(
+            stored_item,
+            item_json.replace("old request", "new and longer request")
+        );
+        let turns: Vec<(i64, i64)> = history
+            .prepare(
+                "SELECT rollout_byte_offset, rollout_end_byte_offset FROM thread_turns ORDER BY turn_id",
+            )
+            .expect("prepare turns")
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .expect("query turns")
+            .collect::<rusqlite::Result<_>>()
+            .expect("read turns");
+        assert_eq!(
+            turns,
+            vec![
+                (offset_of(1), offset_of(3) + delta),
+                (offset_of(4) + delta, file_len + delta),
+            ]
+        );
+        let next_offset: i64 = history
+            .query_row(
+                "SELECT next_rollout_byte_offset FROM thread_history_projection_state",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read projection state");
+        assert_eq!(next_offset, file_len + delta);
+        assert_eq!(next_offset as u64, fs::metadata(&path).expect("stat").len());
+        drop(history);
+
+        let state = Connection::open(home.join("state_5.sqlite")).expect("state db");
+        let summary: (String, String, String) = state
+            .query_row(
+                "SELECT title, first_user_message, preview FROM threads",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("read thread summary");
+        drop(state);
+        fs::remove_dir_all(&home).ok();
+
+        assert_eq!(summary.0, "new and longer request");
+        assert_eq!(summary.1, "new and longer request");
+        assert_eq!(summary.2, "new and longer request");
     }
 }

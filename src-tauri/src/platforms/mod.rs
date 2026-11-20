@@ -14,6 +14,7 @@ pub mod opencode;
 pub mod pi;
 pub mod qoder;
 pub mod qwen;
+pub mod safe_write;
 pub mod workbuddy;
 pub mod zcode;
 pub mod zed;

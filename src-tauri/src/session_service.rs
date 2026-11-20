@@ -821,6 +821,14 @@ pub fn session_set_alias(
     database::save_alias(&db.conn, platform, session_key, title.trim())
 }
 
+/// Platforms whose edit targets address a message by its position in the
+/// session file rather than by a stable id. A position can point at a
+/// different message once another program has rewritten the file.
+const POSITIONAL_EDIT_PLATFORMS: &[&str] = &["claude", "codebuddy", "codex", "kiro", "grok", "qwen"];
+
+const STALE_MESSAGE_ERROR: &str =
+    "This message changed on disk after it was loaded. Reload the session and try again.";
+
 pub fn session_edit_message(
     db: &DbState,
     settings: &AppSettings,
@@ -828,17 +836,37 @@ pub fn session_edit_message(
     edit_target: &str,
     content: &str,
     session_key: &str,
+    expected_content: Option<&str>,
 ) -> Result<(), String> {
     let adapter = platforms::get_adapter(platform, settings)?;
+
+    if let Some(expected) = expected_content {
+        if POSITIONAL_EDIT_PLATFORMS.contains(&platform) {
+            let detail = adapter.get_session_detail(session_key, &HashMap::new())?;
+            let unchanged = detail
+                .blocks
+                .iter()
+                .any(|block| block.edit_target == edit_target && block.content == expected);
+            if !unchanged {
+                return Err(STALE_MESSAGE_ERROR.to_string());
+            }
+        }
+    }
+
     let old_content = adapter.update_message(edit_target, content)?;
-    database::insert_edit_log(
+    if let Err(error) = database::insert_edit_log(
         &db.conn,
         platform,
         session_key,
         edit_target,
         &old_content,
         content,
-    )
+    ) {
+        // Without a log entry the edit could not be undone from the app.
+        let _ = adapter.update_message(edit_target, &old_content);
+        return Err(error);
+    }
+    Ok(())
 }
 
 const TOOL_EDIT_TARGET_PREFIX: &str = "tool-call::";
@@ -928,6 +956,7 @@ pub fn session_restore_message(
         &log.edit_target,
         &log.old_content,
         session_key,
+        None,
     )
 }
 
@@ -1287,5 +1316,64 @@ mod tests {
         assert_eq!(included.len(), 3);
         assert!(included.contains("root.jsonl"));
         assert!(included.contains("child.jsonl"));
+    }
+
+    #[test]
+    fn edit_is_refused_when_message_changed_since_it_was_loaded() {
+        let (root, forge_path, _) = tool_test_paths("stale-edit");
+        let forge_conn = Connection::open(&forge_path).expect("create Memory Forge database");
+        database::init_tables(&forge_conn).expect("initialize Memory Forge database");
+        let db = DbState {
+            conn: Mutex::new(forge_conn),
+            db_path: forge_path.to_string_lossy().to_string(),
+        };
+        let settings = AppSettings::default();
+
+        let session_path = root.join("session.jsonl");
+        let original = concat!(
+            r#"{"type":"user","message":{"role":"user","content":"what the user saw"}}"#,
+            "\n"
+        );
+        fs::write(&session_path, original).expect("write session");
+        let session_key = session_path.to_string_lossy().to_string();
+        let detail = session_detail(&db, &settings, "claude", &session_key).expect("load detail");
+        let edit_target = detail.blocks[0].edit_target.clone();
+
+        let stale = session_edit_message(
+            &db,
+            &settings,
+            "claude",
+            &edit_target,
+            "edited",
+            &session_key,
+            Some("something else"),
+        );
+        assert!(stale.is_err());
+        assert_eq!(fs::read_to_string(&session_path).unwrap(), original);
+        assert!(session_edit_log(&db, "claude", &session_key)
+            .expect("read log")
+            .is_empty());
+
+        session_edit_message(
+            &db,
+            &settings,
+            "claude",
+            &edit_target,
+            "edited",
+            &session_key,
+            Some("what the user saw"),
+        )
+        .expect("edit with matching content");
+        assert_eq!(
+            fs::read_to_string(&session_path).unwrap(),
+            original.replace("what the user saw", "edited")
+        );
+        assert_eq!(
+            session_edit_log(&db, "claude", &session_key)
+                .expect("read log")
+                .len(),
+            1
+        );
+        fs::remove_dir_all(root).ok();
     }
 }

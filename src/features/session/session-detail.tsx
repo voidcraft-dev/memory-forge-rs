@@ -5,13 +5,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useDesktop } from '@/features/desktop/provider'
-import { api } from '@/features/desktop/api'
+import { api, describeSaveError } from '@/features/desktop/api'
 import type { MessageKey } from '@/features/desktop/i18n'
 import type { EditorTarget, TimelineBlock, ToolCallBlock } from '@/features/desktop/types'
 import { Clock, Pencil, Check, Copy, User, Bot, Lightbulb, RefreshCw, Terminal, FileText, CheckCircle, Download, Trash2, Search, ChevronUp, ChevronDown, X, Star, Archive, List, Play, FolderOpen, MousePointer2, Code, Sparkles } from 'lucide-react'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog'
-import { save } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
 import { useTerminal } from '@/features/terminal/terminal-context'
 import { useNavigate } from 'react-router'
 
@@ -332,7 +330,7 @@ export function SessionDetail() {
   const handleEraseBlock = async (block: typeof sessionDetail.blocks[0]) => {
     if (!await confirm({ title: t('session.erase'), description: t('session.eraseConfirm'), variant: 'danger' })) return
     try {
-      await api.editMessage(currentPlatform, block.editTarget || block.id, '', sessionDetail.sessionKey)
+      await api.editMessage(currentPlatform, block.editTarget || block.id, '', sessionDetail.sessionKey, block.content)
       const updatedBlocks = sessionDetail.blocks.map(b =>
         (b.editTarget || b.id) === (block.editTarget || block.id) ? { ...b, content: '' } : b
       )
@@ -340,7 +338,7 @@ export function SessionDetail() {
       dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.messageSaved') } })
     } catch (err) {
       console.error('Failed to erase message:', err)
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
+      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: describeSaveError(t('session.saveFailed'), err) } })
     }
   }
 
@@ -646,12 +644,8 @@ export function SessionDetail() {
     const fileName = `${sessionDetail.title || sessionDetail.sessionId}.md`
 
     if (isTauriRuntime) {
-      const filePath = await save({
-        defaultPath: fileName,
-        filters: [{ name: 'Markdown', extensions: ['md'] }],
-      })
-      if (!filePath) return
-      await invoke('write_text_file', { path: filePath, content })
+      const saved = await api.exportMarkdown(fileName, content)
+      if (!saved) return
     } else {
       const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
       const url = URL.createObjectURL(blob)
@@ -677,15 +671,10 @@ export function SessionDetail() {
     }
 
     const baseName = safeExportFileName(`${currentPlatform}-${sessionDetail.sessionId || sessionDetail.sessionKey}`)
-    const filePath = await save({
-      defaultPath: `${baseName}.jsonl`,
-      filters: [{ name: 'Session JSONL', extensions: ['jsonl'] }],
-    })
-    if (!filePath) return
-
     setExportingRawJsonl(true)
     try {
-      await api.exportRawJsonl(currentPlatform, sessionDetail.sessionKey, filePath)
+      const exported = await api.exportRawJsonl(currentPlatform, sessionDetail.sessionKey, `${baseName}.jsonl`)
+      if (!exported) return
       setExportDone(true)
       dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.rawExported') } })
       setTimeout(() => setExportDone(false), 2000)

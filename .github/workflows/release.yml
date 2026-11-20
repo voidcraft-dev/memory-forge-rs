@@ -67,10 +67,8 @@ jobs:
 
             ### 更新 / Changes
 
-            - Kiro IDE：适配新版会话存储位置（`~/.kiro/sessions/<workspace>/sess_<id>/`），修复 Kiro 升级后扫描不到任何会话的问题；旧版路径自动兼容。
-            - 新增 ZCode 平台：浏览、编辑 ZCode 的会话记忆，消息时间线包含思考过程（thinking）与工具调用卡片，支持全文搜索与 Markdown 导出。
-            - Kiro IDE：时间线直接展示会话内的工具调用（读取新版 messages.jsonl 事件流）。
-            - ZCode 会话自动过滤运行时注入的合成消息（todo 提醒、后台通知），只显示真实对话。
+            完整改动见提交记录 / See the commit history for the full list of changes:
+            https://github.com/${{ github.repository }}/commits/${{ github.ref_name }}
 
             ### 下载 / Download
 

@@ -6,6 +6,7 @@ use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
+use super::safe_write::JsonlEditor;
 use super::{
     build_commands, ContentMatch, PlatformAdapter, SessionDetail, SessionListItem,
     SessionListResult, TimelineBlock,
@@ -281,34 +282,26 @@ impl PlatformAdapter for KiroPlatform {
             .map_err(|e| format!("Invalid line index: {e}"))?;
 
         let jsonl_path = self.sessions_dir.join(format!("{session_key}.jsonl"));
-        let mut rows = self.read_jsonl(&jsonl_path);
+        // Block line indices count the rows `read_jsonl` yields, which skips
+        // blank and unparsable lines.
+        let mut editor = JsonlEditor::open(&jsonl_path)?;
+        let raw_index = editor
+            .raw_index_of_parsed(line_index)
+            .ok_or_else(|| "Line index out of range".to_string())?;
 
-        let Some(row) = rows.get_mut(line_index) else {
-            return Err("Line index out of range".to_string());
-        };
-
-        // Extract old content
-        let old_content = extract_content_text(row).unwrap_or_default();
-
-        // Update content
-        if let Some(data) = row.get_mut("data") {
-            if let Some(content) = data.get_mut("content") {
-                if let Some(arr) = content.as_array_mut() {
-                    if let Some(first) = arr.first_mut() {
-                        first["data"] = Value::String(new_content.to_string());
-                    }
-                }
+        let old_content = editor.edit_line(raw_index, |row| {
+            let old_content = extract_content_text(row).unwrap_or_default();
+            if let Some(first) = row
+                .get_mut("data")
+                .and_then(|data| data.get_mut("content"))
+                .and_then(Value::as_array_mut)
+                .and_then(|items| items.first_mut())
+            {
+                first["data"] = Value::String(new_content.to_string());
             }
-        }
-
-        let serialized = rows
-            .iter()
-            .map(serde_json::to_string)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| format!("Serialize error: {e}"))?;
-
-        fs::write(&jsonl_path, format!("{}\n", serialized.join("\n")))
-            .map_err(|e| format!("Write error: {e}"))?;
+            Ok(old_content)
+        })?;
+        editor.commit()?;
 
         Ok(old_content)
     }

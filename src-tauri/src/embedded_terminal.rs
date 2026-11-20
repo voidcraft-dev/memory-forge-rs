@@ -393,7 +393,7 @@ fn validate_request(request: &StartEmbeddedTerminalRequest) -> Result<(), String
     if !matches!(request.command_kind.as_str(), "resume" | "fork" | "shell") {
         return Err("unsupported terminal command kind".to_string());
     }
-    Ok(())
+    crate::terminal::validate_launch_command(command)
 }
 
 fn validate_terminal_id(terminal_id: &str) -> Result<(), String> {

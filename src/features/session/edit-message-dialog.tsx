@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { api } from '@/features/desktop/api'
+import { api, describeSaveError } from '@/features/desktop/api'
 import { useDesktop } from '@/features/desktop/provider'
 
 export function EditMessageDialog() {
@@ -43,7 +43,13 @@ export function EditMessageDialog() {
     dispatch({ type: 'setSessionStatus', payload: null })
 
     try {
-      await api.editMessage(currentPlatform, editingBlock.id, editingBlock.content, selectedSessionKey)
+      await api.editMessage(
+        currentPlatform,
+        editingBlock.id,
+        editingBlock.content,
+        selectedSessionKey,
+        editingBlock.originalContent,
+      )
       const [updated, logs] = await Promise.all([
         api.getSessionDetail(currentPlatform, selectedSessionKey),
         api.getEditLog(currentPlatform, selectedSessionKey),
@@ -56,7 +62,7 @@ export function EditMessageDialog() {
       dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.messageSaved') } })
     } catch (error) {
       console.error('Failed to save edit:', error)
-      const message = t('session.saveFailed')
+      const message = describeSaveError(t('session.saveFailed'), error)
       setSaveError(message)
       dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message } })
     }

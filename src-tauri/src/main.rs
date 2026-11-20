@@ -17,6 +17,7 @@ use session_service::DashboardSummary;
 use settings::{AppSettingsPatch, SharedSettingsState};
 use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_dialog::DialogExt;
 
 // ─── Desktop Commands ───
 
@@ -236,6 +237,7 @@ fn session_edit_message(
     message_id: String,
     content: String,
     session_key: String,
+    expected_content: Option<String>,
 ) -> Result<(), String> {
     let settings = settings_state
         .settings
@@ -248,6 +250,7 @@ fn session_edit_message(
         &message_id,
         &content,
         &session_key,
+        expected_content.as_deref(),
     )
 }
 
@@ -309,18 +312,76 @@ fn session_restore_message(
     session_service::session_restore_message(&db, &settings, &platform, edit_log_id, &session_key)
 }
 
+/// Ask the user where to save an export. The path never comes from the
+/// webview, so page content cannot pick where files are written.
+fn pick_export_path(
+    app: &tauri::AppHandle,
+    default_name: &str,
+    filter_name: &str,
+    extension: &str,
+) -> Result<Option<std::path::PathBuf>, String> {
+    let file_name: String = default_name
+        .chars()
+        .map(|ch| match ch {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '-',
+            ch if ch.is_control() => '-',
+            ch => ch,
+        })
+        .collect();
+    let Some(picked) = app
+        .dialog()
+        .file()
+        .set_file_name(file_name)
+        .add_filter(filter_name, &[extension])
+        .blocking_save_file()
+    else {
+        return Ok(None);
+    };
+    picked
+        .into_path()
+        .map(Some)
+        .map_err(|error| error.to_string())
+}
+
+/// Returns `None` when the user cancels the save dialog.
 #[tauri::command]
-fn session_export_raw_jsonl(
+async fn session_export_raw_jsonl(
+    app: tauri::AppHandle,
     settings_state: tauri::State<'_, SharedSettingsState>,
     platform: String,
     session_key: String,
-    output_path: String,
-) -> Result<session_transfer::RawJsonlExportResult, String> {
+    default_name: String,
+) -> Result<Option<session_transfer::RawJsonlExportResult>, String> {
     let settings = settings_state
         .settings
         .lock()
-        .map_err(|_| "lock error".to_string())?;
-    session_transfer::export_raw_jsonl(&settings, &platform, &session_key, &output_path)
+        .map_err(|_| "lock error".to_string())?
+        .clone();
+    let Some(output) = pick_export_path(&app, &default_name, "Session JSONL", "jsonl")? else {
+        return Ok(None);
+    };
+    session_transfer::export_raw_jsonl(
+        &settings,
+        &platform,
+        &session_key,
+        &output.to_string_lossy(),
+    )
+    .map(Some)
+}
+
+/// Returns `false` when the user cancels the save dialog.
+#[tauri::command]
+async fn session_export_markdown(
+    app: tauri::AppHandle,
+    default_name: String,
+    content: String,
+) -> Result<bool, String> {
+    let Some(output) = pick_export_path(&app, &default_name, "Markdown", "md")? else {
+        return Ok(false);
+    };
+    std::fs::write(&output, content)
+        .map_err(|error| format!("failed to write '{}': {error}", output.display()))?;
+    Ok(true)
 }
 
 #[tauri::command]
@@ -351,11 +412,6 @@ fn session_import_raw_jsonl(
 }
 
 // ─── Prompt Commands ───
-
-#[tauri::command]
-fn write_text_file(path: String, content: String) -> Result<(), String> {
-    std::fs::write(&path, &content).map_err(|e| e.to_string())
-}
 
 #[tauri::command]
 fn prompt_list(
@@ -433,6 +489,7 @@ fn main() {
 
             // Database
             let data_dir = settings::ensure_data_dir(app.handle())?;
+            platforms::safe_write::set_backup_root(data_dir.join("session-backups"));
             let db_path = data_dir.join("memory-forge.db");
             let db_state = DbState::new(db_path.to_string_lossy().as_ref())?;
             {
@@ -457,7 +514,6 @@ fn main() {
             app_settings_set,
             app_show_main_window,
             check_update,
-            write_text_file,
             dashboard_summary,
             session_list,
             session_detail,
@@ -480,6 +536,7 @@ fn main() {
             session_clear_edit_logs,
             session_restore_message,
             session_export_raw_jsonl,
+            session_export_markdown,
             session_probe_jsonl_import,
             session_import_raw_jsonl,
             // Prompts

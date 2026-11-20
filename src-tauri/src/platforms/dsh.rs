@@ -6,6 +6,7 @@ use std::time::UNIX_EPOCH;
 
 use serde_json::{json, Value};
 
+use super::safe_write::{JsonlEditor, SourceSnapshot};
 use super::{
     build_commands, extract_snippet, tool_text_from_str, tool_text_from_value, ContentMatch,
     SessionDetail, SessionKey, SessionListItem, SessionListResult, TimelineBlock, ToolCallBlock,
@@ -633,59 +634,61 @@ impl super::PlatformAdapter for DshPlatform {
         let path = self
             .path_for_key(session_key)
             .ok_or_else(|| format!("DSH session not found: {session_key}"))?;
-        let mut events = decode_events(&path)?;
+        let snapshot = SourceSnapshot::read(&path)?;
+        let raw = zstd::stream::decode_all(snapshot.bytes())
+            .map_err(|error| format!("Failed to decompress DSH session: {error}"))?;
+        let text = String::from_utf8(raw)
+            .map_err(|_| "DSH session is not valid UTF-8; refusing to rewrite it".to_string())?;
+        let mut editor = JsonlEditor::from_text(text);
         let mut old: Option<String> = None;
 
-        for event in events.iter_mut() {
-            match event.get("type").and_then(Value::as_str) {
-                Some("user/message") => {
-                    if let Some(data) = event.get_mut("data") {
-                        if data.get("id").and_then(Value::as_str) == Some(message_id) {
-                            old = mutate_content(data, content_index, field, new_content).or(old);
-                        }
-                    }
-                }
-                Some("agent/inbox/spliced") => {
-                    if let Some(items) = event
-                        .get_mut("data")
-                        .and_then(|data| data.get_mut("inserted"))
-                        .and_then(Value::as_array_mut)
-                    {
-                        for message in items.iter_mut() {
-                            if message.get("id").and_then(Value::as_str) == Some(message_id) {
-                                old = mutate_content(message, content_index, field, new_content)
-                                    .or(old);
+        for raw_index in editor.lines_mentioning(message_id) {
+            let outcome = editor.try_edit_line(raw_index, |event| {
+                let mut found: Option<String> = None;
+                match event.get("type").and_then(Value::as_str) {
+                    Some("user/message") => {
+                        if let Some(data) = event.get_mut("data") {
+                            if data.get("id").and_then(Value::as_str) == Some(message_id) {
+                                found = mutate_content(data, content_index, field, new_content);
                             }
                         }
                     }
-                }
-                Some("assistant/message") => {
-                    if let Some(message) = event
-                        .get_mut("data")
-                        .and_then(|data| data.get_mut("message"))
-                    {
-                        if message.get("id").and_then(Value::as_str) == Some(message_id) {
-                            old =
-                                mutate_content(message, content_index, field, new_content).or(old);
+                    Some("agent/inbox/spliced") => {
+                        if let Some(items) = event
+                            .get_mut("data")
+                            .and_then(|data| data.get_mut("inserted"))
+                            .and_then(Value::as_array_mut)
+                        {
+                            for message in items.iter_mut() {
+                                if message.get("id").and_then(Value::as_str) == Some(message_id) {
+                                    found =
+                                        mutate_content(message, content_index, field, new_content)
+                                            .or(found);
+                                }
+                            }
                         }
                     }
+                    Some("assistant/message") => {
+                        if let Some(message) = event
+                            .get_mut("data")
+                            .and_then(|data| data.get_mut("message"))
+                        {
+                            if message.get("id").and_then(Value::as_str) == Some(message_id) {
+                                found = mutate_content(message, content_index, field, new_content);
+                            }
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
-            }
+                Ok(found)
+            })?;
+            old = outcome.or(old);
         }
 
         let old = old.ok_or_else(|| format!("DSH message not found: {edit_target}"))?;
-        let mut output = String::new();
-        for event in &events {
-            let line = serde_json::to_string(event)
-                .map_err(|error| format!("Serialize error: {error}"))?;
-            output.push_str(&line);
-            output.push('\n');
-        }
-        let compressed = zstd::stream::encode_all(output.as_bytes(), 3)
+        let compressed = zstd::stream::encode_all(editor.render().as_bytes(), 3)
             .map_err(|error| format!("Compress error: {error}"))?;
-        fs::write(&path, compressed)
-            .map_err(|error| format!("Failed to write DSH session: {error}"))?;
+        snapshot.replace(&compressed)?;
         Ok(old)
     }
 

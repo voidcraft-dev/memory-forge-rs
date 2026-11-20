@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
 
+use super::safe_write::{replace_json_file, JsonStyle};
 use super::{
     extract_snippet, file_mtime_millis_string, timestamp_millis_string, tool_text_from_value,
     ContentMatch, PlatformAdapter, SessionListItem, SessionListResult, SessionDetail, TimelineBlock,
@@ -540,9 +541,7 @@ impl PlatformAdapter for ClinePlatform {
         item[text_key] = Value::String(content);
 
         file["updated_at"] = Value::String(chrono::Utc::now().to_rfc3339());
-        let updated =
-            serde_json::to_string(&file).map_err(|e| format!("cannot serialize messages: {e}"))?;
-        fs::write(&messages_path, updated).map_err(|e| format!("cannot write messages: {e}"))?;
+        replace_json_file(&messages_path, &raw, &file, JsonStyle::Compact)?;
 
         Ok(if field == "text" {
             strip_user_input(&old)

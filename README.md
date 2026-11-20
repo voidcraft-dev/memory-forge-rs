@@ -46,7 +46,7 @@ You've spent 40 minutes guiding Claude Code through a complex refactor. It's goi
 
 A **local desktop app** that lets you browse, edit, and manage AI coding assistant sessions.
 
-Works with **Claude Code**, **Codex CLI**, **OpenCode**, **Cursor**, **Kiro CLI**, **Kiro IDE**, **Gemini CLI**, **ZCode**, **WorkBuddy**, **Cindy** (CN & Global), **Zed**, **DeepSeek Harness**, **Qoder CN**, **Qwen Code**, **Cline**, and **Antigravity** — all in one unified interface.
+Works with **Claude Code**, **Codex CLI**, **OpenCode**, **Cursor**, **Kiro CLI**, **Kiro IDE**, **Gemini CLI**, **ZCode**, **WorkBuddy**, **Cindy** (CN & Global), **Zed**, **DeepSeek Harness**, **Qoder CN**, **Qwen Code**, **Cline**, **Grok Build**, **Pi**, **CodeBuddy**, and **Antigravity** — all in one unified interface.
 
 Built with **Tauri v2 + Rust**. No Python, no server, no cloud. 100% local.
 
@@ -108,9 +108,10 @@ That's it. Your AI picks up the corrected memory on the next `--resume`.
 - **Memory Manipulation** — Edit any message in AI conversation history, then seamlessly continue
 - **Erase & Inject** — Remove noise or inject missing context into past messages
 - **Edit Audit Log** — Every edit is tracked with before/after diff, fully traceable
+- **Safe Write-back** — An edit rewrites only the message you changed; every other line of the session file is left byte for byte, and a backup is kept before each edit
 
 **Session Management**
-- **Multi-platform** — Claude Code / Codex CLI / OpenCode / Cursor / Kiro CLI / Kiro IDE / Gemini CLI / ZCode / WorkBuddy / Cindy (CN & Global) / Zed / DeepSeek Harness / Qoder CN / Qwen Code / Cline / Antigravity (read-only) in one unified view
+- **Multi-platform** — Claude Code / Codex CLI / OpenCode / Cursor / Kiro CLI / Kiro IDE / Gemini CLI / ZCode / WorkBuddy / Cindy (CN & Global) / Zed / DeepSeek Harness / Qoder CN / Qwen Code / Cline / Grok Build / Pi / CodeBuddy / Antigravity (read-only) in one unified view
 - **Dashboard** — Session stats across all platforms
 - **Favorites & Archive** — Star important sessions, soft-archive the rest
 - **Session Aliases** — Give sessions memorable names for quick lookup
@@ -144,6 +145,9 @@ That's it. Your AI picks up the corrected memory on the next `--resume`.
 | **Qoder CN** | — | — | `~/.qoder-cn` (`projects/**/*.jsonl`) |
 | **Qwen Code** | — | — | `~/.qwen` (`projects/**/chats/*.jsonl`) |
 | **Cline** | — | — | `~/.cline` (`data/sessions/*/*.messages.json`) |
+| **Grok Build** | `grok --resume <id>` | `grok --resume <id> --fork-session` | `~/.grok` |
+| **Pi** | `pi --session <id>` | — | `~/.pi/agent` |
+| **CodeBuddy** | `codebuddy --resume <id>` | — | `~/.codebuddy` |
 | **Antigravity** | — | — | `~/.gemini/antigravity` (read-only) |
 
 ## Installation
@@ -198,10 +202,17 @@ memory-forge-rs/
 │   └── components/         # Shared UI (shadcn/ui)
 ├── src-tauri/              # Rust backend
 │   └── src/
-│       ├── main.rs         # Tauri commands & app setup
-│       ├── database.rs     # SQLite (prompt library)
-│       ├── settings.rs     # Settings persistence
-│       └── shell.rs        # Tray, window management
+│       ├── main.rs             # Tauri commands & app setup
+│       ├── session_service.rs  # Listing, search, edit + audit log
+│       ├── session_transfer.rs # Raw JSONL import / export
+│       ├── platforms/          # One adapter per AI tool
+│       │   ├── mod.rs          # PlatformAdapter trait & registry
+│       │   └── safe_write.rs   # Shared write-back path (backups, in-place edits)
+│       ├── database.rs         # SQLite (aliases, edit log, search index, prompts)
+│       ├── settings.rs         # Settings persistence
+│       ├── terminal.rs         # External terminal launcher
+│       ├── embedded_terminal.rs# Built-in terminal (PTY)
+│       └── shell.rs            # Tray, window management
 └── package.json
 ```
 
@@ -272,7 +283,7 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 
 一个**本地桌面应用**，让你浏览、编辑、管理 AI 编程助手的会话记录。
 
-支持 **Claude Code**、**Codex CLI**、**OpenCode**、**Cursor**、**Kiro CLI**、**Kiro IDE**、**Gemini CLI**、**ZCode**、**WorkBuddy**、**Cindy**（国内版 / 国际版）、**Zed**、**DeepSeek Harness**、**Qoder CN**、**Qwen Code**、**Cline** 和 **Antigravity**（只读）— 统一界面管理。
+支持 **Claude Code**、**Codex CLI**、**OpenCode**、**Cursor**、**Kiro CLI**、**Kiro IDE**、**Gemini CLI**、**ZCode**、**WorkBuddy**、**Cindy**（国内版 / 国际版）、**Zed**、**DeepSeek Harness**、**Qoder CN**、**Qwen Code**、**Cline**、**Grok Build**、**Pi**、**CodeBuddy** 和 **Antigravity**（只读）— 统一界面管理。
 
 **Tauri v2 + Rust** 构建。没有 Python，没有服务器，没有云端。100% 本地运行。
 
@@ -334,9 +345,10 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 - **记忆操控** — 编辑 AI 对话历史中的任意消息，然后无缝继续
 - **擦除 & 注入** — 删除噪音或往历史消息中注入缺失的上下文
 - **修改追溯** — 每次编辑都有前后 diff 对比，完整可追溯
+- **安全写回** — 只改你编辑的那条消息，会话文件其余每一行逐字节保留；每次编辑前自动备份
 
 **会话管理**
-- **多平台统一** — Claude Code / Codex CLI / OpenCode / Cursor / Kiro CLI / Kiro IDE / Gemini CLI / ZCode / WorkBuddy / Cindy（国内版 & 国际版）/ Zed / DeepSeek Harness / Qoder CN / Qwen Code / Cline / Antigravity（只读）一个界面搞定
+- **多平台统一** — Claude Code / Codex CLI / OpenCode / Cursor / Kiro CLI / Kiro IDE / Gemini CLI / ZCode / WorkBuddy / Cindy（国内版 & 国际版）/ Zed / DeepSeek Harness / Qoder CN / Qwen Code / Cline / Grok Build / Pi / CodeBuddy / Antigravity（只读）一个界面搞定
 - **仪表盘** — 跨平台会话统计
 - **收藏 & 归档** — 星标重要会话，归档不常用的
 - **会话别名** — 给会话起容易记的名字
@@ -370,6 +382,9 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 | **Qoder CN** | — | — | `~/.qoder-cn`（`projects/**/*.jsonl`） |
 | **Qwen Code** | — | — | `~/.qwen`（`projects/**/chats/*.jsonl`） |
 | **Cline** | — | — | `~/.cline`（`data/sessions/*/*.messages.json`） |
+| **Grok Build** | `grok --resume <id>` | `grok --resume <id> --fork-session` | `~/.grok` |
+| **Pi** | `pi --session <id>` | — | `~/.pi/agent` |
+| **CodeBuddy** | `codebuddy --resume <id>` | — | `~/.codebuddy` |
 | **Antigravity** | — | — | `~/.gemini/antigravity`（只读） |
 
 ## 安装方式
@@ -424,10 +439,17 @@ memory-forge-rs/
 │   └── components/         # 共享 UI（shadcn/ui）
 ├── src-tauri/              # Rust 后端
 │   └── src/
-│       ├── main.rs         # Tauri 命令注册 & 应用初始化
-│       ├── database.rs     # SQLite（提示词库）
-│       ├── settings.rs     # 设置持久化
-│       └── shell.rs        # 托盘、窗口管理
+│       ├── main.rs             # Tauri 命令注册 & 应用初始化
+│       ├── session_service.rs  # 列表、搜索、编辑与修改日志
+│       ├── session_transfer.rs # 原始 JSONL 导入 / 导出
+│       ├── platforms/          # 每个 AI 工具一个适配器
+│       │   ├── mod.rs          # PlatformAdapter trait 与注册
+│       │   └── safe_write.rs   # 公共写回路径（备份、原地编辑）
+│       ├── database.rs         # SQLite（别名、修改日志、搜索索引、提示词）
+│       ├── settings.rs         # 设置持久化
+│       ├── terminal.rs         # 外部终端启动
+│       ├── embedded_terminal.rs# 内嵌终端（PTY）
+│       └── shell.rs            # 托盘、窗口管理
 └── package.json
 ```
 

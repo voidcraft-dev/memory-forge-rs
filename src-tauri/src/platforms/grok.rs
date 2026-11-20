@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 
 use crate::database::{SessionContentEntry, SessionContentIndex, SessionSummaryCache};
 
+use super::safe_write::JsonlEditor;
 use super::{
     build_commands, content_entries_to_matches, tool_text_from_value, ContentMatch,
     PlatformAdapter, SessionDetail, SessionKey, SessionListItem, SessionListResult, TimelineBlock,
@@ -480,46 +481,26 @@ impl PlatformAdapter for GrokPlatform {
             .dir_for_key(session_key)
             .ok_or_else(|| format!("Grok session not found: {session_key}"))?;
         let path = session_dir.join("chat_history.jsonl");
-        let raw = fs::read_to_string(&path).map_err(|error| {
-            format!(
-                "cannot read Grok chat history '{}': {error}",
-                path.display()
-            )
-        })?;
-        let mut old_content = None;
-        let mut output_lines = Vec::new();
-        for (index, line) in raw.lines().enumerate() {
-            if index != line_index {
-                output_lines.push(line.to_string());
-                continue;
-            }
-            let mut value: Value = serde_json::from_str(line)
-                .map_err(|error| format!("cannot parse Grok chat line {line_index}: {error}"))?;
+        let mut editor = JsonlEditor::open(&path)?;
+        if line_index >= editor.line_count() {
+            return Err(format!("Grok chat line not found: {line_index}"));
+        }
+        let old_content = editor.edit_line(line_index, |value| {
             let entry_type = value
                 .get("type")
                 .and_then(Value::as_str)
-                .unwrap_or_default();
-            if !matches!(entry_type, "user" | "assistant") {
+                .unwrap_or_default()
+                .to_string();
+            if !matches!(entry_type.as_str(), "user" | "assistant") {
                 return Err(format!("Grok entry type is not editable: {entry_type}"));
             }
             let is_user = entry_type == "user";
             let content = value
                 .get_mut("content")
                 .ok_or_else(|| "Grok message has no content".to_string())?;
-            old_content = Some(replace_editable_content(content, new_content, is_user)?);
-            output_lines.push(
-                serde_json::to_string(&value)
-                    .map_err(|error| format!("cannot serialize Grok chat line: {error}"))?,
-            );
-        }
-        let old_content =
-            old_content.ok_or_else(|| format!("Grok chat line not found: {line_index}"))?;
-        fs::write(&path, format!("{}\n", output_lines.join("\n"))).map_err(|error| {
-            format!(
-                "cannot write Grok chat history '{}': {error}",
-                path.display()
-            )
+            replace_editable_content(content, new_content, is_user)
         })?;
+        editor.commit()?;
         Ok(old_content)
     }
 

@@ -1,6 +1,93 @@
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::path::Path;
 
+/// Commands the "new session" dialog can start.
+const NEW_SESSION_COMMANDS: &[&str] = &[
+    "claude",
+    "codex",
+    "opencode",
+    "gemini",
+    "qwen",
+    "grok",
+    "pi",
+    "kiro-cli chat",
+    "codebuddy",
+    "$SHELL",
+    "pwsh",
+    "powershell.exe",
+    "cmd.exe",
+];
+
+/// Resume / fork commands as `platforms::build_commands` writes them: a fixed
+/// prefix, one session argument, and an optional fixed suffix.
+const RESUME_COMMANDS: &[(&str, &[&str])] = &[
+    ("claude --resume ", &["", " --fork-session"]),
+    ("codex resume ", &[""]),
+    ("opencode -s ", &["", " --fork"]),
+    ("kiro-cli chat --resume-id ", &[""]),
+    ("gemini --resume ", &[""]),
+    ("grok --resume ", &["", " --fork-session"]),
+    ("pi --session ", &[""]),
+    ("codebuddy --resume ", &[""]),
+];
+
+/// Refuse anything that is not a command this app builds itself.
+///
+/// The command string arrives from the webview and ends up in a shell. The
+/// webview renders untrusted text (model output, tool results), so it must
+/// not be able to hand the shell an arbitrary command line.
+pub fn validate_launch_command(command: &str) -> Result<(), String> {
+    let command = command.trim();
+    if NEW_SESSION_COMMANDS.contains(&command) {
+        return Ok(());
+    }
+    for (prefix, suffixes) in RESUME_COMMANDS {
+        let Some(rest) = command.strip_prefix(prefix) else {
+            continue;
+        };
+        for suffix in *suffixes {
+            if rest
+                .strip_suffix(suffix)
+                .is_some_and(is_safe_session_argument)
+            {
+                return Ok(());
+            }
+        }
+    }
+    Err("this is not a command Memory Forge can launch".to_string())
+}
+
+fn is_safe_session_argument(argument: &str) -> bool {
+    let is_id = |value: &str| {
+        !value.is_empty()
+            && value.len() <= 200
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+    };
+    if is_id(argument) {
+        return true;
+    }
+    if let Some(inner) = argument
+        .strip_prefix('\'')
+        .and_then(|value| value.strip_suffix('\''))
+    {
+        return is_id(inner);
+    }
+    // A double-quoted session file path (Pi). Keep out everything a shell
+    // still expands inside double quotes.
+    if let Some(inner) = argument
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+    {
+        return !inner.is_empty()
+            && !inner
+                .chars()
+                .any(|ch| ch.is_control() || matches!(ch, '"' | '`' | '$' | '%'));
+    }
+    false
+}
+
 pub fn launch_session_terminal(
     command: &str,
     cwd: Option<&str>,
@@ -9,6 +96,7 @@ pub fn launch_session_terminal(
     if command.trim().is_empty() {
         return Err("command is empty".to_string());
     }
+    validate_launch_command(command)?;
 
     #[cfg(target_os = "windows")]
     {
@@ -447,5 +535,47 @@ mod tests {
             command,
             "pushd \"\\\\server\\share\\100%%&(test)\" || exit /b 1\r\n"
         );
+    }
+
+    #[test]
+    fn launch_command_allows_only_commands_the_app_builds() {
+        use crate::platforms::build_commands;
+
+        let id = "01a1f272-6b30-7c91-b467-195948e0a763";
+        for platform in [
+            "claude",
+            "codex",
+            "opencode",
+            "kiro",
+            "gemini",
+            "grok",
+            "pi",
+            "codebuddy",
+        ] {
+            for command in build_commands(platform, id).values() {
+                assert!(validate_launch_command(command).is_ok(), "{command}");
+            }
+        }
+        for command in [
+            "claude",
+            "kiro-cli chat",
+            "cmd.exe",
+            r#"pi --session "C:\Users\A B\.pi\agent\sessions\s (1).jsonl""#,
+        ] {
+            assert!(validate_launch_command(command).is_ok(), "{command}");
+        }
+
+        for command in [
+            "calc.exe",
+            "claude --resume abc & calc.exe",
+            "claude --resume abc --dangerously-skip-permissions",
+            "codex resume $(calc)",
+            "gemini --resume 'a' ; rm -rf ~",
+            r#"pi --session "a" & calc.exe ""#,
+            r#"pi --session "%TEMP%\x""#,
+            "claude --resume abc\ncalc.exe",
+        ] {
+            assert!(validate_launch_command(command).is_err(), "{command}");
+        }
     }
 }

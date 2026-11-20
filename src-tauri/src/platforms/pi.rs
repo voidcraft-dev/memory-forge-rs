@@ -10,6 +10,7 @@ use crate::database::{
     CachedSessionSummary, SessionContentEntry, SessionContentIndex, SessionSummaryCache,
 };
 
+use super::safe_write::JsonlEditor;
 use super::{
     build_commands, content_entries_to_matches, read_head_tail_lines, tool_text_from_str,
     tool_text_from_value, ContentMatch, PlatformAdapter, SessionDetail, SessionKey,
@@ -516,22 +517,16 @@ impl PlatformAdapter for PiPlatform {
         let path = self
             .path_for_key(session_key)
             .ok_or_else(|| format!("Pi session not found: {session_key}"))?;
-        let raw = fs::read_to_string(&path)
-            .map_err(|e| format!("cannot read Pi session '{}': {e}", path.display()))?;
-        let mut lines = Vec::new();
+        let mut editor = JsonlEditor::open(&path)?;
         let mut old_content = None;
 
-        for line in raw.lines() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            let mut value: Value = serde_json::from_str(trimmed)
-                .map_err(|e| format!("cannot parse Pi session line: {e}"))?;
-
-            if value.get("type").and_then(Value::as_str) == Some("message")
-                && value.get("id").and_then(Value::as_str) == Some(entry_id)
-            {
+        for raw_index in editor.lines_mentioning(entry_id) {
+            let outcome = editor.try_edit_line(raw_index, |value| {
+                if value.get("type").and_then(Value::as_str) != Some("message")
+                    || value.get("id").and_then(Value::as_str) != Some(entry_id)
+                {
+                    return Ok(None);
+                }
                 let role = value
                     .get("message")
                     .and_then(|message| message.get("role"))
@@ -547,22 +542,18 @@ impl PlatformAdapter for PiPlatform {
                     .and_then(|message| message.get_mut("content"))
                     .ok_or_else(|| "Pi message has no content".to_string())?;
 
-                let old = update_text_content(content, content_index, new_content)?;
-                old_content = Some(old);
+                update_text_content(content, content_index, new_content).map(Some)
+            })?;
+            if outcome.is_some() {
+                old_content = outcome;
             }
-
-            lines.push(
-                serde_json::to_string(&value)
-                    .map_err(|e| format!("cannot serialize Pi session line: {e}"))?,
-            );
         }
 
         let Some(old_content) = old_content else {
             return Err(format!("Pi message entry not found: {entry_id}"));
         };
 
-        fs::write(&path, format!("{}\n", lines.join("\n")))
-            .map_err(|e| format!("cannot write Pi session '{}': {e}", path.display()))?;
+        editor.commit()?;
 
         Ok(old_content)
     }
