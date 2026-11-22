@@ -305,3 +305,40 @@ test("platform switcher lists platforms and switches by mouse and keyboard", asy
   await expect(list).toHaveCount(0);
   await expect(trigger).toBeFocused();
 });
+
+test("overflowing tabs get arrows, an all-tabs list and keyboard switching", async ({ page }) => {
+  await openApp(page);
+  for (let i = 1; i <= 7; i++) await rowOf(page, `claude::claude-${i}`).click();
+  for (let i = 0; i <= 3; i++) await rowOf(page, `codex::codex-${i}`).click();
+  await expect(page.getByText("Question for Codex job 3", { exact: true })).toBeVisible();
+
+  const bar = titleBar(page);
+  const strip = page.locator("[data-tab-key]").first().locator("xpath=..");
+  const allTabs = bar.getByRole("button", { name: "All tabs" });
+  await expect(allTabs).toBeVisible();
+  await expect(allTabs).toContainText("12");
+
+  const stripBox = await strip.boundingBox();
+  const activeBox = await page.locator('[data-tab-key="codex::codex-3"]').boundingBox();
+  if (!(stripBox && activeBox)) throw new Error("tab strip not laid out");
+  expect(activeBox.x + activeBox.width).toBeLessThanOrEqual(stripBox.x + stripBox.width + 1);
+
+  await bar.getByRole("button", { name: "Scroll tabs left" }).click();
+  await expect.poll(() => strip.evaluate((el) => el.scrollLeft)).toBeLessThan(5);
+  await expect(bar.getByRole("button", { name: "Scroll tabs left" })).toBeDisabled();
+
+  await allTabs.click();
+  const list = page.getByRole("listbox", { name: "All tabs" });
+  await expect(list.getByRole("option")).toHaveCount(12);
+  await list.getByRole("option", { name: "Codex job 2" }).click();
+  await expect(page.getByText("Question for Codex job 2", { exact: true })).toBeVisible();
+
+  await page.keyboard.press("Control+1");
+  await expect(page.getByText("Deep thinking text about the plan").or(page.locator('[data-index="0"]')).first()).toBeVisible();
+  await page.keyboard.press("Control+9");
+  await expect(page.getByText("Question for Codex job 3", { exact: true })).toBeVisible();
+  await page.keyboard.press("Control+Shift+Tab");
+  await expect(page.getByText("Question for Codex job 2", { exact: true })).toBeVisible();
+  await page.keyboard.press("Control+Tab");
+  await expect(page.getByText("Question for Codex job 3", { exact: true })).toBeVisible();
+});

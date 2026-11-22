@@ -3,6 +3,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   ArrowRightToLine,
   BookOpen,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Copy,
   ExternalLink,
@@ -55,6 +59,7 @@ import { TerminalViewport } from "@/features/terminal/terminal-viewport";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_PTY_STATUSES = new Set(["starting", "running", "stopping"]);
+const TAB_CONTROLS_WIDTH = 100;
 const IS_MACOS =
   typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
 const NON_PLATFORM_ROUTES = new Set([
@@ -153,6 +158,17 @@ export default function ShellLayout() {
     y: number;
     tab: OpenSessionTab;
   } | null>(null);
+  const tabStripRef = useRef<HTMLDivElement>(null);
+  const tabListRef = useRef<HTMLDivElement>(null);
+  const tabListTriggerRef = useRef<HTMLButtonElement>(null);
+  const [tabOverflow, setTabOverflow] = useState({
+    active: false,
+    left: false,
+    right: false,
+  });
+  const [tabListMenu, setTabListMenu] = useState<{ x: number; y: number } | null>(
+    null
+  );
   const [renamingTabKey, setRenamingTabKey] = useState<string | null>(null);
   const [renamingTabDraft, setRenamingTabDraft] = useState("");
   const [isWinMaximized, setIsWinMaximized] = useState(false);
@@ -175,6 +191,91 @@ export default function ShellLayout() {
   const isRadar = pathSeg === "radar" || pathSeg === "dashboard";
   const isArsenal = pathSeg === "prompts";
   const isConfig = pathSeg === "settings" || pathSeg === "about";
+  const activeTabKey =
+    state.selectedSessionKey && state.selectedSessionPlatform
+      ? `${state.selectedSessionPlatform}::${state.selectedSessionKey}`
+      : null;
+
+  const activateTab = (tab: OpenSessionTab) => {
+    if (!isWorkbench) navigate("/");
+    dispatch({
+      type: "selectSession",
+      payload: { platform: tab.platform, sessionKey: tab.sessionKey },
+    });
+  };
+
+  const tabTitleOf = (tab: OpenSessionTab) => {
+    const matched = state.sessions.find(
+      (s) => s.platform === tab.platform && s.sessionKey === tab.sessionKey
+    );
+    const rawTitle = matched?.aliasTitle || tab.title || tab.sessionKey;
+    return !isUuidLikeTitle(rawTitle)
+      ? normalizeCleanPath(rawTitle)
+      : cleanHumanPreview(matched?.preview).slice(0, 28) ||
+          tab.sessionKey.slice(0, 8);
+  };
+
+  useEffect(() => {
+    const strip = tabStripRef.current;
+    if (!strip) {
+      setTabOverflow({ active: false, left: false, right: false });
+      return;
+    }
+    const measure = () => {
+      setTabOverflow((prev) => {
+        const slack = strip.scrollWidth - strip.clientWidth;
+        const active = slack > (prev.active ? TAB_CONTROLS_WIDTH : 0) + 1;
+        const left = active && strip.scrollLeft > 1;
+        const right =
+          active && strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1;
+        return prev.active === active && prev.left === left && prev.right === right
+          ? prev
+          : { active, left, right };
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(strip);
+    strip.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      observer.disconnect();
+      strip.removeEventListener("scroll", measure);
+    };
+  }, [state.openSessionTabs]);
+
+  useEffect(() => {
+    const strip = tabStripRef.current;
+    if (!(strip && activeTabKey)) return;
+    const el = strip.querySelector<HTMLElement>(
+      `[data-tab-key="${CSS.escape(activeTabKey)}"]`
+    );
+    if (!el) return;
+    const left = el.offsetLeft;
+    const right = left + el.offsetWidth;
+    if (left < strip.scrollLeft) {
+      strip.scrollLeft = left - 8;
+    } else if (right > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollLeft = right - strip.clientWidth + 8;
+    }
+  }, [activeTabKey, state.openSessionTabs.length, tabOverflow.active]);
+
+  useEffect(() => {
+    if (!tabListMenu) return;
+    const list = tabListRef.current;
+    const target =
+      list?.querySelector<HTMLElement>('[data-active="true"]') ??
+      list?.querySelector<HTMLElement>('[role="option"]');
+    target?.focus();
+  }, [tabListMenu]);
+
+  const scrollTabs = (direction: 1 | -1) => {
+    const strip = tabStripRef.current;
+    if (!strip) return;
+    strip.scrollBy({
+      left: direction * Math.max(160, strip.clientWidth * 0.7),
+      behavior: "smooth",
+    });
+  };
 
   // Sync window maximize state for frameless caption button icon
   useEffect(() => {
@@ -233,6 +334,7 @@ export default function ShellLayout() {
       if (target?.closest("[data-context-menu]")) return;
       setPtyCtxMenu(null);
       setTabCtxMenu(null);
+      setTabListMenu(null);
     };
     const onGlobalContextMenu = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
@@ -255,6 +357,7 @@ export default function ShellLayout() {
     const closeMenus = () => {
       setPtyCtxMenu(null);
       setTabCtxMenu(null);
+      setTabListMenu(null);
     };
     window.addEventListener("pointerdown", onGlobalPointerDown, true);
     window.addEventListener("contextmenu", onGlobalContextMenu);
@@ -283,7 +386,12 @@ export default function ShellLayout() {
         Boolean(
           target?.closest('input, textarea, select, [contenteditable="true"]')
         );
-      if (inTextField && (key === "k" || key === "w" || key === "b")) return;
+      if (
+        inTextField &&
+        (["k", "w", "b", "tab"].includes(key) || /^[1-9]$/.test(key))
+      ) {
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && key === "k") {
         event.preventDefault();
         setCmdQuery("");
@@ -316,8 +424,29 @@ export default function ShellLayout() {
       } else if ((event.ctrlKey || event.metaKey) && key === "b") {
         event.preventDefault();
         dispatch({ type: "setRailCollapsed", payload: !state.railCollapsed });
+      } else if (event.ctrlKey && key === "tab") {
+        const tabs = state.openSessionTabs;
+        if (tabs.length > 0) {
+          event.preventDefault();
+          const current = tabs.findIndex(
+            (x) =>
+              x.platform === state.selectedSessionPlatform &&
+              x.sessionKey === state.selectedSessionKey
+          );
+          const step = event.shiftKey ? -1 : 1;
+          const next = current < 0 ? 0 : (current + step + tabs.length) % tabs.length;
+          activateTab(tabs[next]);
+        }
+      } else if ((event.ctrlKey || event.metaKey) && /^[1-9]$/.test(event.key)) {
+        const tabs = state.openSessionTabs;
+        const index = event.key === "9" ? tabs.length - 1 : Number(event.key) - 1;
+        if (tabs[index]) {
+          event.preventDefault();
+          activateTab(tabs[index]);
+        }
       } else if (event.key === "Escape") {
         setTabCtxMenu(null);
+        setTabListMenu(null);
         if (state.commandPaletteOpen) {
           dispatch({ type: "setCommandPaletteOpen", payload: false });
         }
@@ -327,6 +456,8 @@ export default function ShellLayout() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
     dispatch,
+    isWorkbench,
+    navigate,
     state.commandPaletteOpen,
     state.openSessionTabs,
     state.ptyBayOpen,
@@ -627,13 +758,41 @@ export default function ShellLayout() {
 
           {/* Rin-Style Adaptive TabStrip (Zero Scrollbar + Flex Shrink + Wheel Scroll!) */}
           {state.openSessionTabs.length > 0 ? (
+            <>
+            {tabOverflow.active && (
+              <button
+                aria-label={t("hud.scrollTabsLeft")}
+                className="ml-1 grid size-6 shrink-0 place-items-center rounded-[5px] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)] disabled:opacity-30"
+                disabled={!tabOverflow.left}
+                onClick={() => scrollTabs(-1)}
+                title={t("hud.scrollTabsLeft")}
+                type="button"
+              >
+                <ChevronLeft className="size-3.5" />
+              </button>
+            )}
             <div
+              ref={tabStripRef}
               onWheel={(e) => {
                 if (e.deltaY !== 0) {
                   e.currentTarget.scrollLeft += e.deltaY;
                 }
               }}
-              className="no-scrollbar ml-1 flex min-w-0 items-center gap-0.5 overflow-x-auto py-1"
+              className="no-scrollbar relative ml-1 flex min-w-0 items-center gap-0.5 overflow-x-auto py-1"
+              style={
+                tabOverflow.left || tabOverflow.right
+                  ? (() => {
+                      const fade = `linear-gradient(to right, ${
+                        tabOverflow.left ? "transparent 0, #000 24px" : "#000 0"
+                      }, ${
+                        tabOverflow.right
+                          ? "#000 calc(100% - 24px), transparent 100%"
+                          : "#000 100%"
+                      })`;
+                      return { maskImage: fade, WebkitMaskImage: fade };
+                    })()
+                  : undefined
+              }
             >
               {state.openSessionTabs.map((tab) => {
                 const compKey = `${tab.platform}::${tab.sessionKey}`;
@@ -662,6 +821,7 @@ export default function ShellLayout() {
 
                 return (
                   <div
+                    data-tab-key={compKey}
                     key={compKey}
                     onAuxClick={(e) => {
                       if (e.button === 1 && !tab.pinned) {
@@ -691,7 +851,8 @@ export default function ShellLayout() {
                     title={displayTabTitle}
                     className={cn(
                       "group/tab flex h-[27px] max-w-[164px] shrink-0 items-center gap-1.5 rounded-[7px] px-2.5 text-xs transition-colors",
-                      tab.pinned ? "min-w-[78px]" : "min-w-[98px] flex-1",
+                      tab.pinned ? "min-w-[72px]" : "min-w-[80px] flex-1",
+                      tabActive && "min-w-[124px]",
                       tabActive
                         ? "border border-[var(--line-hair)] bg-[var(--bg-void)] font-medium text-[var(--text-hi)] shadow-2xs"
                         : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)]/75 hover:text-[var(--text-hi)]"
@@ -811,6 +972,47 @@ export default function ShellLayout() {
                 );
               })}
             </div>
+            {tabOverflow.active && (
+              <>
+                <button
+                  aria-label={t("hud.scrollTabsRight")}
+                  className="grid size-6 shrink-0 place-items-center rounded-[5px] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)] disabled:opacity-30"
+                  disabled={!tabOverflow.right}
+                  onClick={() => scrollTabs(1)}
+                  title={t("hud.scrollTabsRight")}
+                  type="button"
+                >
+                  <ChevronRight className="size-3.5" />
+                </button>
+                <button
+                  aria-expanded={Boolean(tabListMenu)}
+                  aria-haspopup="listbox"
+                  aria-label={t("hud.allTabs")}
+                  className={cn(
+                    "hud-mono inline-flex h-6 shrink-0 items-center gap-0.5 rounded-[5px] px-1.5 text-[10.5px] transition-colors",
+                    tabListMenu
+                      ? "bg-[var(--bg-hover)] text-[var(--text-hi)]"
+                      : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+                  )}
+                  data-context-menu
+                  onClick={(e) => {
+                    if (tabListMenu) {
+                      setTabListMenu(null);
+                      return;
+                    }
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setTabListMenu({ x: rect.left, y: rect.bottom + 4 });
+                  }}
+                  ref={tabListTriggerRef}
+                  title={t("hud.allTabs")}
+                  type="button"
+                >
+                  <span>{state.openSessionTabs.length}</span>
+                  <ChevronDown className="size-3" />
+                </button>
+              </>
+            )}
+            </>
           ) : (
             <button
               type="button"
@@ -1793,6 +1995,69 @@ export default function ShellLayout() {
             <ArrowRightToLine className="size-3.5 shrink-0 text-[var(--text-mid)]" />
             <span className="truncate">{t("hud.tabCloseRight")}</span>
           </button>
+        </FloatingMenu>
+      )}
+
+      {tabListMenu && (
+        <FloatingMenu
+          className="w-[264px] rounded-[9px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1.5 text-xs text-[var(--text-hi)] shadow-2xl"
+          x={tabListMenu.x}
+          y={tabListMenu.y}
+        >
+          <div
+            aria-label={t("hud.allTabs")}
+            className="outline-none"
+            onKeyDown={(e) => {
+              const options = Array.from(
+                e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]')
+              );
+              const index = options.indexOf(document.activeElement as HTMLButtonElement);
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                const step = e.key === "ArrowDown" ? 1 : -1;
+                options[(index + step + options.length) % options.length]?.focus();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setTabListMenu(null);
+                tabListTriggerRef.current?.focus();
+              }
+            }}
+            ref={tabListRef}
+            role="listbox"
+            tabIndex={-1}
+          >
+            {state.openSessionTabs.map((tab) => {
+              const key = `${tab.platform}::${tab.sessionKey}`;
+              const active = isWorkbench && key === activeTabKey;
+              return (
+                <button
+                  aria-selected={active}
+                  className="flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-left outline-none hover:bg-[var(--bg-hover)] focus:bg-[var(--bg-hover)]"
+                  data-active={active}
+                  key={key}
+                  onClick={() => {
+                    setTabListMenu(null);
+                    activateTab(tab);
+                  }}
+                  role="option"
+                  type="button"
+                >
+                  <PlatformMark platform={tab.platform} size={13} />
+                  <span className="min-w-0 flex-1 truncate">{tabTitleOf(tab)}</span>
+                  {tab.pinned && (
+                    <Pin className="size-3 shrink-0 rotate-45 text-[var(--text-low)]" />
+                  )}
+                  <Check
+                    className={cn(
+                      "size-3.5 shrink-0 text-[var(--cyan-fg)]",
+                      !active && "invisible"
+                    )}
+                  />
+                </button>
+              );
+            })}
+          </div>
         </FloatingMenu>
       )}
 

@@ -526,7 +526,10 @@ export type MessageKey =
   | "hud.timeDaysAgo"
   | "hud.platformSwitcher"
   | "hud.idlePlatformsGroup"
-  | "hud.managePlatforms";
+  | "hud.managePlatforms"
+  | "hud.allTabs"
+  | "hud.scrollTabsLeft"
+  | "hud.scrollTabsRight";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -1045,6 +1048,9 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "hud.platformSwitcher": "切换平台",
     "hud.idlePlatformsGroup": "暂无会话",
     "hud.managePlatforms": "管理平台…",
+    "hud.allTabs": "全部页签",
+    "hud.scrollTabsLeft": "向左滚动页签",
+    "hud.scrollTabsRight": "向右滚动页签",
   },
   en: {
     appName: "Memory Forge",
@@ -1562,6 +1568,9 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "hud.platformSwitcher": "Switch platform",
     "hud.idlePlatformsGroup": "No sessions yet",
     "hud.managePlatforms": "Manage platforms…",
+    "hud.allTabs": "All tabs",
+    "hud.scrollTabsLeft": "Scroll tabs left",
+    "hud.scrollTabsRight": "Scroll tabs right",
   },
 };
 
