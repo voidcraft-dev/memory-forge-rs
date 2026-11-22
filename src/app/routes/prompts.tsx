@@ -56,7 +56,7 @@ function formatTime(iso: string): string {
 }
 
 export default function PromptsPage() {
-  const { t, state, dispatch } = useDesktop();
+  const { t } = useDesktop();
   const { confirm, dialogProps } = useConfirmDialog();
   const [prompts, setPrompts] = useState<PromptItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,6 +66,12 @@ export default function PromptsPage() {
   const [showVault, setShowVault] = useState(false);
   const [vaultKey, setVaultKey] = useState(FENJUE_VAULT_KEY);
   const [fenjueUnlocked, setFenjueUnlocked] = useState(false);
+  const [vaultError, setVaultError] = useState(false);
+  const [pageNotice, setPageNotice] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
+  const loadRequestRef = useRef(0);
 
   const [viewingPrompt, setViewingPrompt] = useState<PromptItem | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -77,22 +83,44 @@ export default function PromptsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadPrompts = async () => {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     try {
       const data = await listPrompts(
         searchQuery || undefined,
         activeTag || undefined
       );
-      setPrompts(data);
+      if (requestId === loadRequestRef.current) setPrompts(data);
     } catch (err) {
       console.error("Failed to load prompts:", err);
     }
-    setLoading(false);
+    if (requestId === loadRequestRef.current) setLoading(false);
   };
 
   useEffect(() => {
-    void loadPrompts();
+    const timer = window.setTimeout(
+      () => void loadPrompts(),
+      searchQuery ? 200 : 0
+    );
+    return () => window.clearTimeout(timer);
   }, [searchQuery, activeTag]);
+
+  useEffect(() => {
+    if (!pageNotice) return;
+    const timer = window.setTimeout(() => setPageNotice(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [pageNotice]);
+
+  const handleUnlockVault = () => {
+    const normalized = vaultKey.trim();
+    if (normalized && normalized !== FENJUE_VAULT_KEY) {
+      setVaultError(true);
+      return;
+    }
+    setFenjueUnlocked(normalized === FENJUE_VAULT_KEY);
+    setVaultError(false);
+    setShowVault(false);
+  };
 
   const visiblePrompts = prompts.filter((prompt) => {
     if (!FENJUE_PROMPT_NAMES.includes(prompt.name)) return true;
@@ -109,16 +137,6 @@ export default function PromptsPage() {
           p.id === prompt.id ? { ...p, useCount: p.useCount + 1 } : p
         )
       );
-      if (state.editingBlock) {
-        const sep = state.editingBlock.content.trim() ? "\n\n" : "";
-        dispatch({
-          type: "setEditingBlock",
-          payload: {
-            ...state.editingBlock,
-            content: `${state.editingBlock.content}${sep}${prompt.content}`,
-          },
-        });
-      }
       setTimeout(() => setCopiedId(null), 1800);
     } catch (err) {
       console.error("Failed to copy:", err);
@@ -226,10 +244,15 @@ export default function PromptsPage() {
               : [],
         })
       );
-      await importPrompts(promptsToImport);
+      const imported = await importPrompts(promptsToImport);
       await loadPrompts();
+      setPageNotice({
+        tone: "success",
+        message: t("importSuccess", { count: imported }),
+      });
     } catch (err) {
       console.error("Failed to import:", err);
+      setPageNotice({ tone: "error", message: t("importFailed") });
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -263,6 +286,19 @@ export default function PromptsPage() {
                 })}
               </span>
             </h1>
+            {pageNotice && (
+              <p
+                className={cn(
+                  "hud-mono mt-0.5 text-[11px]",
+                  pageNotice.tone === "success"
+                    ? "text-[var(--emerald-fg)]"
+                    : "text-[var(--crimson-fg)]"
+                )}
+                role="status"
+              >
+                {pageNotice.message}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
@@ -302,6 +338,7 @@ export default function PromptsPage() {
               type="button"
               onClick={() => {
                 setVaultKey(FENJUE_VAULT_KEY);
+                setVaultError(false);
                 setShowVault(true);
               }}
               className="hud-btn px-2"
@@ -653,17 +690,22 @@ export default function PromptsPage() {
             <input
               autoFocus
               className="hud-mono mt-2.5 w-full rounded-[4px] border border-[var(--line-strong)] bg-[var(--bg-void)] px-3 py-1.5 text-xs outline-none"
-              onChange={(e) => setVaultKey(e.target.value)}
+              onChange={(e) => {
+                setVaultKey(e.target.value);
+                setVaultError(false);
+              }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  if (vaultKey.trim() === FENJUE_VAULT_KEY) {
-                    setFenjueUnlocked(true);
-                  }
-                  setShowVault(false);
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                  handleUnlockVault();
                 }
               }}
               value={vaultKey}
             />
+            {vaultError && (
+              <p className="hud-mono mt-1.5 text-[11px] text-[var(--crimson-fg)]">
+                {t("hud.vaultWrongKey")}
+              </p>
+            )}
             <div className="mt-3 flex justify-end gap-2">
               <button
                 type="button"
@@ -674,12 +716,7 @@ export default function PromptsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (vaultKey.trim() === FENJUE_VAULT_KEY) {
-                    setFenjueUnlocked(true);
-                  }
-                  setShowVault(false);
-                }}
+                onClick={handleUnlockVault}
                 className="hud-btn hud-btn-forge"
               >
                 {t("hud.unlock")}

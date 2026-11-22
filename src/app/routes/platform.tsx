@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { useDesktop } from "@/features/desktop/provider";
 import { EditLogPanel } from "@/features/session/edit-log-panel";
@@ -6,13 +6,16 @@ import { SessionDetail } from "@/features/session/session-detail";
 import { SessionList } from "@/features/session/session-list";
 import { cn } from "@/lib/utils";
 
+const NARROW_VIEWPORT_QUERY = "(max-width: 767px)";
+let railAutoCollapsed = false;
+
 export default function PlatformPage() {
   const { platform } = useParams<{ platform?: string }>();
   const { state, dispatch } = useDesktop();
   const [railWidth, setRailWidth] = useState<number>(() => {
     try {
       const saved = Number(localStorage.getItem("memory-forge.rail-width"));
-      return Number.isFinite(saved) && saved >= 210 && saved <= 480
+      return Number.isFinite(saved) && saved >= 210 && saved <= 500
         ? saved
         : 256;
     } catch {
@@ -20,10 +23,31 @@ export default function PlatformPage() {
     }
   });
   const [isResizingRail, setIsResizingRail] = useState(false);
+  const railCollapsedRef = useRef(state.railCollapsed);
 
   useEffect(() => {
     dispatch({ type: "setCurrentPlatform", payload: platform || "all" });
   }, [platform, dispatch]);
+
+  useEffect(() => {
+    railCollapsedRef.current = state.railCollapsed;
+  }, [state.railCollapsed]);
+
+  useEffect(() => {
+    const query = window.matchMedia(NARROW_VIEWPORT_QUERY);
+    const apply = () => {
+      if (query.matches && !railCollapsedRef.current) {
+        railAutoCollapsed = true;
+        dispatch({ type: "setRailCollapsed", payload: true });
+      } else if (!query.matches && railAutoCollapsed) {
+        railAutoCollapsed = false;
+        dispatch({ type: "setRailCollapsed", payload: false });
+      }
+    };
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, [dispatch]);
 
   const isPeeking = state.railCollapsed && state.railHoverPeek;
 
@@ -52,7 +76,7 @@ export default function PlatformPage() {
             ? isPeeking
               ? "absolute inset-y-2 left-2 z-40 overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--bg-rack)] shadow-[var(--shadow-elev)]"
               : "hidden"
-            : "relative hidden h-full shrink-0 md:block",
+            : "relative h-full shrink-0",
           !(state.railCollapsed || isResizingRail) &&
             "transition-[width] duration-150"
         )}
@@ -69,6 +93,9 @@ export default function PlatformPage() {
             }}
             onPointerDown={(e) => {
               e.preventDefault();
+              const sash = e.currentTarget;
+              const pointerId = e.pointerId;
+              sash.setPointerCapture(pointerId);
               setIsResizingRail(true);
               const prevCursor = document.body.style.cursor;
               const prevSelect = document.body.style.userSelect;
@@ -76,6 +103,7 @@ export default function PlatformPage() {
               document.body.style.userSelect = "none";
 
               let latestW = railWidth;
+              let finished = false;
               const onMove = (ev: PointerEvent) => {
                 if (ev.clientX < 110) {
                   dispatch({ type: "setRailCollapsed", payload: true });
@@ -90,6 +118,8 @@ export default function PlatformPage() {
                 setRailWidth(clamped);
               };
               const cleanup = () => {
+                if (finished) return;
+                finished = true;
                 setIsResizingRail(false);
                 document.body.style.cursor = prevCursor;
                 document.body.style.userSelect = prevSelect;
@@ -99,11 +129,18 @@ export default function PlatformPage() {
                     String(Math.round(latestW))
                   );
                 } catch {}
-                window.removeEventListener("pointermove", onMove);
-                window.removeEventListener("pointerup", cleanup);
+                sash.removeEventListener("pointermove", onMove);
+                sash.removeEventListener("pointerup", cleanup);
+                sash.removeEventListener("pointercancel", cleanup);
+                sash.removeEventListener("lostpointercapture", cleanup);
+                if (sash.hasPointerCapture(pointerId)) {
+                  sash.releasePointerCapture(pointerId);
+                }
               };
-              window.addEventListener("pointermove", onMove);
-              window.addEventListener("pointerup", cleanup);
+              sash.addEventListener("pointermove", onMove);
+              sash.addEventListener("pointerup", cleanup);
+              sash.addEventListener("pointercancel", cleanup);
+              sash.addEventListener("lostpointercapture", cleanup);
             }}
             className={cn(
               "absolute inset-y-0 -right-[2px] z-20 w-[4px] cursor-col-resize",

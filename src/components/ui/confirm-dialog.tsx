@@ -2,6 +2,8 @@ import { useState, useCallback } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "./dialog"
 import { Button } from "./button"
 import { AlertTriangle } from "lucide-react"
+import { useDesktop } from "@/features/desktop/provider"
+import { cn } from "@/lib/utils"
 
 type ConfirmDialogProps = {
   open: boolean
@@ -19,17 +21,23 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = "确认",
-  cancelLabel = "取消",
+  confirmLabel,
+  cancelLabel,
   variant = "warning",
   onConfirm,
 }: ConfirmDialogProps) {
+  const { t } = useDesktop()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className={`size-5 ${variant === "danger" ? "text-red-400" : "text-amber-400"}`} />
+            <AlertTriangle
+              className={cn(
+                "size-5",
+                variant === "danger" ? "text-[var(--crimson-fg)]" : "text-[var(--forge-fg)]"
+              )}
+            />
             {title}
           </DialogTitle>
         </DialogHeader>
@@ -38,17 +46,17 @@ export function ConfirmDialog({
         </DialogBody>
         <DialogFooter className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-            {cancelLabel}
+            {cancelLabel ?? t("cancel")}
           </Button>
           <Button
             size="sm"
             className={variant === "danger"
-              ? "bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30"
-              : "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30"
+              ? "border border-[var(--crimson-line)] bg-[var(--crimson-dim)] text-[var(--crimson-fg)] hover:bg-[var(--crimson-dim)] hover:brightness-110"
+              : "border border-[var(--forge-line)] bg-[var(--forge-dim)] text-[var(--forge-fg)] hover:bg-[var(--forge-dim)] hover:brightness-110"
             }
             onClick={() => { onConfirm(); onOpenChange(false) }}
           >
-            {confirmLabel}
+            {confirmLabel ?? t("hud.confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

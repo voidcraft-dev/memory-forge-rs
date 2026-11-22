@@ -32,8 +32,10 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FloatingMenu } from "@/components/ui/floating-menu";
 import { api } from "@/features/desktop/api";
 import { isDirtyEdit, useDesktop } from "@/features/desktop/provider";
+import { hasBackupWrite } from "@/features/desktop/write-safety";
 import type {
   OpenSessionTab,
   Session,
@@ -161,6 +163,7 @@ export default function ShellLayout() {
     }
   });
   const [isResizingPty, setIsResizingPty] = useState(false);
+  const [ptyNotice, setPtyNotice] = useState<string | null>(null);
 
   const cmdInputRef = useRef<HTMLInputElement>(null);
   const isTauriApp = isTauri();
@@ -376,8 +379,25 @@ export default function ShellLayout() {
   useEffect(() => {
     if (selectedTerminal && selectedTerminal.id !== activeTerminalId) {
       setActiveTerminal(selectedTerminal.id);
+    } else if (!selectedTerminal && activeTerminalId) {
+      setActiveTerminal(null);
     }
   }, [activeTerminalId, selectedTerminal, setActiveTerminal]);
+
+  useEffect(() => {
+    if (!ptyNotice) return;
+    const timer = window.setTimeout(() => setPtyNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [ptyNotice]);
+
+  const handleOpenExternalPty = async (terminal: EmbeddedTerminalSession) => {
+    try {
+      await api.launchSessionTerminal(terminal.command, terminal.cwd);
+    } catch {
+      await navigator.clipboard.writeText(terminal.command).catch(() => {});
+      setPtyNotice(t("terminal.workspace.externalFailed"));
+    }
+  };
 
   const handleClosePty = async (terminal: EmbeddedTerminalSession) => {
     if (ACTIVE_PTY_STATUSES.has(terminal.status)) {
@@ -654,7 +674,7 @@ export default function ShellLayout() {
                       e.preventDefault();
                       e.stopPropagation();
                       setTabCtxMenu({
-                        x: Math.min(window.innerWidth - 208, e.clientX),
+                        x: e.clientX,
                         y: 38,
                         tab: {
                           ...tab,
@@ -1002,7 +1022,7 @@ export default function ShellLayout() {
         <footer
           style={
             state.ptyBayOpen && !state.ptyBayMaximized
-              ? { height: `${ptyHeight}px` }
+              ? { height: `${ptyHeight}px`, maxHeight: "calc(100vh - 160px)" }
               : undefined
           }
           className={cn(
@@ -1029,6 +1049,9 @@ export default function ShellLayout() {
               }}
               onPointerDown={(e) => {
                 e.preventDefault();
+                const sash = e.currentTarget;
+                const pointerId = e.pointerId;
+                sash.setPointerCapture(pointerId);
                 setIsResizingPty(true);
                 const prevCursor = document.body.style.cursor;
                 const prevSelect = document.body.style.userSelect;
@@ -1036,6 +1059,7 @@ export default function ShellLayout() {
                 document.body.style.userSelect = "none";
 
                 let latestH = ptyHeight;
+                let finished = false;
                 const onMove = (ev: PointerEvent) => {
                   const rawH = window.innerHeight - ev.clientY;
                   if (rawH < 64) {
@@ -1045,12 +1069,14 @@ export default function ShellLayout() {
                   }
                   const clamped = Math.max(
                     110,
-                    Math.min(window.innerHeight - 120, rawH)
+                    Math.min(window.innerHeight - 160, rawH)
                   );
                   latestH = clamped;
                   setPtyHeight(clamped);
                 };
                 const cleanup = () => {
+                  if (finished) return;
+                  finished = true;
                   setIsResizingPty(false);
                   document.body.style.cursor = prevCursor;
                   document.body.style.userSelect = prevSelect;
@@ -1060,11 +1086,18 @@ export default function ShellLayout() {
                       String(Math.round(latestH))
                     );
                   } catch {}
-                  window.removeEventListener("pointermove", onMove);
-                  window.removeEventListener("pointerup", cleanup);
+                  sash.removeEventListener("pointermove", onMove);
+                  sash.removeEventListener("pointerup", cleanup);
+                  sash.removeEventListener("pointercancel", cleanup);
+                  sash.removeEventListener("lostpointercapture", cleanup);
+                  if (sash.hasPointerCapture(pointerId)) {
+                    sash.releasePointerCapture(pointerId);
+                  }
                 };
-                window.addEventListener("pointermove", onMove);
-                window.addEventListener("pointerup", cleanup);
+                sash.addEventListener("pointermove", onMove);
+                sash.addEventListener("pointerup", cleanup);
+                sash.addEventListener("pointercancel", cleanup);
+                sash.addEventListener("lostpointercapture", cleanup);
               }}
               className={cn(
                 "group absolute inset-x-0 top-0 z-30 h-[5px] cursor-row-resize",
@@ -1078,10 +1111,16 @@ export default function ShellLayout() {
           {!state.ptyBayOpen ? (
             /* ---- CALM 26PX STATUS FOOTER (RIN STYLE) ---- */
             <div className="hud-mono flex h-[26px] items-center gap-3 px-3 text-[10.5px]">
-              <span className="inline-flex items-center gap-1.5 text-[var(--emerald-fg)]">
-                <span className="size-1.5 rounded-full bg-[var(--emerald)]" />
-                <span>{t("hud.safeWriteBadge")}</span>
-              </span>
+              {state.sessionDetail && (
+                <span className="inline-flex items-center gap-1.5 text-[var(--emerald-fg)]">
+                  <span className="size-1.5 rounded-full bg-[var(--emerald)]" />
+                  <span>
+                    {hasBackupWrite(snapshot, state.sessionDetail.platform)
+                      ? t("hud.safeWriteBadge")
+                      : t("hud.editLogOnlyBadge")}
+                  </span>
+                </span>
+              )}
 
               {activeAdapterCount > 0 && (
                 <span className="hidden text-[var(--text-low)] sm:inline">
@@ -1232,8 +1271,8 @@ export default function ShellLayout() {
                             e.preventDefault();
                             e.stopPropagation();
                             setPtyCtxMenu({
-                              x: Math.min(window.innerWidth - 200, e.clientX),
-                              y: Math.max(8, e.clientY - 165),
+                              x: e.clientX,
+                              y: e.clientY,
                               term,
                             });
                           }}
@@ -1270,6 +1309,15 @@ export default function ShellLayout() {
                 </button>
               </div>
 
+              {ptyNotice && (
+                <span
+                  className="hud-mono min-w-0 shrink truncate text-[10px] text-amber-300"
+                  role="status"
+                  title={ptyNotice}
+                >
+                  {ptyNotice}
+                </span>
+              )}
               <div className="hud-mono ml-auto flex shrink-0 items-center gap-1 text-[10px]">
                 {selectedTerminal && (
                   <>
@@ -1291,22 +1339,24 @@ export default function ShellLayout() {
                       <button
                         type="button"
                         onClick={() => void handleStopPty(selectedTerminal)}
-                        className="inline-flex h-[21px] items-center gap-1 rounded-[3px] border border-amber-500/40 px-1.5 text-amber-300 hover:bg-amber-500/15"
-                        title={t("terminal.btn.stop")}
+                        className={cn(
+                          "inline-flex h-[21px] items-center gap-1 rounded-[3px] border px-1.5",
+                          selectedTerminal.status === "stopping"
+                            ? "border-rose-500/50 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25"
+                            : "border-amber-500/40 text-amber-300 hover:bg-amber-500/15"
+                        )}
+                        title={
+                          selectedTerminal.status === "stopping"
+                            ? t("terminal.btn.forceStop")
+                            : t("terminal.btn.stop")
+                        }
                       >
                         <Square className="size-2.5 fill-current" />
                       </button>
                     )}
                     <button
                       type="button"
-                      onClick={() =>
-                        void api
-                          .launchSessionTerminal(
-                            selectedTerminal.command,
-                            selectedTerminal.cwd
-                          )
-                          .catch(() => {})
-                      }
+                      onClick={() => void handleOpenExternalPty(selectedTerminal)}
                       className="inline-flex h-[21px] items-center gap-1 rounded-[3px] border border-slate-700/70 px-1.5 text-slate-300 hover:bg-white/8"
                       title={t("terminal.btn.openExternal")}
                     >
@@ -1390,11 +1440,7 @@ export default function ShellLayout() {
                       errorMessage={term.errorMessage}
                       exitCode={term.exitCode}
                       onClose={() => void handleClosePty(term)}
-                      onOpenExternal={() =>
-                        void api
-                          .launchSessionTerminal(term.command, term.cwd)
-                          .catch(() => {})
-                      }
+                      onOpenExternal={() => void handleOpenExternalPty(term)}
                       onRestart={() => void restartTerminal(term.id)}
                       onStart={() => void restartTerminal(term.id)}
                       status={term.status}
@@ -1522,12 +1568,10 @@ export default function ShellLayout() {
 
       {/* TopBar Session Tab Right-Click Context Menu (Exact Rin Menu!) */}
       {tabCtxMenu && (
-        <div
-          data-context-menu
-          style={{ left: `${tabCtxMenu.x}px`, top: `${tabCtxMenu.y}px` }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-          className="fixed z-50 w-[202px] rounded-[9px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1.5 text-xs text-[var(--text-hi)] shadow-2xl"
+        <FloatingMenu
+          className="w-[202px] rounded-[9px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1.5 text-xs text-[var(--text-hi)] shadow-2xl"
+          x={tabCtxMenu.x}
+          y={tabCtxMenu.y}
         >
           <button
             type="button"
@@ -1744,17 +1788,15 @@ export default function ShellLayout() {
             <ArrowRightToLine className="size-3.5 shrink-0 text-[var(--text-mid)]" />
             <span className="truncate">{t("hud.tabCloseRight")}</span>
           </button>
-        </div>
+        </FloatingMenu>
       )}
 
       {/* PTY Tab Right-Click Context Menu */}
       {ptyCtxMenu && (
-        <div
-          data-context-menu
-          style={{ left: `${ptyCtxMenu.x}px`, top: `${ptyCtxMenu.y}px` }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-          className="fixed z-50 w-[196px] rounded-[6px] border border-slate-700/90 bg-[#0e131b] p-1 text-xs text-slate-200 shadow-2xl"
+        <FloatingMenu
+          className="w-[196px] rounded-[6px] border border-slate-700/90 bg-[#0e131b] p-1 text-xs text-slate-200 shadow-2xl"
+          x={ptyCtxMenu.x}
+          y={ptyCtxMenu.y}
         >
           <button
             type="button"
@@ -1783,6 +1825,23 @@ export default function ShellLayout() {
           </button>
           <button
             type="button"
+            disabled={!ACTIVE_PTY_STATUSES.has(ptyCtxMenu.term.status)}
+            onClick={() => {
+              const target = ptyCtxMenu.term;
+              setPtyCtxMenu(null);
+              void handleStopPty(target);
+            }}
+            className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-1.5 text-left hover:bg-white/8 disabled:opacity-40"
+          >
+            <Square className="size-3.5 shrink-0 fill-current text-amber-300" />
+            <span className="truncate">
+              {ptyCtxMenu.term.status === "stopping"
+                ? t("terminal.btn.forceStop")
+                : t("terminal.btn.stop")}
+            </span>
+          </button>
+          <button
+            type="button"
             onClick={() => {
               const cmd = ptyCtxMenu.term.command;
               setPtyCtxMenu(null);
@@ -1798,9 +1857,7 @@ export default function ShellLayout() {
             onClick={() => {
               const target = ptyCtxMenu.term;
               setPtyCtxMenu(null);
-              void api
-                .launchSessionTerminal(target.command, target.cwd)
-                .catch(() => {});
+              void handleOpenExternalPty(target);
             }}
             className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-1.5 text-left hover:bg-white/8"
           >
@@ -1820,7 +1877,7 @@ export default function ShellLayout() {
             <X className="size-3.5 shrink-0" />
             <span className="truncate">{t("terminal.btn.close")}</span>
           </button>
-        </div>
+        </FloatingMenu>
       )}
 
       <NewSessionDialog

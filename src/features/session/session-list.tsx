@@ -36,6 +36,7 @@ import {
   normalizeCleanPath,
 } from "@/components/layout/shell-layout";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FloatingMenu } from "@/components/ui/floating-menu";
 import {
   Dialog,
   DialogBody,
@@ -47,10 +48,15 @@ import {
 import { api } from "@/features/desktop/api";
 import { useDesktop } from "@/features/desktop/provider";
 import type { RawJsonlImportPreview, Session } from "@/features/desktop/types";
+import {
+  readCachedDetail,
+  writeCachedDetail,
+} from "@/features/session/detail-cache";
 import { useTerminal } from "@/features/terminal/terminal-context";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 60;
+let handledLocateNonce = 0;
 const JSONL_TRANSFER_PLATFORMS = ["claude", "codex", "pi"] as const;
 const DEFAULT_FALLBACK_PLATFORMS = [
   "claude",
@@ -462,8 +468,15 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
           totalActiveCount: 0,
         };
       }
-      const withData = dashPlatforms.filter(
-        (p) => visible.has(p.platform) && p.count > 0
+      const order = snapshot?.settings.navigationItems ?? [];
+      const rank = (platform: string) => {
+        const idx = order.indexOf(platform);
+        return idx < 0 ? Number.MAX_SAFE_INTEGER : idx;
+      };
+      const byNavigationOrder = <T extends { platform: string }>(list: T[]) =>
+        [...list].sort((a, b) => rank(a.platform) - rank(b.platform));
+      const withData = byNavigationOrder(
+        dashPlatforms.filter((p) => visible.has(p.platform) && p.count > 0)
       );
       const zeroCount = dashPlatforms.filter(
         (p) => visible.has(p.platform) && p.count === 0
@@ -473,11 +486,17 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
         activePlatformList:
           withData.length > 0
             ? withData
-            : dashPlatforms.filter((p) => visible.has(p.platform)).slice(0, 5),
+            : byNavigationOrder(
+                dashPlatforms.filter((p) => visible.has(p.platform))
+              ).slice(0, 5),
         idlePlatformCount: zeroCount,
         totalActiveCount: sum,
       };
-    }, [snapshot?.settings.visiblePlatforms, state.dashboard?.platforms]);
+    }, [
+      snapshot?.settings.navigationItems,
+      snapshot?.settings.visiblePlatforms,
+      state.dashboard?.platforms,
+    ]);
 
   const activePlatformsKey = activePlatformList.map((p) => p.platform).join("|");
   const platformsToQueryInAll = useMemo(
@@ -617,37 +636,70 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
     const targetPlatform =
       selectedSessionPlatform ||
       (currentPlatform === "all" ? "claude" : currentPlatform);
+    const cacheKey = `${targetPlatform}::${selectedSessionKey}`;
+    const cached = readCachedDetail(cacheKey);
+    if (cached) {
+      dispatch({ type: "setSessionDetail", payload: cached.detail });
+      dispatch({ type: "setEditLog", payload: cached.logs });
+    }
     let cancelled = false;
-    Promise.all([
-      api.getSessionDetail(targetPlatform, selectedSessionKey),
-      api.getEditLog(targetPlatform, selectedSessionKey),
-    ])
-      .then(([detail, logs]) => {
-        if (cancelled) return;
-        dispatch({ type: "setSessionDetail", payload: detail });
-        dispatch({ type: "setEditLog", payload: logs });
-      })
-      .catch(() => {
-        if (cancelled) return;
-        dispatch({ type: "setSessionDetail", payload: null });
-        dispatch({ type: "setEditLog", payload: [] });
-      });
+    const timer = window.setTimeout(
+      () => {
+        Promise.all([
+          api.getSessionDetail(targetPlatform, selectedSessionKey),
+          api.getEditLog(targetPlatform, selectedSessionKey),
+        ])
+          .then(([detail, logs]) => {
+            if (cancelled) return;
+            dispatch({ type: "setSessionDetail", payload: detail });
+            dispatch({ type: "setEditLog", payload: logs });
+          })
+          .catch(() => {
+            if (cancelled) return;
+            if (!cached) {
+              dispatch({ type: "setSessionDetail", payload: null });
+              dispatch({ type: "setEditLog", payload: [] });
+            }
+            dispatch({
+              type: "setSessionStatus",
+              payload: { tone: "error", message: t("hud.sessionLoadFailed") },
+            });
+          });
+      },
+      cached ? 200 : 120
+    );
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [currentPlatform, dispatch, selectedSessionKey, selectedSessionPlatform]);
+  }, [currentPlatform, dispatch, selectedSessionKey, selectedSessionPlatform, t]);
+
+  useEffect(() => {
+    const detail = state.sessionDetail;
+    if (!detail || detail.sessionKey !== selectedSessionKey) return;
+    writeCachedDetail(
+      `${detail.platform}::${detail.sessionKey}`,
+      detail,
+      state.editLog
+    );
+  }, [selectedSessionKey, state.editLog, state.sessionDetail]);
 
   // Handle "Locate Active Session in Sidebar" (Rin F-182)
   useEffect(() => {
-    if (state.locateRequestNonce === 0 || !selectedSessionKey) return;
+    if (state.locateRequestNonce === handledLocateNonce || !selectedSessionKey) {
+      return;
+    }
     const plat = selectedSessionPlatform || currentPlatform;
     const compKey = `${plat}::${selectedSessionKey}`;
-    setPinnedCollapsed(false);
-    setProjectsCollapsed(false);
     const matched = sessions.find(
       (s) => s.sessionKey === selectedSessionKey && s.platform === plat
     );
-    if (matched?.cwd) {
+    if (!matched && loading) return;
+    handledLocateNonce = state.locateRequestNonce;
+    if (!matched) return;
+    setPinnedCollapsed(false);
+    setProjectsCollapsed(false);
+    if (matched.cwd) {
       const folderKey = formatWorkspaceShortName(matched.cwd);
       setCollapsedFolders((prev) => {
         const next = new Set(prev);
@@ -655,18 +707,21 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
         return next;
       });
     }
-    requestAnimationFrame(() => {
-      const el = listScrollRef.current?.querySelector<HTMLElement>(
-        `[data-session-row-key="${CSS.escape(compKey)}"]`
-      );
-      if (el) {
-        el.scrollIntoView({ block: "center", behavior: "smooth" });
-        setLocatedCompositeKey(compKey);
-        setTimeout(() => setLocatedCompositeKey(null), 1300);
-      }
-    });
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const el = listScrollRef.current?.querySelector<HTMLElement>(
+          `[data-session-row-key="${CSS.escape(compKey)}"]`
+        );
+        if (el) {
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+          setLocatedCompositeKey(compKey);
+          setTimeout(() => setLocatedCompositeKey(null), 1300);
+        }
+      })
+    );
   }, [
     currentPlatform,
+    loading,
     selectedSessionKey,
     selectedSessionPlatform,
     sessions,
@@ -737,6 +792,31 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
 
     return { pinnedSessions: pinned, projectGroups: groups };
   }, [displaySessions, t]);
+
+  const visibleOrder = useMemo(() => {
+    if (searchQuery.trim() || showArchived) return displaySessions;
+    const list: Session[] = [];
+    if (!pinnedCollapsed) list.push(...pinnedSessions);
+    if (!projectsCollapsed) {
+      for (const group of projectGroups) {
+        if (!collapsedFolders.has(group.key)) list.push(...group.items);
+      }
+    }
+    return list;
+  }, [
+    collapsedFolders,
+    displaySessions,
+    pinnedCollapsed,
+    pinnedSessions,
+    projectGroups,
+    projectsCollapsed,
+    searchQuery,
+    showArchived,
+  ]);
+  const visibleIndex = useMemo(
+    () => new Map(visibleOrder.map((s, idx) => [makeCompositeKey(s), idx])),
+    [visibleOrder]
+  );
 
   const handleRefresh = async ({
     reloadDetail = true,
@@ -929,7 +1009,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
       const lo = Math.min(lastClickedIndex, index);
       const hi = Math.max(lastClickedIndex, index);
       for (let i = lo; i <= hi; i++) {
-        const s = displaySessions[i];
+        const s = visibleOrder[i];
         if (s) next.add(makeCompositeKey(s));
       }
     } else if (next.has(key)) {
@@ -1109,7 +1189,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
 
   const renderSessionRow = (session: Session) => {
     const compKey = makeCompositeKey(session);
-    const globalIdx = displaySessions.indexOf(session);
+    const globalIdx = visibleIndex.get(compKey) ?? -1;
     return (
       <RinSessionRow
         autoExpandSubagents={searchQuery.trim().length > 0}
@@ -1130,8 +1210,8 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
           e.preventDefault();
           e.stopPropagation();
           setCtxMenu({
-            x: Math.min(window.innerWidth - 216, e.clientX),
-            y: Math.min(window.innerHeight - 270, e.clientY),
+            x: e.clientX,
+            y: e.clientY,
             session,
           });
         }}
@@ -1582,13 +1662,11 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
               setCtxMenu(null);
             }}
           />
-          <div
-            data-context-menu
-            style={{ left: `${ctxMenu.x}px`, top: `${ctxMenu.y}px` }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-          className="fixed z-50 w-[208px] rounded-[7px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1 text-xs shadow-2xl"
-        >
+          <FloatingMenu
+            className="w-[208px] rounded-[7px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1 text-xs shadow-2xl"
+            x={ctxMenu.x}
+            y={ctxMenu.y}
+          >
           <button
             type="button"
             onClick={() => {
@@ -1776,7 +1854,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
               {showArchived ? t("session.unarchive") : t("session.archive")}
             </span>
           </button>
-          </div>
+          </FloatingMenu>
         </>
       )}
 

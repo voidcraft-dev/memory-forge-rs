@@ -15,6 +15,7 @@ import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog"
 import { api } from "@/features/desktop/api";
 import type { MessageKey } from "@/features/desktop/i18n";
 import { useDesktop } from "@/features/desktop/provider";
+import { hasBackupWrite } from "@/features/desktop/write-safety";
 import type { EditLogEntry } from "@/features/desktop/types";
 import { cn } from "@/lib/utils";
 
@@ -80,7 +81,7 @@ function DiffBlock({
 }
 
 export function EditLogPanel() {
-  const { t, state, dispatch } = useDesktop();
+  const { t, state, dispatch, snapshot } = useDesktop();
   const { confirm, dialogProps } = useConfirmDialog();
   const editLog = state.editLog;
   const selectedSessionKey =
@@ -343,7 +344,9 @@ export function EditLogPanel() {
 
         {/* Footer Safety Guarantee */}
         <div className="hud-mono shrink-0 border-t border-[var(--line-hair)] bg-[var(--bg-panel)] px-3.5 py-2 text-[10px] text-[var(--text-low)]">
-          {t("hud.safeWriteGuarantee")}
+          {hasBackupWrite(snapshot, activePlatform)
+            ? t("hud.safeWriteGuarantee")
+            : t("hud.editLogOnlyGuarantee")}
         </div>
       </aside>
       <ConfirmDialog {...dialogProps} />

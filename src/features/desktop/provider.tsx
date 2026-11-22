@@ -74,12 +74,26 @@ function saveTabsToStorage(tabs: OpenSessionTab[]) {
   } catch {}
 }
 
+const ACTIVE_TAB_STORAGE_KEY = "memory-forge.active-tab";
+
+function loadInitialSelection(tabs: OpenSessionTab[]) {
+  try {
+    const saved = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+    const tab = tabs.find((t) => sessionTabKey(t.platform, t.sessionKey) === saved);
+    if (tab) {
+      return { selectedSessionPlatform: tab.platform, selectedSessionKey: tab.sessionKey };
+    }
+  } catch {}
+  return { selectedSessionPlatform: null, selectedSessionKey: null };
+}
+
+const initialTabs = loadInitialTabs();
+
 const initialAppState: AppState = {
   currentPlatform: "all",
-  selectedSessionPlatform: null,
+  ...loadInitialSelection(initialTabs),
   workspaceFilter: "all",
   sessions: [],
-  selectedSessionKey: null,
   sessionDetail: null,
   dashboard: null,
   roleFilter: "all",
@@ -97,7 +111,7 @@ const initialAppState: AppState = {
   railCollapsed: false,
   railHoverPeek: false,
   locateRequestNonce: 0,
-  openSessionTabs: loadInitialTabs(),
+  openSessionTabs: initialTabs,
 };
 
 function updateSessionTree(
@@ -477,6 +491,19 @@ export function DesktopProvider({ children }: { children: ReactNode }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [state, dispatch] = useReducer(appReducer, initialAppState);
+
+  useEffect(() => {
+    try {
+      if (state.selectedSessionPlatform && state.selectedSessionKey) {
+        localStorage.setItem(
+          ACTIVE_TAB_STORAGE_KEY,
+          sessionTabKey(state.selectedSessionPlatform, state.selectedSessionKey)
+        );
+      } else {
+        localStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
+      }
+    } catch {}
+  }, [state.selectedSessionPlatform, state.selectedSessionKey]);
   const noticeTimerRef = useRef<number | null>(null);
 
   const locale = snapshot?.settings.locale ?? "zh-CN";

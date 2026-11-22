@@ -505,7 +505,14 @@ export type MessageKey =
   | "hud.tabCloseRight"
   | "hud.clearWorkspaceFilter"
   | "hud.workspaceFilterEmpty"
-  | "hud.unsavedDraft";
+  | "hud.unsavedDraft"
+  | "hud.confirm"
+  | "hud.editLogOnlyBadge"
+  | "hud.editLogOnlyGuarantee"
+  | "hud.batchEraseDescNoBackup"
+  | "hud.batchErasePartial"
+  | "hud.sessionLoadFailed"
+  | "hud.vaultWrongKey";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -1003,6 +1010,13 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "hud.clearWorkspaceFilter": "清除项目过滤",
     "hud.workspaceFilterEmpty": "当前列表中没有这个项目的会话（可加载更多或清除过滤）",
     "hud.unsavedDraft": "有未保存的改写草稿，切回此页签会自动恢复",
+    "hud.confirm": "确认",
+    "hud.editLogOnlyBadge": "可从修改记录回滚",
+    "hud.editLogOnlyGuarantee": "该平台直接写入数据库，不生成 .bak 备份；每次修改都会记入修改记录，可在这里逐条回滚。",
+    "hud.batchEraseDescNoBackup": "将清空选中的 {count} 条可编辑消息内容。该平台写回不生成 .bak 备份，只能通过修改记录逐条回滚，确认执行吗？",
+    "hud.batchErasePartial": "已擦除 {erased}/{total} 条，其余未执行：{error}",
+    "hud.sessionLoadFailed": "无法加载该会话（可能已被删除或移动），可关闭此页签",
+    "hud.vaultWrongKey": "口令不对",
   },
   en: {
     appName: "Memory Forge",
@@ -1499,6 +1513,13 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "hud.clearWorkspaceFilter": "Clear project filter",
     "hud.workspaceFilterEmpty": "No sessions for this project in the current list (load more or clear the filter)",
     "hud.unsavedDraft": "Unsaved edit draft — restored when you return to this tab",
+    "hud.confirm": "Confirm",
+    "hud.editLogOnlyBadge": "Revertible via edit log",
+    "hud.editLogOnlyGuarantee": "This platform writes straight to its database without .bak backups; every change is recorded in the edit log and can be reverted here one by one.",
+    "hud.batchEraseDescNoBackup": "This clears {count} editable messages. This platform keeps no .bak backup, so changes can only be reverted one by one from the edit log. Continue?",
+    "hud.batchErasePartial": "Erased {erased}/{total}; the rest was skipped: {error}",
+    "hud.sessionLoadFailed": "Could not load this session (it may have been deleted or moved). You can close this tab.",
+    "hud.vaultWrongKey": "Wrong passphrase",
   },
 };
 

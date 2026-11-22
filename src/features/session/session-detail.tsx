@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import {
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -41,6 +42,7 @@ import {
   formatTokenCount,
 } from "@/components/layout/shell-layout";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FloatingMenu } from "@/components/ui/floating-menu";
 import {
   api,
   createPrompt,
@@ -49,6 +51,7 @@ import {
 } from "@/features/desktop/api";
 import type { MessageKey } from "@/features/desktop/i18n";
 import { useDesktop } from "@/features/desktop/provider";
+import { hasBackupWrite } from "@/features/desktop/write-safety";
 import type {
   EditLogEntry,
   EditorTarget,
@@ -186,7 +189,7 @@ function formatBlockShortTime(block: TimelineBlock): string {
 }
 
 export function SessionDetail() {
-  const { t, state, dispatch } = useDesktop();
+  const { t, state, dispatch, snapshot } = useDesktop();
   const { startTerminal } = useTerminal();
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
 
@@ -258,6 +261,40 @@ export function SessionDetail() {
   // Inline Surgery Saving & Arsenal Quick-Insert
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(
+    () => new Set()
+  );
+  const frameHandlersRef = useRef<FrameActions | null>(null);
+  const frameActions = useMemo<FrameActions>(
+    () => ({
+      startEdit: (block) => frameHandlersRef.current?.startEdit(block),
+      cancelEdit: () => frameHandlersRef.current?.cancelEdit(),
+      syncDraft: (targetId, content) =>
+        frameHandlersRef.current?.syncDraft(targetId, content),
+      commitEdit: (content) => frameHandlersRef.current?.commitEdit(content),
+      openContextMenu: (e, block) =>
+        frameHandlersRef.current?.openContextMenu(e, block),
+      erase: (block) => frameHandlersRef.current?.erase(block),
+      eraseToolCall: (block, toolCall) =>
+        frameHandlersRef.current?.eraseToolCall(block, toolCall),
+      forkInPty: () => frameHandlersRef.current?.forkInPty(),
+      loadArsenal: () => frameHandlersRef.current?.loadArsenal(),
+      loadExecutionOutput: (block) =>
+        frameHandlersRef.current?.loadExecutionOutput(block),
+      toggleAudit: () => frameHandlersRef.current?.toggleAudit(),
+      revert: (entry) => frameHandlersRef.current?.revert(entry),
+      toggleExpanded: (key) =>
+        setExpandedKeys((prev) => {
+          const next = new Set(prev);
+          if (next.has(key)) next.delete(key);
+          else next.add(key);
+          return next;
+        }),
+    }),
+    []
+  );
+  const lastSearchKeyRef = useRef("");
+  const hadMatchesRef = useRef(false);
   const [arsenalPrompts, setArsenalPrompts] = useState<PromptItem[] | null>(
     null
   );
@@ -623,6 +660,17 @@ export function SessionDetail() {
   );
 
   useEffect(() => {
+    const searchKey = `${sessionDetail?.sessionKey ?? ""}::${searchNeedle}`;
+    const sameSearch =
+      searchKey === lastSearchKeyRef.current && hadMatchesRef.current;
+    lastSearchKeyRef.current = searchKey;
+    hadMatchesRef.current = matchingBlockIds.length > 0;
+    if (sameSearch) {
+      setCurrentMatchIdx((idx) =>
+        Math.min(idx, Math.max(0, matchingBlockIds.length - 1))
+      );
+      return;
+    }
     if (matchingBlockIds.length > 0) {
       setCurrentMatchIdx(0);
       scrollToBlockId(matchingBlockIds[0]);
@@ -631,12 +679,29 @@ export function SessionDetail() {
 
   useEffect(() => {
     messageScrollRef.current?.scrollTo({ top: 0 });
+    setExpandedKeys(new Set());
   }, [sessionDetail?.sessionKey]);
+
+  const statusToast = sessionStatus ? (
+    <div
+      aria-live="polite"
+      className={cn(
+        "hud-mono pointer-events-none absolute top-[46px] left-1/2 z-30 line-clamp-3 max-w-[min(560px,calc(100%-2rem))] -translate-x-1/2 rounded-[4px] border bg-[var(--bg-panel)] px-2.5 py-1 text-[11px] break-words shadow-lg",
+        sessionStatus.tone === "success"
+          ? "border-[var(--emerald-line)] text-[var(--emerald-fg)]"
+          : "border-[var(--crimson-line)] text-[var(--crimson-fg)]"
+      )}
+      role="status"
+    >
+      {sessionStatus.message}
+    </div>
+  ) : null;
 
   // Empty State
   if (!sessionDetail) {
     return (
-      <section className="flex flex-1 flex-col items-center justify-center bg-[var(--bg-void)] px-6 text-center">
+      <section className="relative flex flex-1 flex-col items-center justify-center bg-[var(--bg-void)] px-6 text-center">
+        {statusToast}
         <div className="reticle reticle-cyan mb-4 grid size-14 place-items-center rounded-[5px] border border-[var(--line-strong)] bg-[var(--bg-panel)] text-[var(--cyan-fg)]">
           <Scissors className="size-6" />
         </div>
@@ -703,12 +768,12 @@ export function SessionDetail() {
     });
   };
 
-  const handleCommitInlineEdit = async () => {
+  const handleCommitInlineEdit = async (content: string) => {
     if (!editingBlock) return;
     const targetSessionKey = editingBlock.sessionKey ?? sessionDetail.sessionKey;
     const targetPlatform = editingBlock.platform ?? activePlatform;
     if (targetSessionKey !== sessionDetail.sessionKey) return;
-    const draft = editingBlock;
+    const draft = { ...editingBlock, content };
     setSavingEdit(true);
     setEditError(null);
     dispatch({ type: "setSessionStatus", payload: null });
@@ -750,7 +815,11 @@ export function SessionDetail() {
           }
         : {
             tone: "success",
-            message: `${t("session.messageSaved")} · ${t("hud.safeWriteBadge")}`,
+            message: `${t("session.messageSaved")} · ${t(
+              hasBackupWrite(snapshot, targetPlatform)
+                ? "hud.safeWriteBadge"
+                : "hud.editLogOnlyBadge"
+            )}`,
           },
     });
     setSavingEdit(false);
@@ -843,37 +912,51 @@ export function SessionDetail() {
           start: loCell.startIndex + 1,
           end: hiCell.endIndex + 1,
         }),
-        description: t("hud.batchEraseDesc", { count: targetBlocks.length }),
+        description: t(
+          hasBackupWrite(snapshot, activePlatform)
+            ? "hud.batchEraseDesc"
+            : "hud.batchEraseDescNoBackup",
+          { count: targetBlocks.length }
+        ),
         variant: "danger",
       }))
     ) {
       return;
     }
 
+    const targetSessionKey = sessionDetail.sessionKey;
     setBatchErasing(true);
     try {
-      for (const b of targetBlocks) {
-        await api.editMessage(
-          activePlatform,
-          b.editTarget || b.id,
-          "",
-          sessionDetail.sessionKey,
-          b.content
-        );
-      }
-      const [updated, logs] = await Promise.all([
-        api.getSessionDetail(activePlatform, sessionDetail.sessionKey),
-        api.getEditLog(activePlatform, sessionDetail.sessionKey),
-      ]);
-      applyReloaded(sessionDetail.sessionKey, updated, logs);
+      const result = await api.eraseMessages(
+        activePlatform,
+        targetSessionKey,
+        targetBlocks.map((b) => ({
+          editTarget: b.editTarget || b.id,
+          expectedContent: b.content,
+        }))
+      );
+      const reloaded = await Promise.all([
+        api.getSessionDetail(activePlatform, targetSessionKey),
+        api.getEditLog(activePlatform, targetSessionKey),
+      ]).catch(() => null);
+      if (reloaded) applyReloaded(targetSessionKey, reloaded[0], reloaded[1]);
       setDnaRangeStart(null);
       setDnaRangeEnd(null);
       dispatch({
         type: "setSessionStatus",
-        payload: {
-          tone: "success",
-          message: t("hud.batchErasedToast", { count: targetBlocks.length }),
-        },
+        payload: result.error
+          ? {
+              tone: "error",
+              message: t("hud.batchErasePartial", {
+                erased: result.erased,
+                total: result.total,
+                error: result.error,
+              }),
+            }
+          : {
+              tone: "success",
+              message: t("hud.batchErasedToast", { count: result.erased }),
+            },
       });
     } catch (err) {
       dispatch({
@@ -938,6 +1021,7 @@ export function SessionDetail() {
           : block
       );
       const logs = await api.getEditLog(activePlatform, sessionKey);
+      if (activeSessionKeyRef.current !== sessionKey) return;
       dispatch({
         type: "setSessionDetail",
         payload: { ...sessionDetail, blocks: updatedBlocks },
@@ -1012,6 +1096,11 @@ export function SessionDetail() {
       dispatch({
         type: "setSessionDetail",
         payload: { ...sessionDetail, blocks: updatedBlocks },
+      });
+    } catch {
+      dispatch({
+        type: "setSessionStatus",
+        payload: { tone: "error", message: t("session.refreshFailed") },
       });
     } finally {
       setLoadingAllExecutionOutputs(false);
@@ -1277,6 +1366,55 @@ export function SessionDetail() {
     }
   };
 
+  frameHandlersRef.current = {
+    startEdit: handleStartInlineEdit,
+    cancelEdit: () => dispatch({ type: "setEditingBlock", payload: null }),
+    syncDraft: (targetId, content) => {
+      if (
+        !editingBlock ||
+        editingBlock.id !== targetId ||
+        (editingBlock.sessionKey &&
+          editingBlock.sessionKey !== sessionDetail.sessionKey) ||
+        editingBlock.content === content
+      ) {
+        return;
+      }
+      dispatch({
+        type: "setEditingBlock",
+        payload: { ...editingBlock, content },
+      });
+    },
+    commitEdit: (content) => void handleCommitInlineEdit(content),
+    openContextMenu: (e, block) => {
+      const targetId = block.editTarget || block.id;
+      const isEditingThis =
+        editingBlock?.id === targetId &&
+        (!editingBlock.sessionKey ||
+          editingBlock.sessionKey === sessionDetail.sessionKey);
+      if (window.getSelection()?.toString()?.trim() || isEditingThis) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMsgCtxMenu({
+        x: e.clientX,
+        y: e.clientY,
+        block,
+        forgedEntry: forgedByTarget.get(targetId)?.latest,
+      });
+    },
+    erase: (block) => void handleEraseBlock(block),
+    eraseToolCall: (block, toolCall) =>
+      void handleEraseToolCall(block.id, toolCall),
+    forkInPty: () => {
+      if (forkCommand) void handleStartEmbeddedPty("fork", forkCommand);
+    },
+    loadArsenal: () => void loadArsenalIfNeeded(),
+    loadExecutionOutput: (block) => void handleLoadExecutionOutput(block),
+    toggleAudit: () =>
+      dispatch({ type: "setShowEditLog", payload: !showEditLog }),
+    revert: (entry) => void handleRevertForgedBlock(entry),
+    toggleExpanded: frameActions.toggleExpanded,
+  };
+
   const detailLoading =
     Boolean(selectedSessionKey) &&
     selectedSessionKey !== sessionDetail.sessionKey;
@@ -1311,23 +1449,10 @@ export function SessionDetail() {
         </div>
       )}
 
-      {sessionStatus && (
-        <div
-          aria-live="polite"
-          className={cn(
-            "hud-mono pointer-events-none absolute top-[46px] left-1/2 z-30 line-clamp-3 max-w-[min(560px,calc(100%-2rem))] -translate-x-1/2 rounded-[4px] border bg-[var(--bg-panel)] px-2.5 py-1 text-[11px] break-words shadow-lg",
-            sessionStatus.tone === "success"
-              ? "border-[var(--emerald-line)] text-[var(--emerald-fg)]"
-              : "border-[var(--crimson-line)] text-[var(--crimson-fg)]"
-          )}
-          role="status"
-        >
-          {sessionStatus.message}
-        </div>
-      )}
+      {statusToast}
 
       {/* ==================== 40PX COMPACT 1-ROW STAGE HEADER ==================== */}
-      <header className="z-20 flex h-[40px] shrink-0 items-center gap-2 border-b border-[var(--line-hair)] bg-[var(--bg-panel)] px-3">
+      <header className="@container z-20 flex h-[40px] shrink-0 items-center gap-2 border-b border-[var(--line-hair)] bg-[var(--bg-panel)] px-3">
         <span
           className={cn(
             "hud-mono shrink-0 rounded-[2px] border px-1.5 py-[1px] text-[9.5px] font-bold tracking-wider uppercase",
@@ -1438,7 +1563,7 @@ export function SessionDetail() {
                   loadingAllExecutionOutputs && "animate-spin"
                 )}
               />
-              <span className="hidden xl:inline">
+              <span className="hidden @5xl:inline">
                 {t("hud.loadOutputs", {
                   count: kiroExecutionPlaceholderBlocks.length,
                 })}
@@ -1457,7 +1582,7 @@ export function SessionDetail() {
                 title={`${t("session.openWorkspace")} · ${preferredEditor?.label ?? ""}`}
               >
                 <PreferredIcon className="size-3 text-[var(--cyan-fg)]" />
-                <span className="hidden lg:inline">
+                <span className="hidden @4xl:inline">
                   {preferredEditor?.label ?? t("session.openWorkspace")}
                 </span>
               </button>
@@ -1513,7 +1638,7 @@ export function SessionDetail() {
               ) : (
                 <Download className="size-3" />
               )}
-              <span className="hidden sm:inline">{t("session.export")}</span>
+              <span className="hidden @2xl:inline">{t("session.export")}</span>
               <ChevronDown className="size-3 opacity-70" />
             </button>
             {exportMenuOpen && (
@@ -1606,7 +1731,7 @@ export function SessionDetail() {
             title={t("hud.locateSpike")}
           >
             <Scissors className="size-3 text-[var(--crimson-fg)]" />
-            <span className="hidden lg:inline">{t("hud.locateSpike")}</span>
+            <span className="hidden @5xl:inline">{t("hud.locateSpike")}</span>
           </button>
 
           {/* Same-Screen Live PTY Resume Split Button */}
@@ -1622,7 +1747,9 @@ export function SessionDetail() {
                   title={`${t("hud.liveVerify")} (${resumeCommand})`}
                 >
                   <Play className="size-3 fill-current" />
-                  <span>{t("hud.liveVerify")}</span>
+                  <span className="hidden @3xl:inline">
+                    {t("hud.liveVerify")}
+                  </span>
                 </button>
               )}
               <button
@@ -2096,18 +2223,21 @@ export function SessionDetail() {
                   style={{ transform: `translateY(${virtualItem.start}px)` }}
                 >
                   <CausalFrame
+                    actions={frameActions}
                     arsenalPrompts={arsenalPrompts}
+                    backupWrite={hasBackupWrite(snapshot, activePlatform)}
                     block={block}
                     canEraseToolCalls={activePlatform === "opencode"}
+                    canFork={Boolean(forkCommand)}
+                    editError={isEditingThis ? editError : null}
                     editingContent={isEditingThis ? editingBlock.content : ""}
                     editingOriginal={
                       isEditingThis ? editingBlock.originalContent : ""
                     }
                     erasingToolCallId={erasingToolCallId}
                     estimatedTokens={estTok}
+                    expandedKeys={expandedKeys}
                     forgedInfo={forgedInfo}
-                    forkCommand={forkCommand}
-                    index={virtualItem.index}
                     isCurrentMatch={
                       matchingBlockIds[currentMatchIdx] === block.id
                     }
@@ -2116,56 +2246,6 @@ export function SessionDetail() {
                       block.editTarget &&
                         loadingExecutionTargets.has(block.editTarget)
                     )}
-                    onCancelEdit={() =>
-                      dispatch({ type: "setEditingBlock", payload: null })
-                    }
-                    onChangeEdit={(val) => {
-                      if (!editingBlock) return;
-                      dispatch({
-                        type: "setEditingBlock",
-                        payload: { ...editingBlock, content: val },
-                      });
-                    }}
-                    onCommitEdit={() => void handleCommitInlineEdit()}
-                    onContextMenu={(e) => {
-                      if (
-                        window.getSelection()?.toString()?.trim() ||
-                        isEditingThis
-                      ) {
-                        return;
-                      }
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setMsgCtxMenu({
-                        x: Math.min(window.innerWidth - 216, e.clientX),
-                        y: Math.min(window.innerHeight - 220, e.clientY),
-                        block,
-                        forgedEntry: forgedInfo?.latest,
-                      });
-                    }}
-                    onErase={() => void handleEraseBlock(block)}
-                    onEraseToolCall={(tc) =>
-                      void handleEraseToolCall(block.id, tc)
-                    }
-                    onForkInPty={
-                      forkCommand
-                        ? () => void handleStartEmbeddedPty("fork", forkCommand)
-                        : undefined
-                    }
-                    onLoadArsenal={() => void loadArsenalIfNeeded()}
-                    onLoadExecutionOutput={() =>
-                      void handleLoadExecutionOutput(block)
-                    }
-                    onOpenAudit={() =>
-                      dispatch({ type: "setShowEditLog", payload: !showEditLog })
-                    }
-                    onRevert={
-                      forgedInfo
-                        ? () => void handleRevertForgedBlock(forgedInfo.latest)
-                        : undefined
-                    }
-                    onStartEdit={() => handleStartInlineEdit(block)}
-                    editError={isEditingThis ? editError : null}
                     savingEdit={savingEdit}
                     searchHighlight={searchNeedle}
                     t={t}
@@ -2357,13 +2437,11 @@ export function SessionDetail() {
               setMsgCtxMenu(null);
             }}
           />
-          <div
-            data-context-menu
-            style={{ left: `${msgCtxMenu.x}px`, top: `${msgCtxMenu.y}px` }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-          className="fixed z-50 w-[208px] rounded-[6px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1 text-xs shadow-2xl"
-        >
+          <FloatingMenu
+            className="w-[208px] rounded-[6px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1 text-xs shadow-2xl"
+            x={msgCtxMenu.x}
+            y={msgCtxMenu.y}
+          >
           {msgCtxMenu.block.content.trim().length > 0 && (
             <button
               type="button"
@@ -2466,7 +2544,7 @@ export function SessionDetail() {
               </button>
             </>
           )}
-          </div>
+          </FloatingMenu>
         </>
       )}
 
@@ -2517,13 +2595,16 @@ function CodeBlockRenderer({
 function CollapsibleSystemTag({
   tagName,
   innerText,
+  open,
+  onToggle,
   t,
 }: {
   tagName: string;
   innerText: string;
+  open: boolean;
+  onToggle: () => void;
   t: (key: MessageKey, params?: Record<string, string | number>) => string;
 }) {
-  const [open, setOpen] = useState(false);
   return (
     <div className="my-1.5">
       {open ? (
@@ -2536,7 +2617,7 @@ function CollapsibleSystemTag({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setOpen(false);
+                onToggle();
               }}
               className="hud-mono text-[10px] text-[var(--cyan-fg)] hover:underline"
             >
@@ -2552,7 +2633,7 @@ function CollapsibleSystemTag({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            setOpen(true);
+            onToggle();
           }}
           className="hud-mono inline-flex items-center gap-1.5 rounded-[3px] border border-dashed border-[var(--line-strong)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[10.5px] text-[var(--text-low)] transition-colors hover:border-[var(--cyan-line)] hover:text-[var(--text-hi)]"
         >
@@ -2672,7 +2753,12 @@ function parseProseAndCode(
 function parseContentWithCodeBlocks(
   text: string,
   searchHighlight?: string,
-  t?: (key: MessageKey, params?: Record<string, string | number>) => string
+  t?: (key: MessageKey, params?: Record<string, string | number>) => string,
+  systemTags?: {
+    keyPrefix: string;
+    expandedKeys: Set<string>;
+    onToggle: (key: string) => void;
+  }
 ) {
   if (!text) return "";
   if (!t) return parseProseAndCode(text, searchHighlight);
@@ -2690,10 +2776,13 @@ function parseContentWithCodeBlocks(
       nodes.push(...parseProseAndCode(before, searchHighlight, k * 100));
       k++;
     }
+    const tagKey = `${systemTags?.keyPrefix ?? ""}::sys::${k}`;
     nodes.push(
       <CollapsibleSystemTag
         innerText={m[2] ?? ""}
         key={`sys-${k++}`}
+        onToggle={() => systemTags?.onToggle(tagKey)}
+        open={systemTags?.expandedKeys.has(tagKey) ?? false}
         t={t}
         tagName={m[1] ?? "system-reminder"}
       />
@@ -2994,6 +3083,9 @@ function RinToolActivityList({
   eraseLabel,
   erasingToolCallId,
   onErase,
+  expandedKeys,
+  keyPrefix,
+  onToggleExpanded,
   t,
 }: {
   toolCalls: ToolCallBlock[];
@@ -3001,17 +3093,20 @@ function RinToolActivityList({
   eraseLabel: string;
   erasingToolCallId: string | null;
   onErase: (toolCall: ToolCallBlock) => void;
+  expandedKeys: Set<string>;
+  keyPrefix: string;
+  onToggleExpanded: (key: string) => void;
   t: (key: MessageKey, params?: Record<string, string | number>) => string;
 }) {
-  const [expandedSet, setExpandedSet] = useState<Set<number>>(new Set());
-
+  const infos = useMemo(
+    () => toolCalls.map((tc) => describeToolCall(tc, t)),
+    [toolCalls, t]
+  );
+  const toolKey = (tc: ToolCallBlock, idx: number) =>
+    `${keyPrefix}::tool::${tc.id || idx}`;
   const toggleIdx = (idx: number) => {
-    setExpandedSet((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
+    const tc = toolCalls[idx];
+    if (tc) onToggleExpanded(toolKey(tc, idx));
   };
 
   return (
@@ -3024,8 +3119,8 @@ function RinToolActivityList({
           (tc.error?.length ?? 0);
         const tok = Math.max(8, Math.ceil(outChars / 3.5));
         const isHeavy = tok >= 3500;
-        const isOpen = expandedSet.has(idx);
-        const info = describeToolCall(tc, t);
+        const isOpen = expandedKeys.has(toolKey(tc, idx));
+        const info = infos[idx] ?? describeToolCall(tc, t);
 
         return (
           <div key={tc.id || idx} className="flex flex-col">
@@ -3197,101 +3292,97 @@ function RinToolActivityList({
   );
 }
 
-/* ==================== RIN-STYLE EDITORIAL MESSAGE STREAM + INLINE SURGERY ==================== */
-const CausalFrame = forwardRef<
+type FrameActions = {
+  startEdit: (block: TimelineBlock) => void;
+  cancelEdit: () => void;
+  syncDraft: (targetId: string, content: string) => void;
+  commitEdit: (content: string) => void;
+  openContextMenu: (e: React.MouseEvent, block: TimelineBlock) => void;
+  erase: (block: TimelineBlock) => void;
+  eraseToolCall: (block: TimelineBlock, toolCall: ToolCallBlock) => void;
+  forkInPty: () => void;
+  loadArsenal: () => void;
+  loadExecutionOutput: (block: TimelineBlock) => void;
+  toggleAudit: () => void;
+  revert: (entry: EditLogEntry) => void;
+  toggleExpanded: (key: string) => void;
+};
+
+const InlineEditor = forwardRef<
   HTMLDivElement,
   {
-    block: TimelineBlock;
-    index: number;
-    estimatedTokens: number;
-    forgedInfo?: { count: number; latest: EditLogEntry };
-    isEditing: boolean;
-    editingContent: string;
-    editingOriginal: string;
+    targetId: string;
+    backupWrite: boolean;
+    initialContent: string;
+    original: string;
     savingEdit: boolean;
     editError?: string | null;
     arsenalPrompts: PromptItem[] | null;
-    forkCommand?: string;
-    onStartEdit: () => void;
-    onChangeEdit: (val: string) => void;
-    onCommitEdit: () => void;
-    onCancelEdit: () => void;
-    onContextMenu?: (e: React.MouseEvent) => void;
-    onRevert?: () => void;
-    onOpenAudit: () => void;
-    onErase: () => void;
-    onEraseToolCall: (toolCall: ToolCallBlock) => void;
-    canEraseToolCalls: boolean;
-    erasingToolCallId: string | null;
-    onLoadExecutionOutput?: () => void;
-    loadingExecutionOutput?: boolean;
-    onLoadArsenal: () => void;
-    onForkInPty?: () => void;
+    actions: FrameActions;
     t: (key: MessageKey, params?: Record<string, string | number>) => string;
-    searchHighlight?: string;
-    isCurrentMatch?: boolean;
   }
->(function CausalFrame(
+>(function InlineEditor(
   {
-    block,
-    estimatedTokens,
-    forgedInfo,
-    isEditing,
-    editingContent,
-    editingOriginal,
+    targetId,
+    backupWrite,
+    initialContent,
+    original,
     savingEdit,
     editError,
     arsenalPrompts,
-    onStartEdit,
-    onChangeEdit,
-    onCommitEdit,
-    onCancelEdit,
-    onContextMenu,
-    onRevert,
-    onOpenAudit,
-    onErase,
-    onEraseToolCall,
-    canEraseToolCalls,
-    erasingToolCallId,
-    onLoadExecutionOutput,
-    loadingExecutionOutput,
-    onLoadArsenal,
-    onForkInPty,
+    actions,
     t,
-    searchHighlight,
-    isCurrentMatch,
   },
   ref
 ) {
-  const [thinkingExpanded, setThinkingExpanded] = useState(false);
-  const [longExpanded, setLongExpanded] = useState(false);
+  const [draft, setDraft] = useState(initialContent);
   const [arsenalMenuOpen, setArsenalMenuOpen] = useState(false);
-  const [justCopied, setJustCopied] = useState(false);
+  const draftRef = useRef(draft);
+  const syncTimerRef = useRef<number | null>(null);
 
-  const isThinking = block.role === "thinking";
-  const isUser = block.role === "user";
-  const isForged = Boolean(forgedInfo);
-  const isSpike = estimatedTokens >= SPIKE_TOKEN_THRESHOLD;
-  const hasContent = block.content.trim().length > 0;
-  const isLong =
-    !isThinking && block.content.length > LONG_BLOCK_COLLAPSE_THRESHOLD;
-  const isSearchHit = Boolean(
-    searchHighlight &&
-      block.content.toLowerCase().includes(searchHighlight.toLowerCase())
+  const clearSyncTimer = () => {
+    if (syncTimerRef.current !== null) {
+      window.clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = null;
+    }
+  };
+
+  const flush = () => {
+    clearSyncTimer();
+    actions.syncDraft(targetId, draftRef.current);
+  };
+
+  const handleChange = (value: string) => {
+    setDraft(value);
+    draftRef.current = value;
+    clearSyncTimer();
+    syncTimerRef.current = window.setTimeout(() => {
+      syncTimerRef.current = null;
+      actions.syncDraft(targetId, value);
+    }, 400);
+  };
+
+  const commit = () => {
+    clearSyncTimer();
+    actions.commitEdit(draftRef.current);
+  };
+
+  const cancel = () => {
+    clearSyncTimer();
+    actions.cancelEdit();
+  };
+
+  useEffect(
+    () => () => {
+      if (syncTimerRef.current !== null) {
+        window.clearTimeout(syncTimerRef.current);
+        actions.syncDraft(targetId, draftRef.current);
+      }
+    },
+    [actions, targetId]
   );
-  const displayContent =
-    isLong && !longExpanded && !isSearchHit
-      ? `${block.content.slice(0, LONG_BLOCK_PREVIEW_CHARS)}\n\n...`
-      : block.content;
 
-  const isKiroPlaceholder =
-    block.role === "assistant" &&
-    block.content.trim() === "On it." &&
-    block.editTarget?.includes("::execution::");
-
-  // 1. Zero-Modal Inline Ghost Surgery Mode (for ANY message type)
-  if (isEditing) {
-    return (
+  return (
       <div
         ref={ref}
         className="reticle my-2 rounded-[10px] border-[1.5px] border-[var(--forge)] bg-[var(--bg-panel)] p-3.5 shadow-xl"
@@ -3299,28 +3390,31 @@ const CausalFrame = forwardRef<
         <div className="hud-mono mb-2 rounded-[6px] border border-dashed border-[var(--crimson-line)] bg-[var(--crimson-dim)] px-3 py-2 text-[11.5px] text-[var(--crimson-fg)]">
           <div className="mb-1 flex items-center justify-between text-[10px] font-bold">
             <span>{t("hud.ghostOriginalTitle")}</span>
-            <span>{t("hud.safeBackupTag")}</span>
+            <span>
+              {backupWrite ? t("hud.safeBackupTag") : t("hud.editLogOnlyBadge")}
+            </span>
           </div>
           <div className="max-h-28 overflow-y-auto whitespace-pre-wrap opacity-90">
-            - {editingOriginal || t("hud.previewEmpty")}
+            - {original || t("hud.previewEmpty")}
           </div>
         </div>
 
         <textarea
           autoFocus
+          onBlur={flush}
           className="hud-mono min-h-[136px] w-full resize-y rounded-[6px] border border-[var(--line-strong)] bg-[var(--bg-void)] px-3 py-2 text-[13px] leading-relaxed text-[var(--text-hi)] outline-none focus:border-[var(--forge)]"
-          onChange={(e) => onChangeEdit(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           onKeyDown={(e) => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
               e.preventDefault();
-              onCommitEdit();
+              commit();
             } else if (e.key === "Escape") {
               e.preventDefault();
-              onCancelEdit();
+              cancel();
             }
           }}
           placeholder={t("session.enterContent")}
-          value={editingContent}
+          value={draft}
         />
 
         {editError && (
@@ -3343,7 +3437,7 @@ const CausalFrame = forwardRef<
               <button
                 type="button"
                 onClick={() => {
-                  onLoadArsenal();
+                  actions.loadArsenal();
                   setArsenalMenuOpen((v) => !v);
                 }}
                 className="hud-mono inline-flex items-center gap-1 rounded-[5px] border border-[var(--cyan-line)] bg-[var(--cyan-dim)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--cyan-fg)]"
@@ -3363,8 +3457,8 @@ const CausalFrame = forwardRef<
                         key={p.id}
                         type="button"
                         onClick={() => {
-                          const sep = editingContent.trim() ? "\n\n" : "";
-                          onChangeEdit(`${editingContent}${sep}${p.content}`);
+                          const sep = draft.trim() ? "\n\n" : "";
+                          handleChange(`${draft}${sep}${p.content}`);
                           setArsenalMenuOpen(false);
                         }}
                         className="block w-full truncate rounded-[4px] px-2.5 py-1.5 text-left text-xs hover:bg-[var(--bg-hover)]"
@@ -3382,7 +3476,7 @@ const CausalFrame = forwardRef<
             <button
               type="button"
               disabled={savingEdit}
-              onClick={onCancelEdit}
+              onClick={cancel}
               className="hud-btn"
             >
               {t("session.cancel")}
@@ -3390,7 +3484,7 @@ const CausalFrame = forwardRef<
             <button
               type="button"
               disabled={savingEdit}
-              onClick={onCommitEdit}
+              onClick={commit}
               className="hud-btn hud-btn-forge"
             >
               <Zap className="size-3" />
@@ -3399,6 +3493,117 @@ const CausalFrame = forwardRef<
           </div>
         </div>
       </div>
+  );
+});
+
+/* ==================== RIN-STYLE EDITORIAL MESSAGE STREAM + INLINE SURGERY ==================== */
+const CausalFrame = memo(
+  forwardRef<
+    HTMLDivElement,
+    {
+      block: TimelineBlock;
+      estimatedTokens: number;
+      forgedInfo?: { count: number; latest: EditLogEntry };
+      isEditing: boolean;
+      editingContent: string;
+      editingOriginal: string;
+      savingEdit: boolean;
+      editError?: string | null;
+      arsenalPrompts: PromptItem[] | null;
+      canFork: boolean;
+      backupWrite: boolean;
+      canEraseToolCalls: boolean;
+      erasingToolCallId: string | null;
+      loadingExecutionOutput?: boolean;
+      expandedKeys: Set<string>;
+      actions: FrameActions;
+      t: (key: MessageKey, params?: Record<string, string | number>) => string;
+      searchHighlight?: string;
+      isCurrentMatch?: boolean;
+    }
+  >(function CausalFrame(
+    {
+      block,
+      estimatedTokens,
+      forgedInfo,
+      isEditing,
+      editingContent,
+      editingOriginal,
+      savingEdit,
+      editError,
+      arsenalPrompts,
+      canFork,
+      backupWrite,
+      canEraseToolCalls,
+      erasingToolCallId,
+      loadingExecutionOutput,
+      expandedKeys,
+      actions,
+      t,
+      searchHighlight,
+      isCurrentMatch,
+    },
+    ref
+  ) {
+  const [justCopied, setJustCopied] = useState(false);
+  const thinkingKey = `${block.id}::thinking`;
+  const longKey = `${block.id}::long`;
+  const thinkingExpanded = expandedKeys.has(thinkingKey);
+  const longExpanded = expandedKeys.has(longKey);
+  const toggleThinking = () => actions.toggleExpanded(thinkingKey);
+  const toggleLong = () => actions.toggleExpanded(longKey);
+  const systemTags = {
+    keyPrefix: block.id,
+    expandedKeys,
+    onToggle: actions.toggleExpanded,
+  };
+  const onStartEdit = () => actions.startEdit(block);
+  const onContextMenu = (e: React.MouseEvent) => actions.openContextMenu(e, block);
+  const onRevert = forgedInfo
+    ? () => actions.revert(forgedInfo.latest)
+    : undefined;
+  const onOpenAudit = actions.toggleAudit;
+  const onErase = () => actions.erase(block);
+  const onEraseToolCall = (toolCall: ToolCallBlock) =>
+    actions.eraseToolCall(block, toolCall);
+  const onLoadExecutionOutput = () => actions.loadExecutionOutput(block);
+  const onForkInPty = canFork ? actions.forkInPty : undefined;
+
+  const isThinking = block.role === "thinking";
+  const isUser = block.role === "user";
+  const isForged = Boolean(forgedInfo);
+  const isSpike = estimatedTokens >= SPIKE_TOKEN_THRESHOLD;
+  const hasContent = block.content.trim().length > 0;
+  const isLong =
+    !isThinking && block.content.length > LONG_BLOCK_COLLAPSE_THRESHOLD;
+  const isSearchHit = Boolean(
+    searchHighlight &&
+      block.content.toLowerCase().includes(searchHighlight.toLowerCase())
+  );
+  const displayContent =
+    isLong && !longExpanded && !isSearchHit
+      ? `${block.content.slice(0, LONG_BLOCK_PREVIEW_CHARS)}\n\n...`
+      : block.content;
+
+  const isKiroPlaceholder =
+    block.role === "assistant" &&
+    block.content.trim() === "On it." &&
+    block.editTarget?.includes("::execution::");
+
+  if (isEditing) {
+    return (
+      <InlineEditor
+        actions={actions}
+        backupWrite={backupWrite}
+        arsenalPrompts={arsenalPrompts}
+        editError={editError}
+        initialContent={editingContent}
+        original={editingOriginal}
+        ref={ref}
+        savingEdit={savingEdit}
+        t={t}
+        targetId={block.editTarget || block.id}
+      />
     );
   }
 
@@ -3414,7 +3619,7 @@ const CausalFrame = forwardRef<
         <div className="flex items-center gap-1.5 rounded-[7px] px-2 py-[3px] transition-colors hover:bg-[var(--bg-hover)]/65">
           <button
             type="button"
-            onClick={() => setThinkingExpanded((v) => !v)}
+            onClick={toggleThinking}
             className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
           >
             <span className="inline-flex h-[18px] w-4 shrink-0 items-center justify-center text-[var(--text-low)]">
@@ -3451,7 +3656,7 @@ const CausalFrame = forwardRef<
 
           <button
             type="button"
-            onClick={() => setThinkingExpanded((v) => !v)}
+            onClick={toggleThinking}
             className="flex size-[18px] shrink-0 items-center justify-center rounded-[6px] text-[var(--text-low)]"
           >
             <ChevronRight
@@ -3468,7 +3673,7 @@ const CausalFrame = forwardRef<
             onDoubleClick={onStartEdit}
             className="mt-1 mb-1.5 ml-4 max-h-72 overflow-y-auto border-l-2 border-[var(--line-strong)] pl-3 text-[13px] italic leading-relaxed whitespace-pre-wrap text-[var(--text-mid)]"
           >
-            {parseContentWithCodeBlocks(block.content, searchHighlight, t)}
+            {parseContentWithCodeBlocks(block.content, searchHighlight, t, systemTags)}
           </div>
         )}
       </div>
@@ -3518,7 +3723,7 @@ const CausalFrame = forwardRef<
 
         {hasContent ? (
           <div className="text-[14px] leading-[1.64] break-words text-[var(--text-hi)]">
-            {parseContentWithCodeBlocks(displayContent, searchHighlight, t)}
+            {parseContentWithCodeBlocks(displayContent, searchHighlight, t, systemTags)}
           </div>
         ) : (
           <div className="hud-mono text-xs italic text-[var(--text-low)]">
@@ -3613,7 +3818,10 @@ const CausalFrame = forwardRef<
           canErase={canEraseToolCalls}
           eraseLabel={t("session.eraseToolCall")}
           erasingToolCallId={erasingToolCallId}
+          expandedKeys={expandedKeys}
+          keyPrefix={block.id}
           onErase={onEraseToolCall}
+          onToggleExpanded={actions.toggleExpanded}
           t={t}
           toolCalls={block.toolCalls}
         />
@@ -3629,13 +3837,13 @@ const CausalFrame = forwardRef<
           className="px-2 py-1"
         >
           <div className="text-[14px] leading-[1.7] break-words text-[var(--text-hi)]">
-            {parseContentWithCodeBlocks(displayContent, searchHighlight, t)}
+            {parseContentWithCodeBlocks(displayContent, searchHighlight, t, systemTags)}
           </div>
 
           {isLong && !isSearchHit && (
             <button
               type="button"
-              onClick={() => setLongExpanded((v) => !v)}
+              onClick={toggleLong}
               className="hud-mono mt-1.5 inline-flex items-center gap-1 rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[11px] text-[var(--text-mid)] hover:text-[var(--text-hi)]"
             >
               {longExpanded ? (
@@ -3657,7 +3865,14 @@ const CausalFrame = forwardRef<
           )}
 
           {/* Rin ReplyFooter-style subtle hover action strip */}
-          <div className="mt-1 flex items-center gap-1.5 opacity-0 transition-opacity group-hover/frame:opacity-100">
+          <div
+            className={cn(
+              "mt-1 flex items-center gap-1.5 transition-opacity",
+              isKiroPlaceholder
+                ? "opacity-100"
+                : "opacity-0 group-hover/frame:opacity-100"
+            )}
+          >
             <button
               type="button"
               onClick={() => {
@@ -3737,4 +3952,5 @@ const CausalFrame = forwardRef<
       )}
     </div>
   );
-});
+})
+);
