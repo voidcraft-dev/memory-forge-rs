@@ -11,6 +11,7 @@ import {
   Folder,
   Gem,
   Globe,
+  Hexagon,
   Maximize2,
   MessageSquare,
   Minimize2,
@@ -76,6 +77,7 @@ const platformConfigs: Record<
   cline: { label: "Cline", icon: Boxes, color: "text-fuchsia-400", hoverColor: "group-hover:text-fuchsia-300" },
   antigravity: { label: "Antigravity", icon: Rocket, color: "text-blue-400", hoverColor: "group-hover:text-blue-300" },
   codebuddy: { label: "CodeBuddy", icon: Bot, color: "text-emerald-400", hoverColor: "group-hover:text-emerald-300" },
+  devin: { label: "Devin", icon: Hexagon, color: "text-sky-400", hoverColor: "group-hover:text-sky-300" },
   shell: { label: "Shell", icon: Terminal, color: "text-emerald-400", hoverColor: "group-hover:text-emerald-300" },
 };
 

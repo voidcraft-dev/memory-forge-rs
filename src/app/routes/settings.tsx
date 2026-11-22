@@ -37,6 +37,7 @@ const PLATFORM_ITEMS = [
   { id: "cline", labelKey: "platformCline" as const, isPlatform: true },
   { id: "antigravity", labelKey: "platformAntigravity" as const, isPlatform: true },
   { id: "codebuddy", labelKey: "platformCodebuddy" as const, isPlatform: true },
+  { id: "devin", labelKey: "platformDevin" as const, isPlatform: true },
 ];
 
 const TERMINAL_OPTIONS = {
@@ -592,6 +593,13 @@ export default function SettingsPage() {
               onSave={(v) => updateSettings({ codebuddyHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.codebuddyHome ?? ""}
+            />
+            <PathRow
+              defaultHint="%APPDATA%/devin/cli"
+              label={t("devinHome")}
+              onSave={(v) => updateSettings({ devinHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.devinHome ?? ""}
             />
           </div>
         </section>

@@ -46,6 +46,7 @@ const defaultSettings = {
   clineHome: null,
   antigravityHome: null,
   codebuddyHome: null,
+  devinHome: null,
   preferredTerminal: null,
   visiblePlatforms: [
     "claude",
@@ -68,6 +69,7 @@ const defaultSettings = {
     "cline",
     "antigravity",
     "codebuddy",
+    "devin",
   ] as string[],
   navigationItems: [
     "claude",
@@ -91,6 +93,7 @@ const defaultSettings = {
     "cline",
     "antigravity",
     "codebuddy",
+    "devin",
   ] as string[],
 };
 

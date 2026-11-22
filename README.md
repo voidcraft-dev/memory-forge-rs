@@ -46,7 +46,7 @@ You've spent 40 minutes guiding Claude Code through a complex refactor. It's goi
 
 A **local desktop app** that lets you browse, edit, and manage AI coding assistant sessions.
 
-Works with **Claude Code**, **Codex CLI**, **OpenCode**, **Cursor**, **Kiro CLI**, **Kiro IDE**, **Gemini CLI**, **ZCode**, **WorkBuddy**, **Cindy** (CN & Global), **Zed**, **DeepSeek Harness**, **Qoder CN**, **Qwen Code**, **Cline**, **Grok Build**, **Pi**, **CodeBuddy**, and **Antigravity** — all in one unified interface.
+Works with **Claude Code**, **Codex CLI**, **OpenCode**, **Cursor**, **Kiro CLI**, **Kiro IDE**, **Gemini CLI**, **ZCode**, **WorkBuddy**, **Cindy** (CN & Global), **Zed**, **DeepSeek Harness**, **Qoder CN**, **Qwen Code**, **Cline**, **Grok Build**, **Pi**, **CodeBuddy**, **Devin** (CLI & Desktop), and **Antigravity** — all in one unified interface.
 
 Built with **Tauri v2 + Rust**. No Python, no server, no cloud. 100% local.
 
@@ -111,7 +111,7 @@ That's it. Your AI picks up the corrected memory on the next `--resume`.
 - **Safe Write-back** — An edit rewrites only the message you changed; every other line of the session file is left byte for byte, and a backup is kept before each edit
 
 **Session Management**
-- **Multi-platform** — Claude Code / Codex CLI / OpenCode / Cursor / Kiro CLI / Kiro IDE / Gemini CLI / ZCode / WorkBuddy / Cindy (CN & Global) / Zed / DeepSeek Harness / Qoder CN / Qwen Code / Cline / Grok Build / Pi / CodeBuddy / Antigravity (read-only) in one unified view
+- **Multi-platform** — Claude Code / Codex CLI / OpenCode / Cursor / Kiro CLI / Kiro IDE / Gemini CLI / ZCode / WorkBuddy / Cindy (CN & Global) / Zed / DeepSeek Harness / Qoder CN / Qwen Code / Cline / Grok Build / Pi / CodeBuddy / Devin (CLI & Desktop) / Antigravity (read-only) in one unified view
 - **Dashboard** — Session stats across all platforms
 - **Favorites & Archive** — Star important sessions, soft-archive the rest
 - **Session Aliases** — Give sessions memorable names for quick lookup
@@ -148,6 +148,7 @@ That's it. Your AI picks up the corrected memory on the next `--resume`.
 | **Grok Build** | `grok --resume <id>` | `grok --resume <id> --fork-session` | `~/.grok` |
 | **Pi** | `pi --session <id>` | — | `~/.pi/agent` |
 | **CodeBuddy** | `codebuddy --resume <id>` | — | `~/.codebuddy` |
+| **Devin** | `devin -r <id>` | — | `%APPDATA%\devin\cli` |
 | **Antigravity** | — | — | `~/.gemini/antigravity` (read-only) |
 
 ## Installation
@@ -283,7 +284,7 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 
 一个**本地桌面应用**，让你浏览、编辑、管理 AI 编程助手的会话记录。
 
-支持 **Claude Code**、**Codex CLI**、**OpenCode**、**Cursor**、**Kiro CLI**、**Kiro IDE**、**Gemini CLI**、**ZCode**、**WorkBuddy**、**Cindy**（国内版 / 国际版）、**Zed**、**DeepSeek Harness**、**Qoder CN**、**Qwen Code**、**Cline**、**Grok Build**、**Pi**、**CodeBuddy** 和 **Antigravity**（只读）— 统一界面管理。
+支持 **Claude Code**、**Codex CLI**、**OpenCode**、**Cursor**、**Kiro CLI**、**Kiro IDE**、**Gemini CLI**、**ZCode**、**WorkBuddy**、**Cindy**（国内版 / 国际版）、**Zed**、**DeepSeek Harness**、**Qoder CN**、**Qwen Code**、**Cline**、**Grok Build**、**Pi**、**CodeBuddy**、**Devin**（CLI 与桌面端）和 **Antigravity**（只读）— 统一界面管理。
 
 **Tauri v2 + Rust** 构建。没有 Python，没有服务器，没有云端。100% 本地运行。
 
@@ -348,7 +349,7 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 - **安全写回** — 只改你编辑的那条消息，会话文件其余每一行逐字节保留；每次编辑前自动备份
 
 **会话管理**
-- **多平台统一** — Claude Code / Codex CLI / OpenCode / Cursor / Kiro CLI / Kiro IDE / Gemini CLI / ZCode / WorkBuddy / Cindy（国内版 & 国际版）/ Zed / DeepSeek Harness / Qoder CN / Qwen Code / Cline / Grok Build / Pi / CodeBuddy / Antigravity（只读）一个界面搞定
+- **多平台统一** — Claude Code / Codex CLI / OpenCode / Cursor / Kiro CLI / Kiro IDE / Gemini CLI / ZCode / WorkBuddy / Cindy（国内版 & 国际版）/ Zed / DeepSeek Harness / Qoder CN / Qwen Code / Cline / Grok Build / Pi / CodeBuddy / Devin（CLI 与桌面端）/ Antigravity（只读）一个界面搞定
 - **仪表盘** — 跨平台会话统计
 - **收藏 & 归档** — 星标重要会话，归档不常用的
 - **会话别名** — 给会话起容易记的名字
@@ -385,6 +386,7 @@ Tech discussions & AI experience sharing at [LINUX DO](https://linux.do)
 | **Grok Build** | `grok --resume <id>` | `grok --resume <id> --fork-session` | `~/.grok` |
 | **Pi** | `pi --session <id>` | — | `~/.pi/agent` |
 | **CodeBuddy** | `codebuddy --resume <id>` | — | `~/.codebuddy` |
+| **Devin** | `devin -r <id>` | — | `%APPDATA%\devin\cli` |
 | **Antigravity** | — | — | `~/.gemini/antigravity`（只读） |
 
 ## 安装方式

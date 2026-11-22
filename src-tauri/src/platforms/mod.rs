@@ -5,6 +5,7 @@ pub mod cline;
 pub mod codebuddy;
 pub mod codex;
 pub mod cursor;
+pub mod devin;
 pub mod dsh;
 pub mod gemini;
 pub mod grok;
@@ -660,6 +661,15 @@ pub fn get_adapter(
                 .unwrap_or_else(|| home.join(".codebuddy"));
             Ok(Box::new(codebuddy::CodeBuddyPlatform::new(path)))
         }
+        "devin" => {
+            let path = settings
+                .devin_home
+                .as_ref()
+                .map(PathBuf::from)
+                .or_else(devin::default_devin_home)
+                .unwrap_or_else(|| home.join("AppData").join("Roaming").join("devin").join("cli"));
+            Ok(Box::new(devin::DevinPlatform::new(path)))
+        }
         _ => Err(format!("Unknown platform: {platform}")),
     }
 }
@@ -723,6 +733,11 @@ pub fn build_commands(platform: &str, session_id: &str) -> HashMap<String, Strin
         "codebuddy" => {
             let mut m = HashMap::new();
             m.insert("resume".into(), format!("codebuddy --resume {session_id}"));
+            m
+        }
+        "devin" => {
+            let mut m = HashMap::new();
+            m.insert("resume".into(), format!("devin -r {session_id}"));
             m
         }
         _ => {

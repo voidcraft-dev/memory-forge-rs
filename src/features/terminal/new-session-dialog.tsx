@@ -6,6 +6,7 @@ import {
   Cpu,
   FolderOpen,
   Gem,
+  Hexagon,
   Orbit,
   Pi as PiIcon,
   Sparkles,
@@ -49,6 +50,7 @@ const AI_LAUNCHERS: SessionLauncher[] = [
   { id: "pi", label: "Pi", command: "pi", platform: "pi", icon: PiIcon, accent: "text-pink-400" },
   { id: "kiro", label: "Kiro CLI", command: "kiro-cli chat", platform: "kiro", icon: Sparkles, accent: "text-purple-400" },
   { id: "codebuddy", label: "CodeBuddy", command: "codebuddy", platform: "codebuddy", icon: Bot, accent: "text-emerald-400" },
+  { id: "devin", label: "Devin CLI", command: "devin", platform: "devin", icon: Hexagon, accent: "text-sky-400" },
 ];
 
 function shellLaunchers(): SessionLauncher[] {

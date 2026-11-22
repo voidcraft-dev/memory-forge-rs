@@ -12,6 +12,7 @@ const NEW_SESSION_COMMANDS: &[&str] = &[
     "pi",
     "kiro-cli chat",
     "codebuddy",
+    "devin",
     "$SHELL",
     "pwsh",
     "powershell.exe",
@@ -28,6 +29,7 @@ const RESUME_COMMANDS: &[(&str, &[&str])] = &[
     ("gemini --resume ", &[""]),
     ("grok --resume ", &["", " --fork-session"]),
     ("pi --session ", &[""]),
+    ("devin -r ", &[""]),
     ("codebuddy --resume ", &[""]),
 ];
 
@@ -551,6 +553,7 @@ mod tests {
             "grok",
             "pi",
             "codebuddy",
+            "devin",
         ] {
             for command in build_commands(platform, id).values() {
                 assert!(validate_launch_command(command).is_ok(), "{command}");

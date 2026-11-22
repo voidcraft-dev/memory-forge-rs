@@ -22,6 +22,7 @@ import {
   Zap,
   MessageSquare,
   Globe,
+  Hexagon,
   SquareTerminal,
   SquarePen,
   type LucideIcon,
@@ -62,6 +63,7 @@ const navigation: Array<{
   { to: "/cline", labelKey: "platformCline", icon: Boxes, navigationId: "cline" },
   { to: "/antigravity", labelKey: "platformAntigravity", icon: Rocket, navigationId: "antigravity" },
   { to: "/codebuddy", labelKey: "platformCodebuddy", icon: Bot, navigationId: "codebuddy" },
+  { to: "/devin", labelKey: "platformDevin", icon: Hexagon, navigationId: "devin" },
   { to: "/prompts", labelKey: "prompts" as const, icon: BookOpen },
   { to: "/settings", labelKey: "settings" as const, icon: Settings2 },
   { to: "/about", labelKey: "about" as const, icon: Info },
@@ -107,6 +109,7 @@ export default function ShellLayout() {
     "cline",
     "antigravity",
     "codebuddy",
+    "devin",
   ];
   const visibleNavigation = [
     navigation[0],

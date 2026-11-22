@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Bot, Boxes, Brain, Code, Cpu, Flame, Rocket, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap, MessageSquare, Globe, SquarePen } from "lucide-react";
+import { ArrowRight, Bot, Boxes, Brain, Code, Hexagon, Cpu, Flame, Rocket, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap, MessageSquare, Globe, SquarePen } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/logo";
@@ -208,6 +208,16 @@ const platformMeta = [
     iconBg: "bg-emerald-500/15 text-emerald-400 group-hover:scale-110",
     hoverGlow: "hover:shadow-[0_8px_30px_rgba(16,185,129,0.12)] hover:-translate-y-1"
   },
+  {
+    key: "devin",
+    label: "Devin",
+    icon: Hexagon,
+    to: "/devin",
+    gradient: "from-sky-500/10 to-blue-600/5",
+    border: "border-sky-500/20 hover:border-blue-500/40",
+    iconBg: "bg-sky-500/15 text-sky-400 group-hover:scale-110",
+    hoverGlow: "hover:shadow-[0_8px_30px_rgba(14,165,233,0.12)] hover:-translate-y-1"
+  },
 ] as const;
 
 export default function DashboardPage() {
@@ -216,7 +226,7 @@ export default function DashboardPage() {
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? [
     "claude", "codex", "opencode", "grok", "pi", "cursor", "kiro", "kiro-ide",
-    "gemini", "zcode", "workbuddy", "cindy", "cindy-global", "zed", "dsh", "qoder-cn", "qwen", "cline", "antigravity", "codebuddy",
+    "gemini", "zcode", "workbuddy", "cindy", "cindy-global", "zed", "dsh", "qoder-cn", "qwen", "cline", "antigravity", "codebuddy", "devin",
   ];
   const visiblePlatformsKey = visiblePlatforms.join("|");
   const snapshotReady = Boolean(snapshot);
