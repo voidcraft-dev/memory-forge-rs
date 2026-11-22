@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Archive,
   ArchiveRestore,
+  Check,
   CheckCircle,
   CheckSquare,
   ChevronDown,
@@ -18,12 +19,14 @@ import {
   Pin,
   RefreshCw,
   Search,
+  Settings,
   Star,
   Terminal,
   Upload,
   X,
 } from "lucide-react";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -46,6 +49,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api } from "@/features/desktop/api";
+import type { MessageKey } from "@/features/desktop/i18n";
 import { useDesktop } from "@/features/desktop/provider";
 import type { RawJsonlImportPreview, Session } from "@/features/desktop/types";
 import {
@@ -453,7 +457,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
   }, [ctxMenu]);
 
   // Active platforms derived from dashboard summary
-  const { activePlatformList, idlePlatformCount, totalActiveCount } =
+  const { activePlatformList, idlePlatforms, totalActiveCount } =
     useMemo(() => {
       const visible = new Set(
         snapshot?.settings.visiblePlatforms ?? DEFAULT_FALLBACK_PLATFORMS
@@ -464,7 +468,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
           activePlatformList: DEFAULT_FALLBACK_PLATFORMS.filter((p) =>
             visible.has(p)
           ).map((platform) => ({ platform, count: 0 })),
-          idlePlatformCount: 0,
+          idlePlatforms: [] as string[],
           totalActiveCount: 0,
         };
       }
@@ -478,18 +482,24 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
       const withData = byNavigationOrder(
         dashPlatforms.filter((p) => visible.has(p.platform) && p.count > 0)
       );
-      const zeroCount = dashPlatforms.filter(
-        (p) => visible.has(p.platform) && p.count === 0
-      ).length;
       const sum = withData.reduce((acc, p) => acc + p.count, 0);
+      const listed =
+        withData.length > 0
+          ? withData
+          : byNavigationOrder(
+              dashPlatforms.filter((p) => visible.has(p.platform))
+            ).slice(0, 5);
+      const listedKeys = new Set(listed.map((p) => p.platform));
       return {
-        activePlatformList:
-          withData.length > 0
-            ? withData
-            : byNavigationOrder(
-                dashPlatforms.filter((p) => visible.has(p.platform))
-              ).slice(0, 5),
-        idlePlatformCount: zeroCount,
+        activePlatformList: listed,
+        idlePlatforms: byNavigationOrder(
+          dashPlatforms.filter(
+            (p) =>
+              visible.has(p.platform) &&
+              p.count === 0 &&
+              !listedKeys.has(p.platform)
+          )
+        ).map((p) => p.platform),
         totalActiveCount: sum,
       };
     }, [
@@ -1334,62 +1344,17 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
         </div>
 
         {/* Engine / Platform Icon Filter Bar (Rin ENGINE_FILTERS style!) */}
-        <div className="flex flex-wrap items-center gap-1">
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className={cn(
-              "inline-flex h-[22px] items-center gap-1 rounded-[5px] px-1.5 text-[11px] font-medium transition-colors",
-              currentPlatform === "all"
-                ? "bg-[var(--row-selected)] font-semibold text-[var(--text-hi)]"
-                : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
-            )}
-          >
-            <LayoutGrid className="size-3" />
-            <span>{t("session.filter.all")}</span>
-            {totalActiveCount > 0 && (
-              <span className="hud-mono text-[10px] text-[var(--text-low)]">
-                {totalActiveCount}
-              </span>
-            )}
-          </button>
-
-          {activePlatformList.map((item) => {
-            const active = currentPlatform === item.platform;
-            const label = PLATFORM_LABELS[item.platform] ?? item.platform;
-            return (
-              <button
-                key={item.platform}
-                type="button"
-                onClick={() => navigate(`/${item.platform}`)}
-                className={cn(
-                  "inline-flex h-[22px] items-center gap-1 rounded-[5px] px-1.5 text-[11px] font-medium transition-colors",
-                  active
-                    ? "bg-[var(--row-selected)] font-semibold text-[var(--text-hi)]"
-                    : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
-                )}
-                title={label}
-              >
-                <PlatformMark platform={item.platform} size={12} />
-                <span>{label}</span>
-                {item.count > 0 && (
-                  <span className="hud-mono text-[10px] text-[var(--text-low)]">
-                    {item.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-
-          {idlePlatformCount > 0 && (
-            <span
-              className="hud-mono px-1 text-[10px] text-[var(--text-low)]"
-              title={t("hud.idlePlatformsHint", { count: idlePlatformCount })}
-            >
-              {t("hud.idlePlatforms", { count: idlePlatformCount })}
-            </span>
-          )}
-        </div>
+        <PlatformSwitcher
+          activePlatforms={activePlatformList}
+          currentPlatform={currentPlatform}
+          idlePlatforms={idlePlatforms}
+          onManage={() => navigate("/settings")}
+          onSelect={(platform) =>
+            navigate(platform === "all" ? "/" : `/${platform}`)
+          }
+          t={t}
+          totalCount={totalActiveCount}
+        />
 
         {workspaceFilterActive && (
           <div
@@ -1963,6 +1928,265 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
 }
 
 /* ==================== RIN-STYLE 30PX BORDERLESS SESSION ROW ==================== */
+type PlatformOption = {
+  platform: string;
+  label: string;
+  count: number;
+  idle: boolean;
+};
+
+function SwitcherIcon({ platform }: { platform: string }) {
+  return platform === "all" ? (
+    <LayoutGrid className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+  ) : (
+    <PlatformMark platform={platform} size={13} />
+  );
+}
+
+function PlatformSwitcher({
+  currentPlatform,
+  activePlatforms,
+  idlePlatforms,
+  totalCount,
+  onSelect,
+  onManage,
+  t,
+}: {
+  currentPlatform: string;
+  activePlatforms: Array<{ platform: string; count: number }>;
+  idlePlatforms: string[];
+  totalCount: number;
+  onSelect: (platform: string) => void;
+  onManage: () => void;
+  t: (key: MessageKey, params?: Record<string, string | number>) => string;
+}) {
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    width: number;
+  } | null>(null);
+  const [highlight, setHighlight] = useState(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const labelOf = (platform: string) => PLATFORM_LABELS[platform] ?? platform;
+  const options: PlatformOption[] = [
+    {
+      platform: "all",
+      label: t("session.filter.all"),
+      count: totalCount,
+      idle: false,
+    },
+    ...activePlatforms.map((p) => ({
+      platform: p.platform,
+      label: labelOf(p.platform),
+      count: p.count,
+      idle: false,
+    })),
+    ...idlePlatforms.map((platform) => ({
+      platform,
+      label: labelOf(platform),
+      count: 0,
+      idle: true,
+    })),
+  ];
+  const current = options.find((o) => o.platform === currentPlatform) ?? {
+    platform: currentPlatform,
+    label: labelOf(currentPlatform),
+    count: 0,
+    idle: true,
+  };
+
+  const close = (refocus: boolean) => {
+    setMenu(null);
+    if (refocus) triggerRef.current?.focus();
+  };
+  const openMenu = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const selected = options.findIndex((o) => o.platform === currentPlatform);
+    setHighlight(selected < 0 ? 0 : selected);
+    setMenu({ x: rect.left, y: rect.bottom + 4, width: rect.width });
+  };
+  const choose = (platform: string) => {
+    close(true);
+    if (platform !== currentPlatform) onSelect(platform);
+  };
+
+  useEffect(() => {
+    if (!menu) return;
+    listRef.current?.focus();
+    const onPointerDown = (ev: PointerEvent) => {
+      const target = ev.target as Node | null;
+      if (
+        target &&
+        (listRef.current?.contains(target) ||
+          triggerRef.current?.contains(target))
+      ) {
+        return;
+      }
+      setMenu(null);
+    };
+    const dismiss = () => setMenu(null);
+    window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("blur", dismiss);
+    window.addEventListener("resize", dismiss);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("blur", dismiss);
+      window.removeEventListener("resize", dismiss);
+    };
+  }, [menu]);
+
+  useEffect(() => {
+    if (!menu) return;
+    listRef.current
+      ?.querySelector<HTMLElement>('[data-highlighted="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [highlight, menu]);
+
+  const onListKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((i) => (i + 1) % options.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((i) => (i - 1 + options.length) % options.length);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setHighlight(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setHighlight(options.length - 1);
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      const option = options[highlight];
+      if (option) choose(option.platform);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      close(true);
+    } else if (e.key === "Tab") {
+      close(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        aria-expanded={Boolean(menu)}
+        aria-haspopup="listbox"
+        aria-label={t("hud.platformSwitcher")}
+        className={cn(
+          "flex h-[28px] w-full min-w-0 items-center gap-2 rounded-[6px] border bg-[var(--bg-void)] px-2 text-xs transition-colors",
+          menu
+            ? "border-[var(--line-strong)]"
+            : "border-[var(--line-hair)] hover:border-[var(--line-strong)]"
+        )}
+        onClick={() => (menu ? close(false) : openMenu())}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openMenu();
+          }
+        }}
+        ref={triggerRef}
+        title={t("hud.platformSwitcher")}
+        type="button"
+      >
+        <SwitcherIcon platform={current.platform} />
+        <span className="min-w-0 flex-1 truncate text-left font-medium text-[var(--text-hi)]">
+          {current.label}
+        </span>
+        {current.count > 0 && (
+          <span className="hud-mono shrink-0 text-[10.5px] text-[var(--text-low)]">
+            {current.count}
+          </span>
+        )}
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 text-[var(--text-low)] transition-transform",
+            menu && "rotate-180"
+          )}
+        />
+      </button>
+
+      {menu && (
+        <FloatingMenu
+          className="rounded-[8px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1 text-xs shadow-2xl"
+          width={menu.width}
+          x={menu.x}
+          y={menu.y}
+        >
+          <div
+            aria-label={t("hud.platformSwitcher")}
+            className="outline-none"
+            onKeyDown={onListKeyDown}
+            ref={listRef}
+            role="listbox"
+            tabIndex={-1}
+          >
+            {options.map((option, idx) => {
+              const selected = option.platform === currentPlatform;
+              const firstIdle = option.idle && !options[idx - 1]?.idle;
+              return (
+                <Fragment key={option.platform}>
+                  {firstIdle && (
+                    <div className="mt-1 border-t border-[var(--line-subtle)] px-2 pt-1.5 pb-1 text-[10.5px] text-[var(--text-low)]">
+                      {t("hud.idlePlatformsGroup")}
+                    </div>
+                  )}
+                  <button
+                    aria-selected={selected}
+                    className={cn(
+                      "flex h-8 w-full items-center gap-2 rounded-[5px] px-2 text-left",
+                      idx === highlight && "bg-[var(--bg-hover)]",
+                      option.idle
+                        ? "text-[var(--text-low)]"
+                        : "text-[var(--text-hi)]"
+                    )}
+                    data-highlighted={idx === highlight}
+                    onClick={() => choose(option.platform)}
+                    onMouseEnter={() => setHighlight(idx)}
+                    role="option"
+                    type="button"
+                  >
+                    <SwitcherIcon platform={option.platform} />
+                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    {!option.idle && (
+                      <span className="hud-mono shrink-0 text-[10.5px] text-[var(--text-low)]">
+                        {option.count}
+                      </span>
+                    )}
+                    <Check
+                      className={cn(
+                        "size-3.5 shrink-0 text-[var(--cyan-fg)]",
+                        !selected && "invisible"
+                      )}
+                    />
+                  </button>
+                </Fragment>
+              );
+            })}
+            <div className="my-1 border-t border-[var(--line-subtle)]" />
+            <button
+              className="flex h-8 w-full items-center gap-2 rounded-[5px] px-2 text-left text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+              onClick={() => {
+                close(false);
+                onManage();
+              }}
+              type="button"
+            >
+              <Settings className="size-3.5 shrink-0" />
+              <span className="truncate">{t("hud.managePlatforms")}</span>
+            </button>
+          </div>
+        </FloatingMenu>
+      )}
+    </>
+  );
+}
+
 function RinSessionRow({
   session,
   rowDataKey,

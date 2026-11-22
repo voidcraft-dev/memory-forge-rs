@@ -523,7 +523,10 @@ export type MessageKey =
   | "hud.timeJustNow"
   | "hud.timeMinutesAgo"
   | "hud.timeHoursAgo"
-  | "hud.timeDaysAgo";
+  | "hud.timeDaysAgo"
+  | "hud.platformSwitcher"
+  | "hud.idlePlatformsGroup"
+  | "hud.managePlatforms";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -1039,6 +1042,9 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "hud.timeMinutesAgo": "{count} 分钟前",
     "hud.timeHoursAgo": "{count} 小时前",
     "hud.timeDaysAgo": "{count} 天前",
+    "hud.platformSwitcher": "切换平台",
+    "hud.idlePlatformsGroup": "暂无会话",
+    "hud.managePlatforms": "管理平台…",
   },
   en: {
     appName: "Memory Forge",
@@ -1553,6 +1559,9 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "hud.timeMinutesAgo": "{count}m ago",
     "hud.timeHoursAgo": "{count}h ago",
     "hud.timeDaysAgo": "{count}d ago",
+    "hud.platformSwitcher": "Switch platform",
+    "hud.idlePlatformsGroup": "No sessions yet",
+    "hud.managePlatforms": "Manage platforms…",
   },
 };
 

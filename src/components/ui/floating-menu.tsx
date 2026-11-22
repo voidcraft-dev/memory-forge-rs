@@ -6,11 +6,13 @@ const EDGE_MARGIN = 8;
 export function FloatingMenu({
   x,
   y,
+  width,
   className,
   children,
 }: {
   x: number;
   y: number;
+  width?: number;
   className?: string;
   children: ReactNode;
 }) {
@@ -42,7 +44,7 @@ export function FloatingMenu({
       )}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
-      style={{ left: position.left, top: position.top }}
+      style={{ left: position.left, top: position.top, width }}
     >
       {children}
     </div>

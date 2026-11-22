@@ -185,8 +185,8 @@ export function buildSeed(overrides: Partial<MockSeed> = {}): MockSeed {
     codebuddyHome: null,
     devinHome: null,
     preferredTerminal: null,
-    visiblePlatforms: ["claude", "codex"],
-    navigationItems: ["claude", "codex"],
+    visiblePlatforms: ["claude", "codex", "pi"],
+    navigationItems: ["claude", "codex", "pi"],
   };
 
   return {
@@ -203,12 +203,13 @@ export function buildSeed(overrides: Partial<MockSeed> = {}): MockSeed {
       backupWritePlatforms: ["claude"],
       settings,
     },
-    sessions: { claude, codex },
+    sessions: { claude, codex, pi: [] },
     details,
     dashboard: {
       platforms: [
         { platform: "claude", count: claude.length, items: claude },
         { platform: "codex", count: codex.length, items: codex.slice(0, 20) },
+        { platform: "pi", count: 0, items: [] },
       ],
       trend: [],
       recentSessions: [...claude.slice(0, 3), ...codex.slice(0, 3)],

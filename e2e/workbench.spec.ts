@@ -279,3 +279,29 @@ test("context menu near the bottom edge stays inside the window", async ({ page 
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
   expect(box.y).toBeGreaterThanOrEqual(0);
 });
+
+test("platform switcher lists platforms and switches by mouse and keyboard", async ({ page }) => {
+  await openApp(page);
+  const trigger = page.getByRole("button", { name: "Switch platform" });
+  await expect(trigger).toContainText("All");
+
+  await trigger.click();
+  const list = page.getByRole("listbox", { name: "Switch platform" });
+  await expect(list.getByRole("option")).toHaveText([/All\s*78/, /Claude\s*8/, /Codex\s*70/, /Pi/]);
+  await expect(list).toContainText("No sessions yet");
+  await list.getByRole("option", { name: /Codex/ }).click();
+  await expect(page).toHaveURL(/\/codex$/);
+  await expect(list).toHaveCount(0);
+  await expect(page.locator('[data-session-row-key^="claude::"]')).toHaveCount(0);
+
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/claude$/);
+
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(list).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
