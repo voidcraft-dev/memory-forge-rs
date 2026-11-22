@@ -56,6 +56,7 @@ export type DesktopSnapshot = {
   dbPath: string;
   trayAvailable: boolean;
   autostartSupported: boolean;
+  backupWritePlatforms?: string[];
   settings: DesktopSettings;
 };
 
@@ -180,6 +181,17 @@ export type PlatformSummary = {
   count: number;
   latest: string;
   items: Session[];
+};
+
+export type EraseTarget = {
+  editTarget: string;
+  expectedContent: string;
+};
+
+export type BatchEraseResult = {
+  erased: number;
+  total: number;
+  error: string | null;
 };
 
 export type EditLogEntry = {

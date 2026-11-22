@@ -1,10 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  BatchEraseResult,
   DashboardSummary,
   DesktopSettingsPatch,
   DesktopSnapshot,
   EditorTarget,
   EditLogEntry,
+  EraseTarget,
   PromptCreateInput,
   PromptItem,
   PromptUpdateInput,
@@ -494,6 +496,17 @@ export const api = {
       return invoke("session_erase_tool_call", { platform, toolCallId, sessionKey });
     }
     throw new Error("Tool call erasure is only available in the desktop app");
+  },
+
+  async eraseMessages(
+    platform: string,
+    sessionKey: string,
+    targets: EraseTarget[]
+  ): Promise<BatchEraseResult> {
+    if (isTauriRuntime()) {
+      return invoke("session_erase_messages", { platform, sessionKey, targets });
+    }
+    throw new Error("Batch erase is only available in the desktop app");
   },
 
   async getEditLog(platform: string, sessionKey: string): Promise<EditLogEntry[]> {

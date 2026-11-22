@@ -898,6 +898,77 @@ pub fn session_erase_tool_call(
     Ok(())
 }
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EraseTarget {
+    pub edit_target: String,
+    pub expected_content: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchEraseResult {
+    pub erased: usize,
+    pub total: usize,
+    pub error: Option<String>,
+}
+
+pub fn session_erase_messages(
+    db: &DbState,
+    settings: &AppSettings,
+    platform: &str,
+    session_key: &str,
+    targets: &[EraseTarget],
+) -> Result<BatchEraseResult, String> {
+    let adapter = platforms::get_adapter(platform, settings)?;
+    let total = targets.len();
+    if POSITIONAL_EDIT_PLATFORMS.contains(&platform) {
+        let detail = adapter.get_session_detail(session_key, &HashMap::new())?;
+        let unchanged = targets.iter().all(|target| {
+            detail.blocks.iter().any(|block| {
+                block.edit_target == target.edit_target && block.content == target.expected_content
+            })
+        });
+        if !unchanged {
+            return Err(STALE_MESSAGE_ERROR.to_string());
+        }
+    }
+
+    let _batch = crate::platforms::safe_write::BackupBatch::begin();
+    let mut erased = 0;
+    for target in targets {
+        let outcome = adapter
+            .update_message(&target.edit_target, "")
+            .and_then(|old_content| {
+                database::insert_edit_log(
+                    &db.conn,
+                    platform,
+                    session_key,
+                    &target.edit_target,
+                    &old_content,
+                    "",
+                )
+                .map_err(|error| {
+                    let _ = adapter.update_message(&target.edit_target, &old_content);
+                    error
+                })
+            });
+        if let Err(error) = outcome {
+            return Ok(BatchEraseResult {
+                erased,
+                total,
+                error: Some(error),
+            });
+        }
+        erased += 1;
+    }
+    Ok(BatchEraseResult {
+        erased,
+        total,
+        error: None,
+    })
+}
+
 pub fn session_edit_log(
     db: &DbState,
     platform: &str,
@@ -1376,5 +1447,75 @@ mod tests {
             1
         );
         fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn batch_erase_checks_every_target_before_writing() {
+        let (root, forge_path, _) = tool_test_paths("batch-erase");
+        let forge_conn = Connection::open(&forge_path).expect("create Memory Forge database");
+        database::init_tables(&forge_conn).expect("initialize Memory Forge database");
+        let db = DbState {
+            conn: Mutex::new(forge_conn),
+            db_path: forge_path.to_string_lossy().to_string(),
+        };
+        let settings = AppSettings::default();
+
+        let session_path = root.join("session.jsonl");
+        let original = concat!(
+            r#"{"type":"user","message":{"role":"user","content":"first"}}"#,
+            "\n",
+            r#"{"type":"user","message":{"role":"user","content":"second"}}"#,
+            "\n",
+            r#"{"type":"user","message":{"role":"user","content":"third"}}"#,
+            "\n"
+        );
+        fs::write(&session_path, original).expect("write session");
+        let session_key = session_path.to_string_lossy().to_string();
+        let detail = session_detail(&db, &settings, "claude", &session_key).expect("load detail");
+        let target = |index: usize, expected: &str| EraseTarget {
+            edit_target: detail.blocks[index].edit_target.clone(),
+            expected_content: expected.to_string(),
+        };
+
+        let stale = session_erase_messages(
+            &db,
+            &settings,
+            "claude",
+            &session_key,
+            &[target(0, "first"), target(1, "changed elsewhere")],
+        );
+        assert!(stale.is_err());
+        assert_eq!(fs::read_to_string(&session_path).unwrap(), original);
+        assert!(session_edit_log(&db, "claude", &session_key)
+            .expect("read log")
+            .is_empty());
+
+        let result = session_erase_messages(
+            &db,
+            &settings,
+            "claude",
+            &session_key,
+            &[target(0, "first"), target(2, "third")],
+        )
+        .expect("erase");
+        assert_eq!((result.erased, result.total), (2, 2));
+        assert!(result.error.is_none());
+        let after = session_detail(&db, &settings, "claude", &session_key).expect("reload");
+        let contents: Vec<&str> = after.blocks.iter().map(|block| block.content.as_str()).collect();
+        assert_eq!(contents, vec!["", "second", ""]);
+        assert_eq!(
+            session_edit_log(&db, "claude", &session_key)
+                .expect("read log")
+                .len(),
+            2
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn backup_write_platforms_are_known_platforms() {
+        for platform in crate::platforms::BACKUP_WRITE_PLATFORMS {
+            assert!(DASHBOARD_PLATFORM_NAMES.contains(platform), "{platform}");
+        }
     }
 }

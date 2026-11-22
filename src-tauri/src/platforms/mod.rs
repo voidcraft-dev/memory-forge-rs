@@ -32,6 +32,23 @@ use crate::settings::AppSettings;
 const MAX_IN_MEMORY_SESSION_INDEX_BYTES: usize = 256 * 1024;
 pub const MAX_INDEX_SOURCE_LINE_BYTES: usize = 1024 * 1024;
 
+pub const BACKUP_WRITE_PLATFORMS: &[&str] = &[
+    "claude",
+    "codebuddy",
+    "qoder-cn",
+    "cline",
+    "codex",
+    "cindy",
+    "cindy-global",
+    "dsh",
+    "gemini",
+    "grok",
+    "kiro",
+    "kiro-ide",
+    "pi",
+    "qwen",
+];
+
 /// Coerce a timestamp into epoch milliseconds as a string, the format the
 /// frontend expects. Accepts RFC 3339 text as well as epoch seconds,
 /// milliseconds, microseconds or nanoseconds.

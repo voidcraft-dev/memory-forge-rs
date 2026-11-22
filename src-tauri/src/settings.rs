@@ -234,6 +234,7 @@ pub struct DesktopSnapshot {
     pub db_path: String,
     pub tray_available: bool,
     pub autostart_supported: bool,
+    pub backup_write_platforms: Vec<String>,
     pub settings: AppSettings,
 }
 
@@ -482,6 +483,10 @@ fn snapshot_from_settings(
         db_path,
         tray_available: shell::tray_available(),
         autostart_supported,
+        backup_write_platforms: crate::platforms::BACKUP_WRITE_PLATFORMS
+            .iter()
+            .map(|platform| platform.to_string())
+            .collect(),
         settings,
     })
 }

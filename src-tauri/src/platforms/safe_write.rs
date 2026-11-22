@@ -16,6 +16,8 @@
 //! now unreachable file, and everything it wrote afterwards would be lost.
 //! The backup is what covers a write that is interrupted half way.
 
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -27,6 +29,32 @@ use sha2::{Digest, Sha256};
 
 static BACKUP_ROOT: OnceLock<PathBuf> = OnceLock::new();
 const MAX_BACKUPS_PER_FILE: usize = 3;
+
+thread_local! {
+    static BATCH_BACKED_UP: RefCell<Option<HashSet<PathBuf>>> = const { RefCell::new(None) };
+}
+
+pub struct BackupBatch(());
+
+impl BackupBatch {
+    pub fn begin() -> Self {
+        BATCH_BACKED_UP.with(|cell| *cell.borrow_mut() = Some(HashSet::new()));
+        Self(())
+    }
+}
+
+impl Drop for BackupBatch {
+    fn drop(&mut self) {
+        BATCH_BACKED_UP.with(|cell| *cell.borrow_mut() = None);
+    }
+}
+
+fn claim_backup(path: &Path) -> bool {
+    BATCH_BACKED_UP.with(|cell| match cell.borrow_mut().as_mut() {
+        Some(seen) => seen.insert(path.to_path_buf()),
+        None => true,
+    })
+}
 
 /// Where pre-edit copies of session files are kept. Set once at startup;
 /// backups are skipped while it is unset.
@@ -101,7 +129,9 @@ impl SourceSnapshot {
             _ => return Err(busy_error(&self.path)),
         }
         if let Some(root) = backup_root {
-            write_backup(root, &self.path, &self.bytes)?;
+            if claim_backup(&self.path) {
+                write_backup(root, &self.path, &self.bytes)?;
+            }
         }
         write_in_place(&self.path, &self.bytes, new_bytes)
     }
@@ -730,6 +760,43 @@ mod tests {
         assert_eq!(kept, vec!["v2", "v3", "v4"]);
         // Nothing but the session and the backup folder is left behind.
         assert_eq!(fs::read_dir(&root).unwrap().count(), 2);
+        fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn backup_batch_keeps_the_pre_batch_copy() {
+        let root = temp_dir("batch");
+        let file = root.join("session.jsonl");
+        let backups = root.join("backups");
+        fs::write(&file, "v0").expect("seed");
+        let kept_backups = || {
+            let mut kept: Vec<String> = fs::read_dir(&backups)
+                .unwrap()
+                .flatten()
+                .map(|entry| fs::read_to_string(entry.path()).unwrap())
+                .collect();
+            kept.sort();
+            kept
+        };
+
+        {
+            let _batch = BackupBatch::begin();
+            for round in 1..=5 {
+                SourceSnapshot::read(&file)
+                    .expect("read")
+                    .replace_with_backup_root(format!("v{round}").as_bytes(), Some(&backups))
+                    .expect("replace");
+                std::thread::sleep(std::time::Duration::from_millis(3));
+            }
+        }
+        assert_eq!(fs::read_to_string(&file).unwrap(), "v5");
+        assert_eq!(kept_backups(), vec!["v0"]);
+
+        SourceSnapshot::read(&file)
+            .expect("read")
+            .replace_with_backup_root(b"v6", Some(&backups))
+            .expect("replace");
+        assert_eq!(kept_backups(), vec!["v0", "v5"]);
         fs::remove_dir_all(&root).ok();
     }
 
