@@ -1725,7 +1725,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
                   type: "setSessionStatus",
                   payload: {
                     tone: "error",
-                    message: t("session.terminalOpenFailed"),
+                    message: t("hud.copyResumeFailed"),
                   },
                 });
               }

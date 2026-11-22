@@ -65,7 +65,7 @@ export default function AboutPage() {
                 {t("appNameEn")}
               </span>
               <h1 className="mt-0.5 text-xl font-bold text-[var(--text-hi)]">
-                {t("appName")} · v{snapshot?.version ?? "3.9.0"}
+                {t("appName")} · v{snapshot?.version ?? ""}
               </h1>
               <p className="mt-1 text-xs text-[var(--text-mid)]">
                 {t("aboutDesc")}
@@ -88,7 +88,7 @@ export default function AboutPage() {
               className="hud-btn"
             >
               <MessageCircle className="size-3" />
-              <span>QQ群: 野生AI观测</span>
+              <span>{t("hud.qqGroupLabel")}: 野生AI观测</span>
             </button>
             <button
               type="button"
@@ -121,8 +121,10 @@ export default function AboutPage() {
                     {t("updateAvailable")}: v{updateInfo.latestVersion}
                   </h3>
                   <p className="hud-mono text-xs text-[var(--text-mid)]">
-                    当前 v{updateInfo.currentVersion} → 最新 v
-                    {updateInfo.latestVersion}
+                    {t("hud.updateVersionLine", {
+                      current: updateInfo.currentVersion,
+                      latest: updateInfo.latestVersion,
+                    })}
                   </p>
                 </div>
               </div>

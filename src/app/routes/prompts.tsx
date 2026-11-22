@@ -24,6 +24,7 @@ import {
   listPrompts,
   updatePrompt,
 } from "@/features/desktop/api";
+import type { MessageKey } from "@/features/desktop/i18n";
 import { useDesktop } from "@/features/desktop/provider";
 import type { PromptCreateInput, PromptItem } from "@/features/desktop/types";
 import { cn } from "@/lib/utils";
@@ -43,20 +44,25 @@ const PRESET_TAGS = [
 const FENJUE_PROMPT_NAMES = ["焚诀·CTF 比赛"];
 const FENJUE_VAULT_KEY = "焚诀";
 
-function formatTime(iso: string): string {
+function formatTime(
+  iso: string,
+  t: (key: MessageKey, params?: Record<string, string | number>) => string,
+  locale: string
+): string {
   const d = new Date(iso);
   const diffMin = Math.floor((Date.now() - d.getTime()) / 60_000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return t("hud.timeJustNow");
+  if (diffMin < 60) return t("hud.timeMinutesAgo", { count: diffMin });
   const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH}h ago`;
+  if (diffH < 24) return t("hud.timeHoursAgo", { count: diffH });
   const diffD = Math.floor(diffH / 24);
-  if (diffD < 7) return `${diffD}d ago`;
-  return d.toLocaleDateString();
+  if (diffD < 7) return t("hud.timeDaysAgo", { count: diffD });
+  return d.toLocaleDateString(locale);
 }
 
 export default function PromptsPage() {
-  const { t } = useDesktop();
+  const { t, snapshot } = useDesktop();
+  const locale = snapshot?.settings.locale ?? "zh-CN";
   const { confirm, dialogProps } = useConfirmDialog();
   const [prompts, setPrompts] = useState<PromptItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -342,7 +348,7 @@ export default function PromptsPage() {
                 setShowVault(true);
               }}
               className="hud-btn px-2"
-              title="密库口令"
+              title={t("hud.vaultKeyTitle")}
             >
               <KeyRound className="size-3.5 text-[var(--forge-fg)]" />
             </button>
@@ -437,7 +443,7 @@ export default function PromptsPage() {
                         type="button"
                         onClick={() => openEditModal(prompt)}
                         className="rounded p-1 text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
-                        title="编辑"
+                        title={t("editPrompt")}
                       >
                         <Pencil className="size-3" />
                       </button>
@@ -445,7 +451,7 @@ export default function PromptsPage() {
                         type="button"
                         onClick={() => void handleDelete(prompt.id)}
                         className="rounded p-1 text-[var(--text-low)] hover:bg-[var(--crimson-dim)] hover:text-[var(--crimson-fg)]"
-                        title="删除"
+                        title={t("hud.deletePromptTitle")}
                       >
                         <Trash2 className="size-3" />
                       </button>
@@ -461,7 +467,7 @@ export default function PromptsPage() {
                         .map((tag) => (
                           <span
                             key={tag}
-                            className="hud-mono rounded-[2px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-1.5 py-[0.5px] text-[9.5px] text-[var(--cyan-fg)]"
+                            className="hud-mono rounded-[2px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-1.5 py-[0.5px] text-[10.5px] text-[var(--cyan-fg)]"
                           >
                             {tag}
                           </span>
@@ -477,7 +483,7 @@ export default function PromptsPage() {
                 <div className="hud-mono flex items-center justify-between border-t border-[var(--line-subtle)] pt-2 text-[10px] text-[var(--text-low)]">
                   <span>
                     {t("usedCount", { count: prompt.useCount })} ·{" "}
-                    {formatTime(prompt.updatedAt)}
+                    {formatTime(prompt.updatedAt, t, locale)}
                   </span>
                   <div className="flex items-center gap-1.5">
                     <button

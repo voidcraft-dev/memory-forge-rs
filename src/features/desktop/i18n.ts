@@ -512,7 +512,18 @@ export type MessageKey =
   | "hud.batchEraseDescNoBackup"
   | "hud.batchErasePartial"
   | "hud.sessionLoadFailed"
-  | "hud.vaultWrongKey";
+  | "hud.vaultWrongKey"
+  | "hud.ptyResizeHint"
+  | "hud.qqGroupLabel"
+  | "hud.updateVersionLine"
+  | "hud.codexProjectRootHint"
+  | "hud.copyResumeFailed"
+  | "hud.moreFiles"
+  | "hud.todoItems"
+  | "hud.timeJustNow"
+  | "hud.timeMinutesAgo"
+  | "hud.timeHoursAgo"
+  | "hud.timeDaysAgo";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -1017,6 +1028,17 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "hud.batchErasePartial": "已擦除 {erased}/{total} 条，其余未执行：{error}",
     "hud.sessionLoadFailed": "无法加载该会话（可能已被删除或移动），可关闭此页签",
     "hud.vaultWrongKey": "口令不对",
+    "hud.ptyResizeHint": "上下拖拽调整终端高度 · 拖到底自动收起 · 双击恢复默认",
+    "hud.qqGroupLabel": "QQ群",
+    "hud.updateVersionLine": "当前 v{current} → 最新 v{latest}",
+    "hud.codexProjectRootHint": "例如 F:\\workspace；留空显示全部 Codex 会话",
+    "hud.copyResumeFailed": "无法获取或复制恢复命令",
+    "hud.moreFiles": "+{count} 个文件",
+    "hud.todoItems": "{count} 项",
+    "hud.timeJustNow": "刚刚",
+    "hud.timeMinutesAgo": "{count} 分钟前",
+    "hud.timeHoursAgo": "{count} 小时前",
+    "hud.timeDaysAgo": "{count} 天前",
   },
   en: {
     appName: "Memory Forge",
@@ -1520,6 +1542,17 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "hud.batchErasePartial": "Erased {erased}/{total}; the rest was skipped: {error}",
     "hud.sessionLoadFailed": "Could not load this session (it may have been deleted or moved). You can close this tab.",
     "hud.vaultWrongKey": "Wrong passphrase",
+    "hud.ptyResizeHint": "Drag to resize the terminal · drag to the bottom to collapse · double-click to reset",
+    "hud.qqGroupLabel": "QQ group",
+    "hud.updateVersionLine": "Current v{current} → latest v{latest}",
+    "hud.codexProjectRootHint": "e.g. F:\\workspace; leave empty to show all Codex sessions",
+    "hud.copyResumeFailed": "Could not get or copy the resume command",
+    "hud.moreFiles": "+{count} files",
+    "hud.todoItems": "{count} items",
+    "hud.timeJustNow": "just now",
+    "hud.timeMinutesAgo": "{count}m ago",
+    "hud.timeHoursAgo": "{count}h ago",
+    "hud.timeDaysAgo": "{count}d ago",
   },
 };
 

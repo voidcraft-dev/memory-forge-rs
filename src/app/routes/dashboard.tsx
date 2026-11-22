@@ -284,7 +284,7 @@ export default function DashboardPage() {
                         {loading && !summary ? "…" : count}
                       </strong>
                     </div>
-                    <div className="hud-mono mt-1 flex items-center justify-between text-[9.5px] text-[var(--text-low)]">
+                    <div className="hud-mono mt-1 flex items-center justify-between text-[10.5px] text-[var(--text-low)]">
                       <span className="truncate">{latest}</span>
                       <ArrowUpRight className="size-2.5 opacity-0 group-hover:opacity-100" />
                     </div>
@@ -361,14 +361,14 @@ export default function DashboardPage() {
                       <div className="mb-1 flex items-center justify-between gap-2">
                         <span
                           className={cn(
-                            "hud-mono rounded-[2px] border px-1.5 py-[0.5px] text-[9px] font-bold uppercase",
+                            "hud-mono rounded-[2px] border px-1.5 py-[0.5px] text-[10px] font-bold uppercase",
                             getPlatformBadgeStyle(sess.platform)
                           )}
                         >
                           {platLabel}
                         </span>
                         {sess.cwd && (
-                          <span className="hud-mono truncate text-[9.5px] text-[var(--text-low)]">
+                          <span className="hud-mono truncate text-[10.5px] text-[var(--text-low)]">
                             {formatWorkspaceShortName(sess.cwd)}
                           </span>
                         )}

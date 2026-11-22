@@ -42,7 +42,7 @@ function DiffBlock({
   return (
     <div className="mt-2 space-y-1.5">
       <div className="rounded-[3px] border border-[var(--crimson-line)] bg-[var(--crimson-dim)] p-2">
-        <div className="hud-mono mb-1 flex items-center justify-between text-[9.5px] font-bold tracking-wider text-[var(--crimson-fg)] uppercase">
+        <div className="hud-mono mb-1 flex items-center justify-between text-[10.5px] font-bold tracking-wider text-[var(--crimson-fg)] uppercase">
           <span>- {t("editLog.before")}</span>
           {!expanded && oldText.length > maxLen && (
             <button
@@ -60,7 +60,7 @@ function DiffBlock({
       </div>
 
       <div className="rounded-[3px] border border-[var(--emerald-line)] bg-[var(--emerald-dim)] p-2">
-        <div className="hud-mono mb-1 flex items-center justify-between text-[9.5px] font-bold tracking-wider text-[var(--emerald-fg)] uppercase">
+        <div className="hud-mono mb-1 flex items-center justify-between text-[10.5px] font-bold tracking-wider text-[var(--emerald-fg)] uppercase">
           <span>+ {t("editLog.after")}</span>
           {!expanded && newText.length > maxLen && (
             <button
@@ -270,7 +270,7 @@ export function EditLogPanel() {
                   <div className="hud-mono flex items-center justify-between text-[10px] text-[var(--text-low)]">
                     <span className="flex items-center gap-1 text-[var(--forge-fg)] font-semibold">
                       <Clock className="size-2.5" />
-                      {new Date(entry.createdAt).toLocaleString("zh-CN", {
+                      {new Date(entry.createdAt).toLocaleString(snapshot?.settings.locale ?? "zh-CN", {
                         month: "2-digit",
                         day: "2-digit",
                         hour: "2-digit",

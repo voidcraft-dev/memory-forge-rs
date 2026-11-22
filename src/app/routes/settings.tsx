@@ -388,7 +388,7 @@ export default function SettingsPage() {
               value={snapshot.settings.codexHome ?? ""}
             />
             <HudPathRow
-              defaultHint="例如 F:\workspace；留空显示全部 Codex 会话"
+              defaultHint={t("hud.codexProjectRootHint")}
               label={t("codexProjectRootPath")}
               onSave={(v) => updateSettings({ codexProjectRoot: v || null })}
               pickMode="directory"

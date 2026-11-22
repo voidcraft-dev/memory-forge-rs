@@ -160,7 +160,7 @@ type DnaCellBucket = {
   previewTime: string;
 };
 
-function formatBlockShortTime(block: TimelineBlock): string {
+function formatBlockShortTime(block: TimelineBlock, locale: string): string {
   const raw =
     block.createdAt ??
     (typeof block.sourceMeta?.createdAt === "string" ||
@@ -182,7 +182,7 @@ function formatBlockShortTime(block: TimelineBlock): string {
     d = new Date(raw);
   }
   if (!Number.isFinite(d.getTime())) return "";
-  return d.toLocaleTimeString("zh-CN", {
+  return d.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -190,6 +190,7 @@ function formatBlockShortTime(block: TimelineBlock): string {
 
 export function SessionDetail() {
   const { t, state, dispatch, snapshot } = useDesktop();
+  const locale = snapshot?.settings.locale ?? "zh-CN";
   const { startTerminal } = useTerminal();
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
 
@@ -577,11 +578,11 @@ export function SessionDetail() {
         previewText: cleanPreview,
         questionPreview: nearUserText,
         answerPreview: nearAsstText || cleanPreview,
-        previewTime: formatBlockShortTime(repBlock),
+        previewTime: formatBlockShortTime(repBlock, locale),
       });
     }
     return cells;
-    }, [blockTokensList, blocks, forgedByTarget, t]);
+    }, [blockTokensList, blocks, forgedByTarget, locale, t]);
 
   const maxDnaTok = useMemo(
     () => Math.max(3000, ...dnaCells.map((c) => c.tokens)),
@@ -1455,7 +1456,7 @@ export function SessionDetail() {
       <header className="@container z-20 flex h-[40px] shrink-0 items-center gap-2 border-b border-[var(--line-hair)] bg-[var(--bg-panel)] px-3">
         <span
           className={cn(
-            "hud-mono shrink-0 rounded-[2px] border px-1.5 py-[1px] text-[9.5px] font-bold tracking-wider uppercase",
+            "hud-mono shrink-0 rounded-[2px] border px-1.5 py-[1px] text-[10px] font-bold tracking-wider uppercase",
             getPlatformBadgeStyle(activePlatform)
           )}
         >
@@ -1773,7 +1774,7 @@ export function SessionDetail() {
                       const isResume = kind === "resume";
                       return (
                         <div key={kind} className="space-y-0.5">
-                          <div className="hud-mono px-2 py-1 text-[9.5px] font-bold tracking-wider text-[var(--text-low)] uppercase">
+                          <div className="hud-mono px-2 py-1 text-[10.5px] font-bold tracking-wider text-[var(--text-low)] uppercase">
                             {t(isResume ? "hud.resumeGroup" : "hud.forkGroup")}
                           </div>
                           <button
@@ -1926,7 +1927,7 @@ export function SessionDetail() {
               value={inlineSearch}
             />
             {searchNeedle && (
-              <div className="flex shrink-0 items-center gap-0.5 text-[9.5px] text-[var(--forge-fg)]">
+              <div className="flex shrink-0 items-center gap-0.5 text-[10px] text-[var(--forge-fg)]">
                 <span>
                   {matchingBlockIds.length > 0
                     ? `${currentMatchIdx + 1}/${matchingBlockIds.length}`
@@ -1991,11 +1992,11 @@ export function SessionDetail() {
               })()}
             </span>
           ) : blocks.length > 0 ? (
-            <span className="hidden truncate text-[9.5px] text-[var(--text-low)] lg:inline">
+            <span className="hidden truncate text-[10.5px] text-[var(--text-low)] lg:inline">
               {t("hud.dnaHint", { count: blocks.length })}
             </span>
           ) : (
-            <span className="hidden truncate text-[9.5px] text-[var(--text-low)] lg:inline">
+            <span className="hidden truncate text-[10.5px] text-[var(--text-low)] lg:inline">
               {t("hud.emptyTape")}
             </span>
           )}
@@ -2018,7 +2019,7 @@ export function SessionDetail() {
                   type="button"
                   onClick={() => dispatch({ type: "setRoleFilter", payload: key })}
                   className={cn(
-                    "rounded-[3px] border px-1.5 py-0.5 text-[9.5px] transition-colors",
+                    "rounded-[3px] border px-1.5 py-0.5 text-[10.5px] transition-colors",
                     active
                       ? "border-[var(--line-strong)] bg-[var(--bg-panel)] font-bold text-[var(--text-hi)]"
                       : "border-transparent text-[var(--text-low)] hover:bg-[var(--bg-panel)] hover:text-[var(--text-hi)]"
@@ -2101,7 +2102,7 @@ export function SessionDetail() {
                   )}
                 >
                   {showCellLabels && (
-                    <div className="hud-mono mb-[1px] flex items-center justify-between overflow-hidden text-[8.5px] leading-none whitespace-nowrap text-[var(--text-low)]">
+                    <div className="hud-mono mb-[1px] flex items-center justify-between overflow-hidden text-[9.5px] leading-none whitespace-nowrap text-[var(--text-low)]">
                       <span>{String(cell.startIndex + 1).padStart(2, "0")}</span>
                       <span>{formatTokenCount(cell.tokens)}</span>
                     </div>
@@ -2391,12 +2392,12 @@ export function SessionDetail() {
                           <span className="hud-mono">{cell.previewTime}</span>
                         )}
                         {cell.forged && (
-                          <span className="hud-mono rounded bg-amber-500/20 px-1 text-[9.5px] font-bold text-amber-300">
+                          <span className="hud-mono rounded bg-amber-500/20 px-1 text-[10.5px] font-bold text-amber-300">
                             ⚡{t("hud.forgedStamp", { count: 1 }).split(" · ")[0]}
                           </span>
                         )}
                         {cell.spike && (
-                          <span className="hud-mono rounded bg-rose-500/20 px-1 text-[9.5px] font-bold text-rose-300">
+                          <span className="hud-mono rounded bg-rose-500/20 px-1 text-[10px] font-bold text-rose-300">
                             ⚠{formatTokenCount(cell.tokens)}
                           </span>
                         )}
@@ -2562,9 +2563,10 @@ function CodeBlockRenderer({
   language: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useDesktop();
   return (
     <div className="my-2 overflow-hidden rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-code)]">
-      <div className="hud-mono flex items-center justify-between border-b border-[var(--line-hair)] bg-[var(--line-subtle)] px-3 py-1 text-[9.5px] text-[var(--text-low)] select-none">
+      <div className="hud-mono flex items-center justify-between border-b border-[var(--line-hair)] bg-[var(--line-subtle)] px-3 py-1 text-[10px] text-[var(--text-low)] select-none">
         <span className="font-bold tracking-wider text-[var(--cyan-fg)] uppercase">
           {language || "code"}
         </span>
@@ -2582,7 +2584,7 @@ function CodeBlockRenderer({
           )}
         >
           {copied ? <Check className="size-2.5" /> : <Copy className="size-2.5" />}
-          <span>{copied ? "COPIED" : "COPY"}</span>
+          <span>{copied ? t("copied") : t("copy")}</span>
         </button>
       </div>
       <pre className="hud-mono overflow-x-auto px-3 py-2 text-[11.5px] leading-relaxed whitespace-pre text-[var(--text-hi)]">
@@ -2951,7 +2953,9 @@ function describeToolCall(
       verb: t("hud.toolVerbEdit"),
       fileName: fileMatches[0] || rawName,
       summary:
-        fileMatches.length > 1 ? `+${fileMatches.length - 1} files` : undefined,
+        fileMatches.length > 1
+          ? t("hud.moreFiles", { count: fileMatches.length - 1 })
+          : undefined,
       added: added + removed > 0 ? added : undefined,
       removed: added + removed > 0 ? removed : undefined,
       diffPairs:
@@ -3063,7 +3067,7 @@ function describeToolCall(
     const count = Array.isArray(args.todos) ? args.todos.length : undefined;
     return {
       verb: t("hud.toolVerbTodo"),
-      summary: count !== undefined ? `${count} items` : undefined,
+      summary: count !== undefined ? t("hud.todoItems", { count }) : undefined,
     };
   }
 
