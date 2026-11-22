@@ -81,8 +81,8 @@ jobs:
             | Linux | `*_amd64.AppImage` | 免安装，双击运行 |
             | Linux | `*_amd64.deb` | Debian/Ubuntu 安装包 |
           releaseDraft: false
-          prerelease: false
-          args: ${{ matrix.tauri-args }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          args: ${{ format('{0}{1}', matrix.tauri-args, (contains(github.ref_name, '-') && matrix.platform == 'windows-latest') && ' --bundles nsis' || '') }}
 
       - name: Package Windows portable zip
         if: matrix.platform == 'windows-latest'
