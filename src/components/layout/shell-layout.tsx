@@ -55,6 +55,8 @@ import { TerminalViewport } from "@/features/terminal/terminal-viewport";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_PTY_STATUSES = new Set(["starting", "running", "stopping"]);
+const IS_MACOS =
+  typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
 const NON_PLATFORM_ROUTES = new Set([
   "radar",
   "dashboard",
@@ -580,7 +582,10 @@ export default function ShellLayout() {
       {/* ==================== 38PX FRAMELESS UNIFIED TITLEBAR (RIN / OPENCODE STYLE) ==================== */}
       <header
         data-tauri-drag-region
-        className="z-30 flex h-[38px] min-w-0 items-center border-b border-[var(--line-hair)] bg-[var(--bg-rack)] pl-1.5 select-none"
+        className={cn(
+          "z-30 flex h-[38px] min-w-0 items-center border-b border-[var(--line-hair)] bg-[var(--bg-rack)] select-none",
+          isTauriApp && IS_MACOS ? "pl-[78px]" : "pl-1.5"
+        )}
       >
         {/* Left: Sidebar Toggle (with Hover Peek!) + Locate Button + Adaptive Session TabStrip */}
         <div className="flex min-w-0 flex-1 items-center gap-0.5 self-stretch pr-2">
@@ -970,7 +975,7 @@ export default function ShellLayout() {
           </div>
 
           {/* Native-Feel Desktop Window Controls (Minimize / Maximize / Close) */}
-          {isTauriApp && (
+          {isTauriApp && !IS_MACOS && (
             <div className="flex h-full items-center border-l border-[var(--line-subtle)]">
               <button
                 type="button"
@@ -1105,7 +1110,7 @@ export default function ShellLayout() {
                   ? "bg-[var(--cyan)]"
                   : "hover:bg-[var(--cyan)]/80"
               )}
-              title="上下拖拽调整终端高度 · 拖到底自动收起 · 双击恢复默认"
+              title={t("hud.ptyResizeHint")}
             />
           )}
           {!state.ptyBayOpen ? (
@@ -1625,7 +1630,7 @@ export default function ShellLayout() {
                   type: "setSessionStatus",
                   payload: {
                     tone: "error",
-                    message: t("session.terminalOpenFailed"),
+                    message: t("hud.copyResumeFailed"),
                   },
                 });
               }

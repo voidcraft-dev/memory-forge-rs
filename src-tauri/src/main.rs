@@ -501,6 +501,7 @@ fn main() {
             None::<Vec<&'static str>>,
         ))
         .setup(|app| {
+            #[cfg(not(target_os = "macos"))]
             if let Some(main_window) = app.get_webview_window("main") {
                 let _ = main_window.set_decorations(false);
             }

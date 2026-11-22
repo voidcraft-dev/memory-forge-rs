@@ -75,6 +75,17 @@ function saveTabsToStorage(tabs: OpenSessionTab[]) {
 }
 
 const ACTIVE_TAB_STORAGE_KEY = "memory-forge.active-tab";
+const THEME_CACHE_KEY = "memory-forge.theme";
+
+function loadCachedTheme(): string | null {
+  try {
+    return localStorage.getItem(THEME_CACHE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+const cachedTheme = loadCachedTheme();
 
 function loadInitialSelection(tabs: OpenSessionTab[]) {
   try {
@@ -507,7 +518,15 @@ export function DesktopProvider({ children }: { children: ReactNode }) {
   const noticeTimerRef = useRef<number | null>(null);
 
   const locale = snapshot?.settings.locale ?? "zh-CN";
-  const resolvedTheme = resolveHudTheme(snapshot?.settings.theme);
+  const resolvedTheme = resolveHudTheme(snapshot?.settings.theme ?? cachedTheme);
+  const snapshotReady = Boolean(snapshot);
+
+  useEffect(() => {
+    if (!snapshotReady) return;
+    try {
+      localStorage.setItem(THEME_CACHE_KEY, resolvedTheme);
+    } catch {}
+  }, [resolvedTheme, snapshotReady]);
 
   const t = useMemo(
     () => (key: MessageKey, params?: Record<string, string | number>) => {
@@ -567,15 +586,32 @@ export function DesktopProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateSettings = async (patch: DesktopSettingsPatch) => {
+    const appearanceOnly = Object.keys(patch).every(
+      (key) => key === "theme" || key === "locale"
+    );
+    const previous = snapshot;
+    if (appearanceOnly && previous) {
+      setSnapshot({
+        ...previous,
+        settings: {
+          ...previous.settings,
+          ...(patch.theme ? { theme: patch.theme } : {}),
+          ...(patch.locale ? { locale: patch.locale } : {}),
+        },
+      });
+    }
     setSaving(true);
     setError(null);
     try {
       const next = await updateDesktopSettings(patch);
       setSnapshot(next);
-      setTimedNotice(translate(next.settings.locale, "saveSuccess"));
+      if (!appearanceOnly) {
+        setTimedNotice(translate(next.settings.locale, "saveSuccess"));
+      }
     } catch (saveError) {
       const message =
         saveError instanceof Error ? saveError.message : "Unknown save error";
+      if (appearanceOnly && previous) setSnapshot(previous);
       setError(message);
       setTimedNotice(null);
     } finally {

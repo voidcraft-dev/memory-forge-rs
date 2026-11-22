@@ -30,6 +30,7 @@
         "label": "main",
         "title": "Memory Forge",
         "decorations": false,
+        "backgroundColor": "#14161a",
         "width": 1280,
         "height": 820,
         "minWidth": 720,

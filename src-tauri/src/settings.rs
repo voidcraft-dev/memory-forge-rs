@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tauri::window::Color;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
 
@@ -250,7 +251,21 @@ pub fn initialize(app: &AppHandle, state: &SharedSettingsState) -> Result<(), St
         .lock()
         .map_err(|_| "failed to lock settings state".to_string())?;
     *guard = loaded;
+    let theme = guard.theme.clone();
+    drop(guard);
+    apply_window_background(app, &theme);
     Ok(())
+}
+
+pub fn apply_window_background(app: &AppHandle, theme: &str) {
+    let color = if matches!(theme, "braun" | "porcelain" | "linen") {
+        Color(253, 253, 250, 255)
+    } else {
+        Color(20, 22, 26, 255)
+    };
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_background_color(Some(color));
+    }
 }
 
 pub fn close_to_tray_enabled(state: &SharedSettingsState) -> bool {
@@ -298,6 +313,7 @@ pub fn update_settings(
         .map_err(|_| "failed to lock settings state".to_string())?;
 
     if let Some(theme) = patch.theme {
+        apply_window_background(app, &theme);
         settings.theme = theme;
     }
 

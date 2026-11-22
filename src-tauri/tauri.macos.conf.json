@@ -1,0 +1,21 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Memory Forge",
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 14, "y": 18 },
+        "backgroundColor": "#14161a",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 720,
+        "minHeight": 500,
+        "center": true,
+        "dragDropEnabled": false
+      }
+    ]
+  }
+}
