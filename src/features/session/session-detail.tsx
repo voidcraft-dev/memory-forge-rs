@@ -1,11 +1,11 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
-  AlertTriangle,
   Archive,
   BookOpen,
   Check,
   CheckCircle,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Code,
   Copy,
@@ -152,6 +152,8 @@ type DnaCellBucket = {
   previewTurnNum: number;
   previewRole: "user" | "assistant" | "thinking";
   previewText: string;
+  questionPreview: string;
+  answerPreview: string;
   previewTime: string;
 };
 
@@ -255,6 +257,7 @@ export function SessionDetail() {
 
   // Inline Surgery Saving & Arsenal Quick-Insert
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [arsenalPrompts, setArsenalPrompts] = useState<PromptItem[] | null>(
     null
   );
@@ -267,16 +270,18 @@ export function SessionDetail() {
 
   useEffect(() => {
     if (!msgCtxMenu) return;
-    const close = () => setMsgCtxMenu(null);
+    const onPointerDown = (ev: PointerEvent) => {
+      const target = ev.target as HTMLElement | null;
+      if (target?.closest("[data-context-menu]")) return;
+      setMsgCtxMenu(null);
+    };
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === "Escape") setMsgCtxMenu(null);
     };
-    window.addEventListener("click", close);
-    window.addEventListener("contextmenu", close);
+    window.addEventListener("pointerdown", onPointerDown, true);
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("click", close);
-      window.removeEventListener("contextmenu", close);
+      window.removeEventListener("pointerdown", onPointerDown, true);
       window.removeEventListener("keydown", onKey);
     };
   }, [msgCtxMenu]);
@@ -355,11 +360,18 @@ export function SessionDetail() {
 
   useEffect(() => {
     if (!sessionStatus) return;
-    const timer = window.setTimeout(() => {
-      dispatch({ type: "setSessionStatus", payload: null });
-    }, 2400);
+    const timer = window.setTimeout(
+      () => {
+        dispatch({ type: "setSessionStatus", payload: null });
+      },
+      sessionStatus.tone === "error" ? 6000 : 2400
+    );
     return () => window.clearTimeout(timer);
   }, [dispatch, sessionStatus]);
+
+  useEffect(() => {
+    setEditError(null);
+  }, [editingBlock?.id, editingBlock?.sessionKey]);
 
   const blocks = sessionDetail?.blocks ?? [];
 
@@ -485,6 +497,36 @@ export function SessionDetail() {
         .trim()
         .slice(0, 180);
 
+      // Pair nearest User Question + Assistant Reply (like Rin / Cindy NavRail!)
+      let nearUserText = "";
+      for (let back = Math.min(blocks.length - 1, i + slice.length - 1); back >= 0; back--) {
+        if (blocks[back]?.role === "user") {
+          const cleaned = cleanHumanPreview(blocks[back]?.content);
+          if (cleaned) {
+            nearUserText = cleaned.slice(0, 80);
+            break;
+          }
+        }
+      }
+      let nearAsstText = "";
+      for (let fwd = i; fwd < Math.min(blocks.length, i + slice.length + 4); fwd++) {
+        const cand = blocks[fwd];
+        if (cand && cand.role === "assistant") {
+          const cleaned = cleanHumanPreview(cand.content);
+          if (cleaned) {
+            nearAsstText = cleaned.slice(0, 160);
+            break;
+          }
+          if (cand.toolCalls?.length && !nearAsstText) {
+            nearAsstText = t("hud.previewTools", {
+              tools: cand.toolCalls
+                .map((tc) => tc.name || tc.kind || "tool")
+                .join(", "),
+            });
+          }
+        }
+      }
+
       cells.push({
         startIndex: i,
         endIndex: Math.min(blocks.length - 1, i + slice.length - 1),
@@ -496,6 +538,8 @@ export function SessionDetail() {
         previewTurnNum: i + bestOffset + 1,
         previewRole: repBlock.role,
         previewText: cleanPreview,
+        questionPreview: nearUserText,
+        answerPreview: nearAsstText || cleanPreview,
         previewTime: formatBlockShortTime(repBlock),
       });
     }
@@ -511,11 +555,15 @@ export function SessionDetail() {
     (index: number) => {
       const b = filteredBlocks[index];
       const isEd = Boolean(
-        b && editingBlock && editingBlock.id === (b.editTarget || b.id)
+        b &&
+          editingBlock &&
+          editingBlock.id === (b.editTarget || b.id) &&
+          (!editingBlock.sessionKey ||
+            editingBlock.sessionKey === sessionDetail?.sessionKey)
       );
       return estimateMessageBlockSize(b, isEd);
     },
-    [editingBlock, filteredBlocks]
+    [editingBlock, filteredBlocks, sessionDetail?.sessionKey]
   );
 
   const getVirtualItemKey = useCallback(
@@ -629,6 +677,17 @@ export function SessionDetail() {
     }
   };
 
+  const applyReloaded = (
+    sessionKey: string,
+    detail: Awaited<ReturnType<typeof api.getSessionDetail>>,
+    logs: EditLogEntry[]
+  ) => {
+    dispatch({ type: "setSessionDetail", payload: detail });
+    if (activeSessionKeyRef.current === sessionKey) {
+      dispatch({ type: "setEditLog", payload: logs });
+    }
+  };
+
   const handleStartInlineEdit = (block: TimelineBlock) => {
     if (block.editable === false) return;
     dispatch({
@@ -638,52 +697,68 @@ export function SessionDetail() {
         content: block.content,
         originalContent: block.content,
         role: block.role,
+        platform: activePlatform,
+        sessionKey: sessionDetail.sessionKey,
       },
     });
   };
 
   const handleCommitInlineEdit = async () => {
-    if (!editingBlock || !selectedSessionKey) return;
+    if (!editingBlock) return;
+    const targetSessionKey = editingBlock.sessionKey ?? sessionDetail.sessionKey;
+    const targetPlatform = editingBlock.platform ?? activePlatform;
+    if (targetSessionKey !== sessionDetail.sessionKey) return;
+    const draft = editingBlock;
     setSavingEdit(true);
+    setEditError(null);
     dispatch({ type: "setSessionStatus", payload: null });
     try {
       await api.editMessage(
-        activePlatform,
-        editingBlock.id,
-        editingBlock.content,
-        selectedSessionKey,
-        editingBlock.originalContent
+        targetPlatform,
+        draft.id,
+        draft.content,
+        targetSessionKey,
+        draft.originalContent
       );
-      const [updated, logs] = await Promise.all([
-        api.getSessionDetail(activePlatform, selectedSessionKey),
-        api.getEditLog(activePlatform, selectedSessionKey),
-      ]);
-      dispatch({ type: "setSessionDetail", payload: updated });
-      dispatch({ type: "setEditLog", payload: logs });
-      dispatch({ type: "setEditingBlock", payload: null });
-      dispatch({
-        type: "setSessionStatus",
-        payload: {
-          tone: "success",
-          message: `${t("session.messageSaved")} · ${t("hud.safeWriteBadge")}`,
-        },
-      });
     } catch (error) {
-      dispatch({
-        type: "setSessionStatus",
-        payload: {
-          tone: "error",
-          message: describeSaveError(t("session.saveFailed"), error),
-        },
-      });
-    } finally {
+      const message = describeSaveError(t("session.saveFailed"), error);
+      setEditError(message);
+      dispatch({ type: "setSessionStatus", payload: { tone: "error", message } });
       setSavingEdit(false);
+      return;
     }
+    let reloadFailed = false;
+    try {
+      const [updated, logs] = await Promise.all([
+        api.getSessionDetail(targetPlatform, targetSessionKey),
+        api.getEditLog(targetPlatform, targetSessionKey),
+      ]);
+      applyReloaded(targetSessionKey, updated, logs);
+    } catch {
+      reloadFailed = true;
+    }
+    dispatch({
+      type: "clearEditingBlock",
+      payload: { id: draft.id, sessionKey: targetSessionKey },
+    });
+    dispatch({
+      type: "setSessionStatus",
+      payload: reloadFailed
+        ? {
+            tone: "error",
+            message: `${t("session.messageSaved")} · ${t("session.refreshFailed")}`,
+          }
+        : {
+            tone: "success",
+            message: `${t("session.messageSaved")} · ${t("hud.safeWriteBadge")}`,
+          },
+    });
+    setSavingEdit(false);
   };
 
   const handleRevertForgedBlock = async (entry: EditLogEntry) => {
+    const targetSessionKey = sessionDetail.sessionKey;
     if (
-      !selectedSessionKey ||
       !(await confirm({
         title: t("session.restore"),
         description: t("session.restoreConfirm"),
@@ -692,13 +767,12 @@ export function SessionDetail() {
       return;
     }
     try {
-      await api.restoreMessage(activePlatform, entry.id, selectedSessionKey);
+      await api.restoreMessage(activePlatform, entry.id, targetSessionKey);
       const [updated, logs] = await Promise.all([
-        api.getSessionDetail(activePlatform, selectedSessionKey),
-        api.getEditLog(activePlatform, selectedSessionKey),
+        api.getSessionDetail(activePlatform, targetSessionKey),
+        api.getEditLog(activePlatform, targetSessionKey),
       ]);
-      dispatch({ type: "setSessionDetail", payload: updated });
-      dispatch({ type: "setEditLog", payload: logs });
+      applyReloaded(targetSessionKey, updated, logs);
       dispatch({
         type: "setSessionStatus",
         payload: { tone: "success", message: t("hud.revertedToast") },
@@ -736,8 +810,7 @@ export function SessionDetail() {
         api.getSessionDetail(activePlatform, sessionDetail.sessionKey),
         api.getEditLog(activePlatform, sessionDetail.sessionKey),
       ]);
-      dispatch({ type: "setSessionDetail", payload: updated });
-      dispatch({ type: "setEditLog", payload: logs });
+      applyReloaded(sessionDetail.sessionKey, updated, logs);
       dispatch({
         type: "setSessionStatus",
         payload: { tone: "success", message: t("session.messageSaved") },
@@ -792,8 +865,7 @@ export function SessionDetail() {
         api.getSessionDetail(activePlatform, sessionDetail.sessionKey),
         api.getEditLog(activePlatform, sessionDetail.sessionKey),
       ]);
-      dispatch({ type: "setSessionDetail", payload: updated });
-      dispatch({ type: "setEditLog", payload: logs });
+      applyReloaded(sessionDetail.sessionKey, updated, logs);
       setDnaRangeStart(null);
       setDnaRangeEnd(null);
       dispatch({
@@ -948,16 +1020,15 @@ export function SessionDetail() {
   };
 
   const handleRefresh = async () => {
-    if (!selectedSessionKey) return;
+    const targetSessionKey = sessionDetail.sessionKey;
     setRefreshing(true);
     setRefreshDone(false);
     try {
       const [detail, logs] = await Promise.all([
-        api.getSessionDetail(activePlatform, selectedSessionKey),
-        api.getEditLog(activePlatform, selectedSessionKey).catch(() => []),
+        api.getSessionDetail(activePlatform, targetSessionKey),
+        api.getEditLog(activePlatform, targetSessionKey).catch(() => []),
       ]);
-      dispatch({ type: "setSessionDetail", payload: detail });
-      dispatch({ type: "setEditLog", payload: logs });
+      applyReloaded(targetSessionKey, detail, logs);
       setRefreshDone(true);
       setTimeout(() => setRefreshDone(false), 1400);
     } catch {
@@ -1240,6 +1311,21 @@ export function SessionDetail() {
         </div>
       )}
 
+      {sessionStatus && (
+        <div
+          aria-live="polite"
+          className={cn(
+            "hud-mono pointer-events-none absolute top-[46px] left-1/2 z-30 line-clamp-3 max-w-[min(560px,calc(100%-2rem))] -translate-x-1/2 rounded-[4px] border bg-[var(--bg-panel)] px-2.5 py-1 text-[11px] break-words shadow-lg",
+            sessionStatus.tone === "success"
+              ? "border-[var(--emerald-line)] text-[var(--emerald-fg)]"
+              : "border-[var(--crimson-line)] text-[var(--crimson-fg)]"
+          )}
+          role="status"
+        >
+          {sessionStatus.message}
+        </div>
+      )}
+
       {/* ==================== 40PX COMPACT 1-ROW STAGE HEADER ==================== */}
       <header className="z-20 flex h-[40px] shrink-0 items-center gap-2 border-b border-[var(--line-hair)] bg-[var(--bg-panel)] px-3">
         <span
@@ -1335,19 +1421,6 @@ export function SessionDetail() {
           >
             <Star className={cn("size-3.5", isStarred && "fill-current")} />
           </button>
-
-          {sessionStatus && (
-            <span
-              className={cn(
-                "hud-mono hidden truncate rounded-[3px] border px-2 py-0.5 text-[10px] lg:inline-block",
-                sessionStatus.tone === "success"
-                  ? "border-[var(--emerald-line)] bg-[var(--emerald-dim)] text-[var(--emerald-fg)]"
-                  : "border-[var(--crimson-line)] bg-[var(--crimson-dim)] text-[var(--crimson-fg)]"
-              )}
-            >
-              {sessionStatus.message}
-            </span>
-          )}
         </div>
 
         {/* Right Stage Actions */}
@@ -1679,11 +1752,20 @@ export function SessionDetail() {
               dispatch({
                 type: "setSessions",
                 payload: sessions.filter(
-                  (s) => s.sessionKey !== sessionDetail.sessionKey
+                  (s) =>
+                    !(
+                      s.platform === activePlatform &&
+                      s.sessionKey === sessionDetail.sessionKey
+                    )
                 ),
               });
-              dispatch({ type: "setSelectedSessionKey", payload: null });
-              dispatch({ type: "setSessionDetail", payload: null });
+              dispatch({
+                type: "closeSessionTab",
+                payload: {
+                  platform: activePlatform,
+                  sessionKey: sessionDetail.sessionKey,
+                },
+              });
             }}
             className="grid size-[27px] place-items-center rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] text-[var(--text-mid)] hover:border-[var(--forge-line)] hover:text-[var(--forge-fg)]"
             title={t("session.archive")}
@@ -1991,7 +2073,7 @@ export function SessionDetail() {
             </div>
           ) : (
           <div
-            className="relative mx-auto w-full max-w-[940px]"
+            className="relative mx-auto w-full max-w-[780px] py-4"
             style={{ height: `${messageVirtualizer.getTotalSize()}px` }}
           >
             {virtualItems.map((virtualItem) => {
@@ -1999,7 +2081,10 @@ export function SessionDetail() {
               if (!block) return null;
               const targetId = block.editTarget || block.id;
               const forgedInfo = forgedByTarget.get(targetId);
-              const isEditingThis = editingBlock?.id === targetId;
+              const isEditingThis =
+                editingBlock?.id === targetId &&
+                (!editingBlock.sessionKey ||
+                  editingBlock.sessionKey === sessionDetail.sessionKey);
               const estTok = estimateBlockTokens(block);
 
               return (
@@ -2080,6 +2165,7 @@ export function SessionDetail() {
                         : undefined
                     }
                     onStartEdit={() => handleStartInlineEdit(block)}
+                    editError={isEditingThis ? editError : null}
                     savingEdit={savingEdit}
                     searchHighlight={searchNeedle}
                     t={t}
@@ -2091,10 +2177,26 @@ export function SessionDetail() {
           )}
         </div>
 
-        {/* Floating Right Scrubber Rail (sits inside the outer scrollbar, just like Devin Desktop!) */}
+        {/* Floating Right Scrubber Rail (Fisheye + Mouse Wheel + Paired Q&A Preview Card!) */}
         {dnaCells.length > 0 && (
           <div
             onMouseLeave={() => setHoveredRail(null)}
+            onWheel={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (dnaCells.length === 0) return;
+              const cur = hoveredRail?.idx ?? 0;
+              const step = e.deltaY > 0 ? 1 : -1;
+              const nextIdx = Math.max(
+                0,
+                Math.min(dnaCells.length - 1, cur + step)
+              );
+              setHoveredRail((prev) =>
+                prev ? { ...prev, idx: nextIdx } : { idx: nextIdx, offsetTop: 60 }
+              );
+              const target = dnaCells[nextIdx];
+              if (target) scrollToBlockId(target.representativeId);
+            }}
             className="absolute top-1/2 right-3 z-20 flex max-h-[76%] -translate-y-1/2 flex-col items-end justify-center gap-[5px] py-2 select-none"
           >
             {(() => {
@@ -2117,28 +2219,45 @@ export function SessionDetail() {
                 }
               }
 
-              return railSlice.map((cell) => {
+              const hoveredSlicePos =
+                hoveredRail !== null
+                  ? railSlice.findIndex(
+                      (c) => dnaCells.indexOf(c) === hoveredRail.idx
+                    )
+                  : -1;
+
+              return railSlice.map((cell, sliceIdx) => {
                 const origIdx = dnaCells.indexOf(cell);
                 const isHovered = hoveredRail?.idx === origIdx;
                 const inView = blocks
                   .slice(cell.startIndex, cell.endIndex + 1)
                   .some((b) => visIds.has(b.id));
 
+                // Rin-style smooth fisheye falloff around hovered tick
+                const dist =
+                  hoveredSlicePos >= 0
+                    ? Math.abs(sliceIdx - hoveredSlicePos)
+                    : 99;
+                const fisheyeWidth =
+                  dist === 0
+                    ? 18
+                    : dist === 1
+                      ? 13
+                      : dist === 2
+                        ? 10
+                        : inView
+                          ? 11
+                          : cell.previewRole === "user" || cell.forged
+                            ? 8
+                            : 6;
+
                 const barTone = isHovered
-                  ? "bg-[var(--cyan)]"
+                  ? "bg-[var(--text-hi)]"
                   : cell.forged
                     ? "bg-[var(--forge)]"
                     : inView
                       ? "bg-[var(--text-hi)]"
                       : "bg-[var(--text-low)]/40";
-
-                const barWidth = isHovered
-                  ? "w-4"
-                  : inView
-                    ? "w-3"
-                    : cell.previewRole === "user" || cell.forged
-                      ? "w-2.5"
-                      : "w-1.5";
 
                 return (
                   <button
@@ -2150,10 +2269,10 @@ export function SessionDetail() {
                         e.currentTarget.parentElement?.getBoundingClientRect();
                       const btnRect = e.currentTarget.getBoundingClientRect();
                       const rawTop = parentRect
-                        ? btnRect.top - parentRect.top - 42
+                        ? btnRect.top - parentRect.top - 48
                         : 0;
                       const maxTop = parentRect
-                        ? Math.max(-20, parentRect.height - 110)
+                        ? Math.max(-24, parentRect.height - 120)
                         : 240;
                       setHoveredRail({
                         idx: origIdx,
@@ -2163,10 +2282,10 @@ export function SessionDetail() {
                     className="group flex h-[6px] items-center justify-end pl-2"
                   >
                     <span
+                      style={{ width: `${fisheyeWidth}px` }}
                       className={cn(
-                        "h-[1.5px] rounded-full transition-all duration-100 group-hover:h-[2.5px] group-hover:w-4",
-                        barTone,
-                        barWidth
+                        "h-[2px] rounded-full transition-all duration-100",
+                        barTone
                       )}
                     />
                   </button>
@@ -2174,69 +2293,73 @@ export function SessionDetail() {
               });
             })()}
 
-            {/* Instant Floating Preview Card */}
+            {/* Paired Q&A Instant Floating Preview Card (Rin / Cindy Style!) */}
             {hoveredRail !== null && dnaCells[hoveredRail.idx] && (
               <div
                 style={{ top: `${hoveredRail.offsetTop}px` }}
-                className="pointer-events-none absolute right-6 z-40 w-[300px] rounded-[8px] border border-slate-700/80 bg-[#151922]/96 p-3 text-slate-100 shadow-[0_14px_38px_rgba(0,0,0,0.48)] backdrop-blur-md"
+                className="pointer-events-none absolute right-6 z-40 w-[310px] rounded-[9px] border border-slate-700/80 bg-[#151922]/96 p-3 text-slate-100 shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur-md"
               >
-              {(() => {
-                const cell = dnaCells[hoveredRail.idx];
-                const roleName =
-                  cell.previewRole === "user"
-                    ? t("session.filter.user")
-                    : cell.previewRole === "thinking"
-                      ? t("session.filter.thinking")
-                      : t("session.filter.assistant");
-                const dotColor =
-                  cell.previewRole === "user"
-                    ? "bg-cyan-400"
-                    : cell.previewRole === "thinking"
-                      ? "bg-violet-400"
-                      : "bg-slate-300";
-                return (
-                  <>
-                    <div className="mb-1.5 flex items-center gap-1.5 text-[11px]">
-                      <span
-                        className={cn("size-2 shrink-0 rounded-full", dotColor)}
-                      />
-                      <span className="font-semibold text-white">
-                        {roleName}
-                      </span>
-                      <span className="hud-mono text-[10px] text-slate-400">
-                        #{cell.previewTurnNum}
-                        {cell.previewTime ? ` · ${cell.previewTime}` : ""}
-                      </span>
-                      {cell.forged && (
-                        <span className="hud-mono rounded bg-amber-500/20 px-1 text-[9.5px] font-bold text-amber-300">
-                          ⚡{t("hud.forgedStamp", { count: 1 }).split(" · ")[0]}
+                {(() => {
+                  const cell = dnaCells[hoveredRail.idx];
+                  return (
+                    <>
+                      <div className="mb-1.5 flex items-center gap-1.5 text-[10.5px] text-slate-400">
+                        <span className="hud-mono font-semibold text-slate-200">
+                          #{cell.previewTurnNum}
                         </span>
-                      )}
-                      {cell.spike && (
-                        <span className="hud-mono rounded bg-rose-500/20 px-1 text-[9.5px] font-bold text-rose-300">
-                          ⚠{formatTokenCount(cell.tokens)}
+                        {cell.previewTime && (
+                          <span className="hud-mono">{cell.previewTime}</span>
+                        )}
+                        {cell.forged && (
+                          <span className="hud-mono rounded bg-amber-500/20 px-1 text-[9.5px] font-bold text-amber-300">
+                            ⚡{t("hud.forgedStamp", { count: 1 }).split(" · ")[0]}
+                          </span>
+                        )}
+                        {cell.spike && (
+                          <span className="hud-mono rounded bg-rose-500/20 px-1 text-[9.5px] font-bold text-rose-300">
+                            ⚠{formatTokenCount(cell.tokens)}
+                          </span>
+                        )}
+                        <span className="hud-mono ml-auto">
+                          {formatTokenCount(cell.tokens)} tok
                         </span>
+                      </div>
+
+                      {cell.questionPreview && (
+                        <div className="mb-1 truncate text-xs font-semibold text-white">
+                          {cell.questionPreview}
+                        </div>
                       )}
-                      <span className="hud-mono ml-auto text-[10px] text-slate-400">
-                        {formatTokenCount(cell.tokens)} tok
-                      </span>
-                    </div>
-                    <p className="line-clamp-4 text-xs leading-[1.55] break-words text-slate-200/95">
-                      {cell.previewText}
-                    </p>
-                  </>
-                );
-              })()}
-            </div>
+                      <p className="line-clamp-3 text-[11.5px] leading-[1.52] break-words text-slate-300">
+                        {cell.answerPreview}
+                      </p>
+                    </>
+                  );
+                })()}
+              </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Message Frame Right-Click Context Menu */}
+      {/* Message Frame Right-Click Context Menu + Click-Catcher Backdrop */}
       {msgCtxMenu && (
-        <div
-          style={{ left: `${msgCtxMenu.x}px`, top: `${msgCtxMenu.y}px` }}
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMsgCtxMenu(null);
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMsgCtxMenu(null);
+            }}
+          />
+          <div
+            data-context-menu
+            style={{ left: `${msgCtxMenu.x}px`, top: `${msgCtxMenu.y}px` }}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
           className="fixed z-50 w-[208px] rounded-[6px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1 text-xs shadow-2xl"
@@ -2343,7 +2466,8 @@ export function SessionDetail() {
               </button>
             </>
           )}
-        </div>
+          </div>
+        </>
       )}
 
       <ConfirmDialog {...confirmDialogProps} />
@@ -2470,10 +2594,26 @@ function parseProseAndCode(
   };
 
   const renderInlineTokens = (segment: string) => {
-    const tokenRegex = /(`[^`\n]+`|\*\*[^*\n]+\*\*)/g;
+    const tokenRegex =
+      /(\[Image \d+:\s*[^\]]+\]|`[^`\n]+`|\*\*[^*\n]+\*\*)/g;
     const tokens = segment.split(tokenRegex);
     if (tokens.length === 1) return highlightText(segment);
     return tokens.map((tok, idx) => {
+      if (tok.startsWith("[Image ") && tok.endsWith("]")) {
+        const colonIdx = tok.indexOf(":");
+        const rawP = colonIdx >= 0 ? tok.slice(colonIdx + 1, -1).trim() : tok;
+        const shortImg = extractBaseFileName(rawP);
+        return (
+          <span
+            key={idx}
+            className="hud-mono my-0.5 mr-1 inline-flex items-center gap-1 rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-panel)] px-2 py-0.5 text-[11.5px] text-[var(--text-mid)]"
+            title={rawP}
+          >
+            <FileText className="size-3 shrink-0 text-[var(--cyan-fg)]" />
+            <span className="max-w-[220px] truncate">{shortImg}</span>
+          </span>
+        );
+      }
       if (tok.startsWith("`") && tok.endsWith("`") && tok.length > 2) {
         return (
           <code
@@ -2568,10 +2708,288 @@ function parseContentWithCodeBlocks(
   return nodes.length > 0 ? nodes : parseProseAndCode(text, searchHighlight);
 }
 
-/* ==================== COMPACT PIPELINE CHIPS FOR TOOL CALLS ==================== */
-function ToolPipelineStrip({
+/* ==================== RIN-STYLE SEMANTIC TOOL PARSER & ACTIVITY ROWS ==================== */
+type ParsedToolSemantic = {
+  verb: string;
+  fileName?: string;
+  fullPath?: string;
+  lineRange?: string;
+  summary?: string;
+  commandSubline?: string;
+  added?: number;
+  removed?: number;
+  diffPairs?: Array<{ oldText: string; newText: string }>;
+};
+
+function extractBaseFileName(rawPath: string): string {
+  const normalized = rawPath.replace(/\\/g, "/").replace(/\/+$/, "");
+  const segs = normalized.split("/");
+  return segs[segs.length - 1] || rawPath;
+}
+
+function describeToolCall(
+  tc: ToolCallBlock,
+  t: (key: MessageKey, params?: Record<string, string | number>) => string
+): ParsedToolSemantic {
+  const rawName = (tc.name || tc.kind || "tool").trim();
+  const lower = rawName.toLowerCase();
+
+  let args: Record<string, unknown> = {};
+  if (tc.input) {
+    try {
+      const parsed = JSON.parse(tc.input);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        args = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // non-JSON input
+    }
+  }
+
+  const pickStr = (...keys: string[]): string | undefined => {
+    for (const k of keys) {
+      const v = args[k];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    return undefined;
+  };
+
+  const filePath = pickStr(
+    "file_path",
+    "path",
+    "target_file",
+    "filePath",
+    "filename",
+    "notebook_path"
+  );
+  const fileChip = filePath ? extractBaseFileName(filePath) : undefined;
+
+  // 1. Edit / Replace tools
+  if (
+    lower === "edit" ||
+    lower === "multiedit" ||
+    lower === "multi_edit" ||
+    lower === "str_replace_editor" ||
+    lower === "replace_in_file" ||
+    lower.includes("edit_file")
+  ) {
+    const pairs: Array<{ oldText: string; newText: string }> = [];
+    const oldS =
+      typeof args.old_string === "string"
+        ? args.old_string
+        : typeof args.oldText === "string"
+          ? args.oldText
+          : typeof args.old_str === "string"
+            ? args.old_str
+            : undefined;
+    const newS =
+      typeof args.new_string === "string"
+        ? args.new_string
+        : typeof args.newText === "string"
+          ? args.newText
+          : typeof args.new_str === "string"
+            ? args.new_str
+            : undefined;
+    if (oldS !== undefined && newS !== undefined) {
+      pairs.push({ oldText: oldS, newText: newS });
+    }
+    if (Array.isArray(args.edits)) {
+      for (const item of args.edits) {
+        if (item && typeof item === "object") {
+          const rec = item as Record<string, unknown>;
+          const o =
+            typeof rec.old_string === "string"
+              ? rec.old_string
+              : typeof rec.oldText === "string"
+                ? rec.oldText
+                : undefined;
+          const n =
+            typeof rec.new_string === "string"
+              ? rec.new_string
+              : typeof rec.newText === "string"
+                ? rec.newText
+                : undefined;
+          if (o !== undefined && n !== undefined) {
+            pairs.push({ oldText: o, newText: n });
+          }
+        }
+      }
+    }
+    let added = 0;
+    let removed = 0;
+    for (const p of pairs) {
+      removed += p.oldText ? p.oldText.split("\n").length : 0;
+      added += p.newText ? p.newText.split("\n").length : 0;
+    }
+    return {
+      verb: t("hud.toolVerbEdit"),
+      fileName: fileChip || rawName,
+      fullPath: filePath,
+      added: pairs.length > 0 ? added : undefined,
+      removed: pairs.length > 0 ? removed : undefined,
+      diffPairs: pairs.length > 0 ? pairs : undefined,
+    };
+  }
+
+  // 1b. Codex / OpenCode apply_patch format (*** Begin Patch)
+  if (lower === "apply_patch") {
+    const patchRaw =
+      typeof args.patch === "string"
+        ? args.patch
+        : typeof args.input === "string"
+          ? args.input
+          : tc.input ?? "";
+    const fileMatches = Array.from(
+      patchRaw.matchAll(/\*\*\*\s+(?:Update|Add|Delete)\s+File:\s*([^\r\n]+)/g)
+    ).map((m) => extractBaseFileName((m[1] ?? "").trim()));
+    let added = 0;
+    let removed = 0;
+    const addLines: string[] = [];
+    const delLines: string[] = [];
+    for (const line of patchRaw.split("\n")) {
+      if (line.startsWith("***") || line.startsWith("+++") || line.startsWith("---")) {
+        continue;
+      }
+      if (line.startsWith("+")) {
+        added++;
+        addLines.push(line.slice(1));
+      } else if (line.startsWith("-")) {
+        removed++;
+        delLines.push(line.slice(1));
+      }
+    }
+    return {
+      verb: t("hud.toolVerbEdit"),
+      fileName: fileMatches[0] || rawName,
+      summary:
+        fileMatches.length > 1 ? `+${fileMatches.length - 1} files` : undefined,
+      added: added + removed > 0 ? added : undefined,
+      removed: added + removed > 0 ? removed : undefined,
+      diffPairs:
+        addLines.length + delLines.length > 0
+          ? [{ oldText: delLines.join("\n"), newText: addLines.join("\n") }]
+          : undefined,
+    };
+  }
+
+  // 2. Write / Create tools
+  if (
+    lower === "write" ||
+    lower === "write_to_file" ||
+    lower === "create_file" ||
+    lower === "write_file"
+  ) {
+    const content = typeof args.content === "string" ? args.content : "";
+    const lines = content ? content.split("\n").length : undefined;
+    return {
+      verb: t("hud.toolVerbWrite"),
+      fileName: fileChip || rawName,
+      fullPath: filePath,
+      added: lines,
+      removed: lines !== undefined ? 0 : undefined,
+      diffPairs: content ? [{ oldText: "", newText: content }] : undefined,
+    };
+  }
+
+  // 3. Read tools
+  if (
+    lower === "read" ||
+    lower === "read_file" ||
+    lower === "view_file" ||
+    lower === "notebook_read"
+  ) {
+    const offset =
+      typeof args.offset === "number"
+        ? args.offset
+        : typeof args.start_line === "number"
+          ? args.start_line
+          : undefined;
+    const limit = typeof args.limit === "number" ? args.limit : undefined;
+    const lineRange =
+      offset !== undefined
+        ? limit !== undefined
+          ? `L${offset}–${offset + limit - 1}`
+          : `L${offset}+`
+        : undefined;
+    return {
+      verb: t("hud.toolVerbRead"),
+      fileName: fileChip || rawName,
+      fullPath: filePath,
+      lineRange,
+    };
+  }
+
+  // 4. Shell / Bash / Exec tools
+  if (
+    lower === "bash" ||
+    lower === "exec" ||
+    lower === "shell" ||
+    lower === "powershell" ||
+    lower === "execute_command" ||
+    lower === "run_terminal_cmd" ||
+    lower === "command"
+  ) {
+    const cmd = pickStr("command", "cmd", "script") ?? "";
+    const desc = pickStr("description", "explanation", "summary");
+    const oneLineCmd = cmd.replace(/\s+/g, " ").trim();
+    return {
+      verb: t("hud.toolVerbRun"),
+      summary: desc || oneLineCmd.slice(0, 96) || rawName,
+      commandSubline: desc && oneLineCmd ? oneLineCmd.slice(0, 140) : undefined,
+    };
+  }
+
+  // 5. Search / Grep / Find / List
+  if (lower === "grep" || lower === "search_files" || lower === "ripgrep") {
+    const pat = pickStr("pattern", "query", "regex") ?? "";
+    return {
+      verb: t("hud.toolVerbSearch"),
+      summary: pat ? `"${pat}"` : fileChip || rawName,
+      fullPath: filePath,
+    };
+  }
+  if (
+    lower === "glob" ||
+    lower === "find_file_by_name" ||
+    lower === "find" ||
+    lower === "file_search"
+  ) {
+    const pat = pickStr("pattern", "glob", "query") ?? "";
+    return {
+      verb: t("hud.toolVerbFind"),
+      summary: pat || fileChip || rawName,
+    };
+  }
+  if (lower === "ls" || lower === "list_dir" || lower === "list_directory") {
+    return {
+      verb: t("hud.toolVerbList"),
+      fileName: fileChip,
+      fullPath: filePath,
+      summary: !fileChip ? rawName : undefined,
+    };
+  }
+
+  // 6. Todo tools
+  if (lower === "todo_write" || lower === "todowrite") {
+    const count = Array.isArray(args.todos) ? args.todos.length : undefined;
+    return {
+      verb: t("hud.toolVerbTodo"),
+      summary: count !== undefined ? `${count} items` : undefined,
+    };
+  }
+
+  // Fallback generic tool
+  const genericHint =
+    fileChip ||
+    pickStr("query", "url", "skill", "title", "prompt")?.slice(0, 72);
+  return {
+    verb: rawName,
+    summary: genericHint,
+  };
+}
+
+function RinToolActivityList({
   toolCalls,
-  hasBody,
   canErase,
   eraseLabel,
   erasingToolCallId,
@@ -2579,118 +2997,207 @@ function ToolPipelineStrip({
   t,
 }: {
   toolCalls: ToolCallBlock[];
-  hasBody: boolean;
   canErase: boolean;
   eraseLabel: string;
   erasingToolCallId: string | null;
   onErase: (toolCall: ToolCallBlock) => void;
   t: (key: MessageKey, params?: Record<string, string | number>) => string;
 }) {
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
-  const activeTool = expandedIdx !== null ? toolCalls[expandedIdx] : null;
+  const [expandedSet, setExpandedSet] = useState<Set<number>>(new Set());
+
+  const toggleIdx = (idx: number) => {
+    setExpandedSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
 
   return (
-    <div
-      className={cn(
-        hasBody && "mb-2 border-b border-[var(--line-subtle)] pb-2"
-      )}
-    >
-      <div className="flex flex-wrap items-center gap-1.5">
-        {toolCalls.map((tc, idx) => {
-          const isErr = Boolean(tc.error || tc.status === "error");
-          const outChars =
-            (tc.input?.length ?? 0) +
-            (tc.output?.length ?? 0) +
-            (tc.error?.length ?? 0);
-          const tok = Math.max(8, Math.ceil(outChars / 3.5));
-          const isHeavy = tok >= 2500;
-          const isOpen = expandedIdx === idx;
+    <div className="my-1 flex flex-col gap-0.5">
+      {toolCalls.map((tc, idx) => {
+        const isErr = Boolean(tc.error || tc.status === "error");
+        const outChars =
+          (tc.input?.length ?? 0) +
+          (tc.output?.length ?? 0) +
+          (tc.error?.length ?? 0);
+        const tok = Math.max(8, Math.ceil(outChars / 3.5));
+        const isHeavy = tok >= 3500;
+        const isOpen = expandedSet.has(idx);
+        const info = describeToolCall(tc, t);
 
-          return (
-            <span
-              key={tc.id || idx}
-              onClick={() => setExpandedIdx(isOpen ? null : idx)}
-              className={cn(
-                "hud-mono inline-flex cursor-pointer items-center gap-1.5 rounded-[3px] border px-2 py-0.5 text-[10.5px] transition-colors",
-                isErr || isHeavy
-                  ? "border-[var(--crimson-line)] bg-[var(--crimson-dim)] text-[var(--crimson-fg)]"
-                  : isOpen
-                    ? "border-[var(--cyan-line)] bg-[var(--cyan-dim)] text-[var(--cyan-fg)]"
-                    : "border-[var(--line-hair)] bg-[var(--bg-code)] text-[var(--text-mid)] hover:border-[var(--line-strong)] hover:text-[var(--text-hi)]"
-              )}
+        return (
+          <div key={tc.id || idx} className="flex flex-col">
+            <div
+              onClick={() => toggleIdx(idx)}
+              className="group/trow flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-[7px] px-2 py-[3px] text-left text-[13px] transition-colors select-none hover:bg-[var(--bg-hover)]/70"
             >
-              <span
-                className={cn(
-                  "font-bold",
-                  isErr
-                    ? "text-[var(--crimson-fg)]"
-                    : "text-[var(--emerald-fg)]"
+              {/* Status Icon Slot */}
+              <span className="inline-flex h-[18px] w-4 shrink-0 items-center justify-center">
+                {isErr ? (
+                  <X className="size-3.5 text-[var(--crimson-fg)]" />
+                ) : (
+                  <Check className="size-3.5 text-[var(--text-low)]" />
                 )}
-              >
-                {isErr ? "×" : isHeavy ? "⚠" : "✓"}
               </span>
-              <span className="max-w-[200px] truncate">
-                {tc.name || tc.kind || "tool"}
-              </span>
-              <span className="opacity-70">· {formatTokenCount(tok)}</span>
-              {canErase && (
-                <button
-                  type="button"
-                  disabled={erasingToolCallId !== null}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onErase(tc);
-                  }}
-                  className="ml-0.5 rounded px-1 text-[var(--crimson-fg)] hover:bg-[var(--crimson)] hover:text-white"
-                  title={eraseLabel}
-                >
-                  {erasingToolCallId === tc.id ? "…" : "×"}
-                </button>
-              )}
-            </span>
-          );
-        })}
-      </div>
 
-      {activeTool && (
-        <div className="hud-mono mt-2 space-y-2 rounded-[4px] border border-[var(--line-hair)] bg-[var(--bg-code)] p-2.5 text-[11px]">
-          {activeTool.input && (
-            <div>
-              <div className="mb-1 text-[9.5px] font-bold tracking-wider text-[var(--text-low)] uppercase">
-                {t("hud.toolArgs")}
+              {/* Semantic Verb */}
+              <span className="shrink-0 text-[var(--text-mid)]">
+                {info.verb}
+              </span>
+
+              {/* File Chip (if file tool) */}
+              {info.fileName && (
+                <span
+                  className="hud-mono inline-flex max-w-[55%] items-center gap-1 truncate rounded-[4px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-1.5 py-[0.5px] text-[12px] text-[var(--text-hi)]"
+                  title={info.fullPath || info.fileName}
+                >
+                  <FileText className="size-3 shrink-0 text-[var(--text-low)]" />
+                  <span className="truncate">{info.fileName}</span>
+                </span>
+              )}
+
+              {info.lineRange && (
+                <span className="hud-mono shrink-0 text-[11.5px] text-[var(--text-low)]">
+                  {info.lineRange}
+                </span>
+              )}
+
+              {info.summary && (
+                <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-mid)]">
+                  {info.summary}
+                </span>
+              )}
+
+              {/* Right Side: +N -M Diff Stats + Heavy Spike Badge + Erase + Chevron */}
+              <div className="ml-auto flex shrink-0 items-center gap-2 pl-2">
+                {info.added !== undefined && info.removed !== undefined && (
+                  <span className="hud-mono flex items-center gap-1 text-[12px] font-medium">
+                    <span className="text-[var(--diff-add-fg)]">
+                      +{info.added}
+                    </span>
+                    <span className="text-[var(--diff-del-fg)]">
+                      -{info.removed}
+                    </span>
+                  </span>
+                )}
+
+                {isHeavy && (
+                  <span className="hud-mono rounded bg-[var(--crimson-dim)] px-1.5 py-[0.5px] text-[10px] font-semibold text-[var(--crimson-fg)]">
+                    {formatTokenCount(tok)}
+                  </span>
+                )}
+
+                {canErase && (
+                  <button
+                    type="button"
+                    disabled={erasingToolCallId !== null}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onErase(tc);
+                    }}
+                    className="rounded px-1 text-xs text-[var(--text-low)] opacity-0 transition-opacity group-hover/trow:opacity-100 hover:bg-[var(--crimson-dim)] hover:text-[var(--crimson-fg)]"
+                    title={eraseLabel}
+                  >
+                    {erasingToolCallId === tc.id ? "…" : "×"}
+                  </button>
+                )}
+
+                <span className="flex size-[18px] items-center justify-center rounded-[6px] text-[var(--text-low)] group-hover/trow:bg-[var(--bg-hover)]">
+                  <ChevronRight
+                    className={cn(
+                      "size-3.5 transition-transform duration-150",
+                      isOpen && "rotate-90"
+                    )}
+                  />
+                </span>
               </div>
-              <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all text-[var(--cyan-fg)]">
-                {activeTool.input}
-              </pre>
             </div>
-          )}
-          {activeTool.output && (
-            <div>
-              <div className="mb-1 text-[9.5px] font-bold tracking-wider text-[var(--text-low)] uppercase">
-                {t("hud.toolOutput")}
+
+            {/* Rin-style subtle 1-line command preview beneath Run description */}
+            {!isOpen && info.commandSubline && (
+              <div
+                onClick={() => toggleIdx(idx)}
+                className="hud-mono cursor-pointer truncate pr-6 pl-8 text-[11.5px] text-[var(--text-low)]"
+              >
+                {info.commandSubline}
               </div>
-              <pre className="max-h-52 overflow-auto whitespace-pre-wrap break-all text-[var(--text-hi)]">
-                {cleanAnsiCodes(activeTool.output)}
-              </pre>
-            </div>
-          )}
-          {activeTool.error && (
-            <div>
-              <div className="mb-1 text-[9.5px] font-bold tracking-wider text-[var(--crimson-fg)] uppercase">
-                {t("hud.toolError")}
+            )}
+
+            {/* Inline Expanded Detail (Diff View OR Output / Args) */}
+            {isOpen && (
+              <div className="mx-2 mt-1 mb-1.5 overflow-hidden rounded-[7px] border border-[var(--line-hair)] bg-[var(--bg-code)] text-xs">
+                {info.diffPairs && info.diffPairs.length > 0 ? (
+                  <div className="hud-mono max-h-72 overflow-auto py-1.5 text-[11.5px] leading-[1.55]">
+                    {info.diffPairs.map((pair, pi) => (
+                      <div key={pi}>
+                        {pair.oldText
+                          .split("\n")
+                          .slice(0, 120)
+                          .map((line, li) =>
+                            pair.oldText ? (
+                              <div
+                                key={`d-${li}`}
+                                className="bg-[var(--diff-del-bg)] px-3 whitespace-pre-wrap break-all text-[var(--diff-del-fg)]"
+                              >
+                                - {line}
+                              </div>
+                            ) : null
+                          )}
+                        {pair.newText
+                          .split("\n")
+                          .slice(0, 160)
+                          .map((line, li) => (
+                            <div
+                              key={`a-${li}`}
+                              className="bg-[var(--diff-add-bg)] px-3 whitespace-pre-wrap break-all text-[var(--diff-add-fg)]"
+                            >
+                              + {line}
+                            </div>
+                          ))}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="hud-mono divide-y divide-[var(--line-hair)]">
+                    {tc.input && (
+                      <div className="p-2.5">
+                        <div className="mb-1 text-[10px] font-semibold text-[var(--text-low)]">
+                          {t("hud.toolArgs")}
+                        </div>
+                        <pre className="max-h-36 overflow-auto text-[11.5px] whitespace-pre-wrap break-all text-[var(--text-mid)]">
+                          {tc.input}
+                        </pre>
+                      </div>
+                    )}
+                    {tc.output && (
+                      <div className="p-2.5">
+                        <div className="mb-1 text-[10px] font-semibold text-[var(--text-low)]">
+                          {t("hud.toolOutput")}
+                        </div>
+                        <pre className="max-h-60 overflow-auto text-[11.5px] whitespace-pre-wrap break-all text-[var(--text-hi)]">
+                          {cleanAnsiCodes(tc.output)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {tc.error && (
+                  <div className="hud-mono border-t border-[var(--crimson-line)] bg-[var(--crimson-dim)] p-2.5 text-[11.5px] whitespace-pre-wrap break-all text-[var(--crimson-fg)]">
+                    {tc.error}
+                  </div>
+                )}
               </div>
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all text-[var(--crimson-fg)]">
-                {activeTool.error}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-/* ==================== CAUSAL FRAME (WITH ZERO-MODAL INLINE SURGERY) ==================== */
+/* ==================== RIN-STYLE EDITORIAL MESSAGE STREAM + INLINE SURGERY ==================== */
 const CausalFrame = forwardRef<
   HTMLDivElement,
   {
@@ -2702,6 +3209,7 @@ const CausalFrame = forwardRef<
     editingContent: string;
     editingOriginal: string;
     savingEdit: boolean;
+    editError?: string | null;
     arsenalPrompts: PromptItem[] | null;
     forkCommand?: string;
     onStartEdit: () => void;
@@ -2726,13 +3234,13 @@ const CausalFrame = forwardRef<
 >(function CausalFrame(
   {
     block,
-    index,
     estimatedTokens,
     forgedInfo,
     isEditing,
     editingContent,
     editingOriginal,
     savingEdit,
+    editError,
     arsenalPrompts,
     onStartEdit,
     onChangeEdit,
@@ -2758,13 +3266,15 @@ const CausalFrame = forwardRef<
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [longExpanded, setLongExpanded] = useState(false);
   const [arsenalMenuOpen, setArsenalMenuOpen] = useState(false);
+  const [justCopied, setJustCopied] = useState(false);
 
   const isThinking = block.role === "thinking";
   const isUser = block.role === "user";
   const isForged = Boolean(forgedInfo);
   const isSpike = estimatedTokens >= SPIKE_TOKEN_THRESHOLD;
   const hasContent = block.content.trim().length > 0;
-  const isLong = !isThinking && block.content.length > LONG_BLOCK_COLLAPSE_THRESHOLD;
+  const isLong =
+    !isThinking && block.content.length > LONG_BLOCK_COLLAPSE_THRESHOLD;
   const isSearchHit = Boolean(
     searchHighlight &&
       block.content.toLowerCase().includes(searchHighlight.toLowerCase())
@@ -2779,464 +3289,452 @@ const CausalFrame = forwardRef<
     block.content.trim() === "On it." &&
     block.editTarget?.includes("::execution::");
 
-  const seqLabel = `#${String(index + 1).padStart(2, "0")}`;
-  const isCompactBorderless =
-    !isEditing &&
-    !isForged &&
-    ((isThinking && !thinkingExpanded) ||
-      (!isUser && !hasContent && (block.toolCalls?.length ?? 0) > 0));
-
-  if (isCompactBorderless) {
+  // 1. Zero-Modal Inline Ghost Surgery Mode (for ANY message type)
+  if (isEditing) {
     return (
       <div
         ref={ref}
-        onContextMenu={onContextMenu}
-        className="group/frame relative pl-5"
+        className="reticle my-2 rounded-[10px] border-[1.5px] border-[var(--forge)] bg-[var(--bg-panel)] p-3.5 shadow-xl"
       >
-        <span className="absolute top-0 -bottom-2.5 left-[5px] w-[1.5px] bg-[var(--line-hair)]" />
-        <span
-          className={cn(
-            "absolute top-2.5 left-[2px] z-10 size-1.5 rounded-full",
-            isSpike
-              ? "bg-[var(--crimson)]"
-              : isThinking
-                ? "bg-[var(--violet)]/75"
-                : "bg-[var(--text-low)]/60"
-          )}
-        />
-        <div className="flex flex-wrap items-center gap-2 rounded-[4px] px-1.5 py-0.5 transition-colors hover:bg-[var(--bg-hover)]/65">
-          <span className="hud-mono text-[10px] text-[var(--text-low)]">
-            {seqLabel}
-          </span>
+        <div className="hud-mono mb-2 rounded-[6px] border border-dashed border-[var(--crimson-line)] bg-[var(--crimson-dim)] px-3 py-2 text-[11.5px] text-[var(--crimson-fg)]">
+          <div className="mb-1 flex items-center justify-between text-[10px] font-bold">
+            <span>{t("hud.ghostOriginalTitle")}</span>
+            <span>{t("hud.safeBackupTag")}</span>
+          </div>
+          <div className="max-h-28 overflow-y-auto whitespace-pre-wrap opacity-90">
+            - {editingOriginal || t("hud.previewEmpty")}
+          </div>
+        </div>
 
-          {isThinking ? (
+        <textarea
+          autoFocus
+          className="hud-mono min-h-[136px] w-full resize-y rounded-[6px] border border-[var(--line-strong)] bg-[var(--bg-void)] px-3 py-2 text-[13px] leading-relaxed text-[var(--text-hi)] outline-none focus:border-[var(--forge)]"
+          onChange={(e) => onChangeEdit(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+              e.preventDefault();
+              onCommitEdit();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onCancelEdit();
+            }
+          }}
+          placeholder={t("session.enterContent")}
+          value={editingContent}
+        />
+
+        {editError && (
+          <div
+            className="hud-mono mt-2 rounded-[6px] border border-[var(--crimson-line)] bg-[var(--crimson-dim)] px-3 py-2 text-[11.5px] break-words whitespace-pre-wrap text-[var(--crimson-fg)]"
+            role="alert"
+          >
+            {editError}
+          </div>
+        )}
+
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="hud-mono text-[11px] text-[var(--text-mid)]">
+              <kbd className="hud-kbd">Ctrl+S</kbd> {t("save")} ·{" "}
+              <kbd className="hud-kbd">Esc</kbd> {t("cancel")}
+            </span>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  onLoadArsenal();
+                  setArsenalMenuOpen((v) => !v);
+                }}
+                className="hud-mono inline-flex items-center gap-1 rounded-[5px] border border-[var(--cyan-line)] bg-[var(--cyan-dim)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--cyan-fg)]"
+              >
+                <BookOpen className="size-3" />
+                <span>{t("hud.insertFromPrompts")}</span>
+              </button>
+              {arsenalMenuOpen && (
+                <div className="absolute bottom-full left-0 z-50 mb-1 max-h-48 w-72 overflow-y-auto rounded-[7px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1 shadow-2xl">
+                  {!arsenalPrompts || arsenalPrompts.length === 0 ? (
+                    <div className="px-2.5 py-3 text-center text-[11px] text-[var(--text-low)]">
+                      {t("hud.noSavedPrompts")}
+                    </div>
+                  ) : (
+                    arsenalPrompts.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          const sep = editingContent.trim() ? "\n\n" : "";
+                          onChangeEdit(`${editingContent}${sep}${p.content}`);
+                          setArsenalMenuOpen(false);
+                        }}
+                        className="block w-full truncate rounded-[4px] px-2.5 py-1.5 text-left text-xs hover:bg-[var(--bg-hover)]"
+                      >
+                        {p.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setThinkingExpanded(true)}
-              className="hud-mono inline-flex items-center gap-1.5 text-[11px] text-[var(--text-mid)] hover:text-[var(--violet-fg)]"
+              disabled={savingEdit}
+              onClick={onCancelEdit}
+              className="hud-btn"
             >
-              <span>
-                {t("hud.expandThinking", { count: block.content.length })}
-              </span>
+              {t("session.cancel")}
             </button>
-          ) : (
-            <div className="min-w-0 flex-1">
-              <ToolPipelineStrip
-                canErase={canEraseToolCalls}
-                eraseLabel={t("session.eraseToolCall")}
-                erasingToolCallId={erasingToolCallId}
-                hasBody={false}
-                onErase={onEraseToolCall}
-                t={t}
-                toolCalls={block.toolCalls ?? []}
-              />
-            </div>
-          )}
-
-          <div className="hud-mono ml-auto flex items-center gap-1.5 text-[10px] text-[var(--text-low)]">
-            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/frame:opacity-100">
-              {block.editable === false && hasContent && (
-                <span
-                  className="px-1 text-[9.5px] text-[var(--text-low)]"
-                  title={t("hud.sealedReadOnlyHint")}
-                >
-                  {t("hud.sealedReadOnly")}
-                </span>
-              )}
-              {block.editable !== false && (
-                <>
-                  <button
-                    type="button"
-                    onClick={onStartEdit}
-                    className="rounded px-1.5 py-0.5 text-[var(--text-mid)] hover:bg-[var(--forge-dim)] hover:text-[var(--forge-fg)]"
-                  >
-                    {t("hud.editMemory")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onErase}
-                    className="rounded px-1.5 py-0.5 text-[var(--text-mid)] hover:bg-[var(--crimson-dim)] hover:text-[var(--crimson-fg)]"
-                  >
-                    {t("hud.eraseShort")}
-                  </button>
-                </>
-              )}
-            </div>
-            <span className={cn(isSpike && "font-semibold text-[var(--crimson-fg)]")}>
-              {formatTokenCount(estimatedTokens)} tok
-            </span>
+            <button
+              type="button"
+              disabled={savingEdit}
+              onClick={onCommitEdit}
+              className="hud-btn hud-btn-forge"
+            >
+              <Zap className="size-3" />
+              <span>{savingEdit ? t("loading") : t("session.saveChanges")}</span>
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
+  // 2. Thinking Block (Rin ThinkingBlock style: ✦ 思考过程 ›)
+  if (isThinking) {
+    if (!hasContent) return null;
+    return (
+      <div
+        ref={ref}
+        onContextMenu={onContextMenu}
+        className="group/frame my-0.5 flex flex-col"
+      >
+        <div className="flex items-center gap-1.5 rounded-[7px] px-2 py-[3px] transition-colors hover:bg-[var(--bg-hover)]/65">
+          <button
+            type="button"
+            onClick={() => setThinkingExpanded((v) => !v)}
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          >
+            <span className="inline-flex h-[18px] w-4 shrink-0 items-center justify-center text-[var(--text-low)]">
+              <Sparkles className="size-3.5" />
+            </span>
+            <span className="truncate text-[13px] italic text-[var(--text-low)]">
+              {t("session.filter.thinking")}
+            </span>
+            {forgedInfo && (
+              <span className="hud-mono rounded bg-[var(--forge-dim)] px-1.5 text-[10px] font-semibold text-[var(--forge-fg)]">
+                ⚡{t("hud.forgedStamp", { count: forgedInfo.count })}
+              </span>
+            )}
+          </button>
+
+          <div className="ml-auto flex items-center gap-1.5 opacity-0 transition-opacity group-hover/frame:opacity-100">
+            {block.editable === false ? (
+              <span
+                className="text-[10px] text-[var(--text-low)]"
+                title={t("hud.sealedReadOnlyHint")}
+              >
+                {t("hud.sealedReadOnly")}
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={onStartEdit}
+                className="rounded px-1.5 py-0.5 text-[11px] text-[var(--text-mid)] hover:bg-[var(--forge-dim)] hover:text-[var(--forge-fg)]"
+              >
+                {t("hud.editMemory")}
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setThinkingExpanded((v) => !v)}
+            className="flex size-[18px] shrink-0 items-center justify-center rounded-[6px] text-[var(--text-low)]"
+          >
+            <ChevronRight
+              className={cn(
+                "size-3.5 transition-transform duration-150",
+                thinkingExpanded && "rotate-90"
+              )}
+            />
+          </button>
+        </div>
+
+        {thinkingExpanded && (
+          <div
+            onDoubleClick={onStartEdit}
+            className="mt-1 mb-1.5 ml-4 max-h-72 overflow-y-auto border-l-2 border-[var(--line-strong)] pl-3 text-[13px] italic leading-relaxed whitespace-pre-wrap text-[var(--text-mid)]"
+          >
+            {parseContentWithCodeBlocks(block.content, searchHighlight, t)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 3. User Message (Soft Rin Bubble — no harsh border unless edited!)
+  if (isUser) {
+    return (
+      <div
+        ref={ref}
+        onContextMenu={onContextMenu}
+        onDoubleClick={onStartEdit}
+        title={
+          block.editable !== false ? t("hud.doubleClickEditHint") : undefined
+        }
+        className={cn(
+          "group/frame relative my-3 rounded-[14px] px-4 py-3 transition-colors",
+          isForged
+            ? "border border-[var(--forge-line)] bg-[var(--forge-dim)]"
+            : "bg-[var(--bubble)]",
+          isCurrentMatch && "ring-2 ring-[var(--cyan)]"
+        )}
+      >
+        {forgedInfo && (
+          <div className="mb-1.5 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenAudit}
+              className="hud-mono inline-flex items-center gap-1 rounded-[4px] bg-[var(--forge-dim)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--forge-fg)]"
+            >
+              <Zap className="size-2.5" />
+              <span>{t("hud.forgedStamp", { count: forgedInfo.count })}</span>
+            </button>
+            {onRevert && (
+              <button
+                type="button"
+                onClick={onRevert}
+                className="hud-mono inline-flex items-center gap-1 text-[10.5px] text-[var(--cyan-fg)] hover:underline"
+              >
+                <Undo2 className="size-3" />
+                <span>{t("hud.revertOriginal")}</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {hasContent ? (
+          <div className="text-[14px] leading-[1.64] break-words text-[var(--text-hi)]">
+            {parseContentWithCodeBlocks(displayContent, searchHighlight, t)}
+          </div>
+        ) : (
+          <div className="hud-mono text-xs italic text-[var(--text-low)]">
+            {t("hud.emptyFrame")}
+          </div>
+        )}
+
+        {/* Quiet Hover Action Pill on User Bubble */}
+        <div className="absolute top-2 right-2.5 flex items-center gap-0.5 rounded-[6px] border border-[var(--line-hair)] bg-[var(--bg-panel)] px-1 py-0.5 opacity-0 shadow-xs transition-opacity group-hover/frame:opacity-100">
+          {hasContent && (
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard.writeText(block.content);
+                setJustCopied(true);
+                setTimeout(() => setJustCopied(false), 1200);
+              }}
+              className="grid size-5 place-items-center rounded text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+              title={t("copy")}
+            >
+              {justCopied ? (
+                <Check className="size-3 text-[var(--emerald-fg)]" />
+              ) : (
+                <Copy className="size-3" />
+              )}
+            </button>
+          )}
+          {block.editable !== false && (
+            <>
+              <button
+                type="button"
+                onClick={onStartEdit}
+                className="grid size-5 place-items-center rounded text-[var(--text-mid)] hover:bg-[var(--forge-dim)] hover:text-[var(--forge-fg)]"
+                title={t("hud.editMemory")}
+              >
+                <Pencil className="size-3" />
+              </button>
+              <button
+                type="button"
+                onClick={onErase}
+                className="grid size-5 place-items-center rounded text-[var(--text-mid)] hover:bg-[var(--crimson-dim)] hover:text-[var(--crimson-fg)]"
+                title={t("hud.eraseShort")}
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Assistant Turn (Pure Borderless Prose + Semantic Tool Activity Rows — Rin / OpenCode Style!)
   return (
     <div
       ref={ref}
       onContextMenu={onContextMenu}
-      className="group/frame relative pl-5"
+      className={cn(
+        "group/frame relative my-1.5 transition-colors",
+        isForged &&
+          "rounded-[10px] border-l-[3px] border-[var(--forge)] bg-[var(--forge-dim)]/45 px-3.5 py-2.5",
+        isCurrentMatch && "rounded-[8px] ring-2 ring-[var(--cyan)]"
+      )}
     >
-      {/* Continuous Causal Spine Line */}
-      <span className="absolute top-0 -bottom-2.5 left-[5px] w-[1.5px] bg-[var(--line-hair)]" />
-
-      {/* Causal Node Square */}
-      <span
-        className={cn(
-          "absolute top-3 left-[1.5px] z-10 size-2 rounded-[2px] border-[1.5px] bg-[var(--bg-void)]",
-          isForged
-            ? "border-[var(--forge)] bg-[var(--forge)]"
-            : isSpike
-              ? "border-[var(--crimson)] bg-[var(--crimson)]"
-              : isUser
-                ? "border-[var(--cyan)] bg-[var(--cyan-dim)]"
-                : isThinking
-                  ? "border-[var(--violet)]"
-                  : "border-[var(--text-low)]"
-        )}
-      />
-
-      {/* Frame Box */}
-      <div
-        className={cn(
-          "rounded-[5px] border border-l-[2.5px] px-3.5 py-2.5 transition-colors",
-          (isEditing || isForged) && "reticle",
-          isEditing
-            ? "border-[var(--forge)] bg-[var(--bg-elevated)] shadow-2xl"
-            : isForged
-              ? "border-[var(--forge-line)] border-l-[var(--forge)] bg-[linear-gradient(90deg,var(--forge-dim),var(--bg-panel)_30%)]"
-              : isSpike
-                ? "border-[var(--crimson-line)] border-l-[var(--crimson)] bg-[var(--bg-panel)]"
-                : isUser
-                  ? "border-[var(--line-hair)] border-l-[var(--cyan)] bg-[linear-gradient(90deg,var(--cyan-dim),var(--bg-panel)_24%)]"
-                  : isThinking
-                    ? "border-[var(--line-hair)] border-l-[var(--violet)] bg-[var(--bg-panel)]"
-                    : "border-[var(--line-hair)] border-l-[var(--asst-bar)] bg-[var(--bg-panel)]",
-          isCurrentMatch && "ring-1 ring-[var(--cyan)]"
-        )}
-      >
-        {/* Frame Header */}
-        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-          <span className="hud-mono text-[10.5px] font-bold text-[var(--text-low)]">
-            {seqLabel}
-          </span>
-          <span
-            className={cn(
-              "hud-mono rounded-[2px] px-1.5 py-[0.5px] text-[10px] font-bold tracking-wider uppercase",
-              isUser
-                ? "bg-[var(--cyan-dim)] text-[var(--cyan-fg)]"
-                : isThinking
-                  ? "bg-[var(--violet-dim)] text-[var(--violet-fg)]"
-                  : "border border-[var(--line-hair)] bg-[var(--bg-elevated)] text-[var(--text-hi)]"
-            )}
+      {/* Forged Banner (only if modified!) */}
+      {forgedInfo && (
+        <div className="mb-1.5 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenAudit}
+            className="hud-mono inline-flex items-center gap-1 rounded-[4px] border border-[var(--forge-line)] bg-[var(--forge-dim)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--forge-fg)]"
           >
-            {isUser
-              ? t("session.filter.user")
-              : isThinking
-                ? t("session.filter.thinking")
-                : t("session.filter.assistant")}
-          </span>
-
-          {forgedInfo && (
+            <Zap className="size-2.5" />
+            <span>{t("hud.forgedStamp", { count: forgedInfo.count })}</span>
+          </button>
+          {onRevert && (
             <button
               type="button"
-              onClick={onOpenAudit}
-              className="hud-mono inline-flex items-center gap-1 rounded-[2px] border border-[var(--forge-line)] bg-[var(--forge-dim)] px-1.5 py-[0.5px] text-[9.5px] font-bold text-[var(--forge-fg)] hover:brightness-110"
-              title={t("editLog.title")}
+              onClick={onRevert}
+              className="hud-mono inline-flex items-center gap-1 text-[10.5px] text-[var(--cyan-fg)] hover:underline"
             >
-              <Zap className="size-2.5" />
-              <span>
-                {t("hud.forgedStamp", { count: forgedInfo.count })}
-              </span>
+              <Undo2 className="size-3" />
+              <span>{t("hud.revertOriginal")}</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Semantic Tool Call Activity Rows */}
+      {block.toolCalls && block.toolCalls.length > 0 && (
+        <RinToolActivityList
+          canErase={canEraseToolCalls}
+          eraseLabel={t("session.eraseToolCall")}
+          erasingToolCallId={erasingToolCallId}
+          onErase={onEraseToolCall}
+          t={t}
+          toolCalls={block.toolCalls}
+        />
+      )}
+
+      {/* Borderless Assistant Prose */}
+      {hasContent ? (
+        <div
+          onDoubleClick={onStartEdit}
+          title={
+            block.editable !== false ? t("hud.doubleClickEditHint") : undefined
+          }
+          className="px-2 py-1"
+        >
+          <div className="text-[14px] leading-[1.7] break-words text-[var(--text-hi)]">
+            {parseContentWithCodeBlocks(displayContent, searchHighlight, t)}
+          </div>
+
+          {isLong && !isSearchHit && (
+            <button
+              type="button"
+              onClick={() => setLongExpanded((v) => !v)}
+              className="hud-mono mt-1.5 inline-flex items-center gap-1 rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[11px] text-[var(--text-mid)] hover:text-[var(--text-hi)]"
+            >
+              {longExpanded ? (
+                <>
+                  <ChevronUp className="size-3" />
+                  <span>{t("hud.collapseLong")}</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="size-3" />
+                  <span>
+                    {t("hud.expandLong", {
+                      count: Math.round(block.content.length / 1000),
+                    })}
+                  </span>
+                </>
+              )}
             </button>
           )}
 
-          {isSpike && (
-            <span className="hud-mono inline-flex items-center gap-1 rounded-[2px] border border-[var(--crimson-line)] bg-[var(--crimson-dim)] px-1.5 py-[0.5px] text-[9.5px] font-bold text-[var(--crimson-fg)]">
-              <AlertTriangle className="size-2.5" />
-              <span>
-                {t("hud.spikeStamp", {
-                  tokens: formatTokenCount(estimatedTokens),
-                })}
-              </span>
-            </span>
-          )}
-
-          {/* Hover / Active Surgical Actions */}
-          <div className="hud-mono ml-auto flex items-center gap-2 text-[10.5px] text-[var(--text-low)]">
-            <div
-              className={cn(
-                "flex items-center gap-1 transition-opacity",
-                isEditing || isForged
-                  ? "opacity-100"
-                  : "opacity-0 group-hover/frame:opacity-100"
-              )}
+          {/* Rin ReplyFooter-style subtle hover action strip */}
+          <div className="mt-1 flex items-center gap-1.5 opacity-0 transition-opacity group-hover/frame:opacity-100">
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard.writeText(block.content);
+                setJustCopied(true);
+                setTimeout(() => setJustCopied(false), 1200);
+              }}
+              className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[11px] text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+              title={t("copy")}
             >
-              {!isEditing && block.editable === false && hasContent && (
-                <span
-                  className="rounded-[3px] border border-dashed border-[var(--line-hair)] px-1.5 py-0.5 text-[9.5px] text-[var(--text-low)]"
-                  title={t("hud.sealedReadOnlyHint")}
-                >
-                  {t("hud.sealedReadOnly")}
-                </span>
+              {justCopied ? (
+                <Check className="size-3 text-[var(--emerald-fg)]" />
+              ) : (
+                <Copy className="size-3" />
               )}
-              {!isEditing && block.editable !== false && (
+            </button>
+            {block.editable !== false && (
+              <>
                 <button
                   type="button"
                   onClick={onStartEdit}
-                  className="inline-flex items-center gap-1 rounded-[3px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-mid)] hover:border-[var(--forge-line)] hover:bg-[var(--forge-dim)] hover:text-[var(--forge-fg)]"
+                  className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[11px] text-[var(--text-low)] hover:bg-[var(--forge-dim)] hover:text-[var(--forge-fg)]"
                 >
-                  <Pencil className="size-2.5" />
+                  <Pencil className="size-3" />
                   <span>{t("hud.editMemory")}</span>
                 </button>
-              )}
-              {!isEditing && onRevert && (
-                <button
-                  type="button"
-                  onClick={onRevert}
-                  className="inline-flex items-center gap-1 rounded-[3px] border border-[var(--cyan-line)] bg-[var(--cyan-dim)] px-1.5 py-0.5 text-[10px] text-[var(--cyan-fg)]"
-                >
-                  <Undo2 className="size-2.5" />
-                  <span>{t("hud.revertOriginal")}</span>
-                </button>
-              )}
-              {isKiroPlaceholder && onLoadExecutionOutput && (
-                <button
-                  type="button"
-                  disabled={loadingExecutionOutput}
-                  onClick={onLoadExecutionOutput}
-                  className="inline-flex items-center gap-1 rounded-[3px] border border-[var(--cyan-line)] bg-[var(--cyan-dim)] px-1.5 py-0.5 text-[10px] text-[var(--cyan-fg)]"
-                >
-                  <RefreshCw
-                    className={cn(
-                      "size-2.5",
-                      loadingExecutionOutput && "animate-spin"
-                    )}
-                  />
-                  <span>{t("hud.loadOutputs", { count: 1 })}</span>
-                </button>
-              )}
-              {!isEditing && onForkInPty && (
-                <button
-                  type="button"
-                  onClick={onForkInPty}
-                  className="inline-flex items-center gap-1 rounded-[3px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-mid)] hover:border-[var(--cyan-line)] hover:text-[var(--cyan-fg)]"
-                  title={t("terminal.forkEmbedded")}
-                >
-                  <GitFork className="size-2.5" />
-                </button>
-              )}
-              {!isEditing && block.editable !== false && (
                 <button
                   type="button"
                   onClick={onErase}
-                  className="inline-flex items-center gap-1 rounded-[3px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-mid)] hover:border-[var(--crimson-line)] hover:bg-[var(--crimson-dim)] hover:text-[var(--crimson-fg)]"
+                  className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[11px] text-[var(--text-low)] hover:bg-[var(--crimson-dim)] hover:text-[var(--crimson-fg)]"
                 >
-                  <Trash2 className="size-2.5" />
+                  <Trash2 className="size-3" />
                   <span>{t("hud.eraseShort")}</span>
                 </button>
-              )}
-            </div>
-
-            <strong
-              className={cn(
-                isSpike ? "text-[var(--crimson-fg)]" : "text-[var(--text-mid)]"
-              )}
-            >
-              {formatTokenCount(estimatedTokens)} tok
-            </strong>
-          </div>
-        </div>
-
-        {/* Tool Calls Pipeline Chips */}
-        {block.toolCalls && block.toolCalls.length > 0 && (
-          <ToolPipelineStrip
-            canErase={canEraseToolCalls}
-            eraseLabel={t("session.eraseToolCall")}
-            erasingToolCallId={erasingToolCallId}
-            hasBody={hasContent || isEditing}
-            onErase={onEraseToolCall}
-            t={t}
-            toolCalls={block.toolCalls}
-          />
-        )}
-
-        {/* Zero-Modal Inline Ghost Surgery Editor OR Message Content */}
-        {isEditing ? (
-          <div className="mt-1.5 space-y-2">
-            {/* Ghost Original Reference Strip */}
-            <div className="hud-mono rounded-[3px] border border-dashed border-[var(--crimson-line)] bg-[var(--crimson-dim)] px-2.5 py-2 text-[11px] text-[var(--crimson-fg)]">
-              <div className="mb-1 flex items-center justify-between text-[9.5px] font-bold tracking-wider">
-                <span>{t("hud.ghostOriginalTitle")}</span>
-                <span>{t("hud.safeBackupTag")}</span>
-              </div>
-              <div className="max-h-28 overflow-y-auto whitespace-pre-wrap opacity-90">
-                - {editingOriginal || t("hud.previewEmpty")}
-              </div>
-            </div>
-
-            <textarea
-              autoFocus
-              className="hud-mono min-h-[132px] w-full resize-y rounded-[4px] border-[1.5px] border-[var(--forge)] bg-[var(--bg-code)] px-3 py-2 text-[12.5px] leading-relaxed text-[var(--text-hi)] outline-none"
-              onChange={(e) => onChangeEdit(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-                  e.preventDefault();
-                  onCommitEdit();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  onCancelEdit();
-                }
-              }}
-              placeholder={t("session.enterContent")}
-              value={editingContent}
-            />
-
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="hud-mono text-[10.5px] text-[var(--text-mid)]">
-                  <kbd className="hud-kbd">Ctrl+S</kbd> {t("save")} ·{" "}
-                  <kbd className="hud-kbd">Esc</kbd> {t("cancel")}
-                </span>
-
-                {/* Quick Inject from Prompt Arsenal */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onLoadArsenal();
-                      setArsenalMenuOpen((v) => !v);
-                    }}
-                    className="hud-mono inline-flex items-center gap-1 rounded-[3px] border border-[var(--cyan-line)] bg-[var(--cyan-dim)] px-2 py-0.5 text-[10px] font-semibold text-[var(--cyan-fg)]"
-                  >
-                    <BookOpen className="size-2.5" />
-                    <span>{t("hud.insertFromPrompts")}</span>
-                  </button>
-                  {arsenalMenuOpen && (
-                    <div className="absolute bottom-full left-0 z-50 mb-1 max-h-48 w-72 overflow-y-auto rounded-[5px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1 shadow-2xl">
-                      {!arsenalPrompts || arsenalPrompts.length === 0 ? (
-                        <div className="px-2.5 py-3 text-center text-[11px] text-[var(--text-low)]">
-                          {t("hud.noSavedPrompts")}
-                        </div>
-                      ) : (
-                        arsenalPrompts.map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => {
-                              const sep = editingContent.trim() ? "\n\n" : "";
-                              onChangeEdit(`${editingContent}${sep}${p.content}`);
-                              setArsenalMenuOpen(false);
-                            }}
-                            className="block w-full truncate rounded-[3px] px-2.5 py-1.5 text-left text-xs hover:bg-[var(--bg-hover)]"
-                          >
-                            {p.name}
-                          </button>
-                        ))
-                      )}
-                    </div>
+              </>
+            )}
+            {isKiroPlaceholder && onLoadExecutionOutput && (
+              <button
+                type="button"
+                disabled={loadingExecutionOutput}
+                onClick={onLoadExecutionOutput}
+                className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[11px] text-[var(--cyan-fg)] hover:bg-[var(--cyan-dim)]"
+              >
+                <RefreshCw
+                  className={cn(
+                    "size-3",
+                    loadingExecutionOutput && "animate-spin"
                   )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  disabled={savingEdit}
-                  onClick={onCancelEdit}
-                  className="hud-btn"
-                >
-                  {t("session.cancel")}
-                </button>
-                <button
-                  type="button"
-                  disabled={savingEdit}
-                  onClick={onCommitEdit}
-                  className="hud-btn hud-btn-forge"
-                >
-                  <Zap className="size-3" />
-                  <span>
-                    {savingEdit ? t("loading") : t("session.saveChanges")}
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : isThinking ? (
-          hasContent ? (
-            thinkingExpanded ? (
-              <div
-                className="space-y-1.5"
-                onDoubleClick={onStartEdit}
-                title={
-                  block.editable !== false
-                    ? t("hud.doubleClickEditHint")
-                    : t("hud.sealedReadOnlyHint")
-                }
-              >
-                <div className="hud-mono rounded-[4px] border-l-2 border-[var(--violet)] bg-[var(--bg-code)] px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap text-[var(--violet-fg)]">
-                  {parseContentWithCodeBlocks(block.content, searchHighlight, t)}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setThinkingExpanded(false)}
-                  className="hud-mono text-[10px] text-[var(--violet-fg)] hover:underline"
-                >
-                  {t("hud.collapseThinking")}
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setThinkingExpanded(true)}
-                className="hud-mono inline-flex items-center gap-1.5 rounded-[3px] border border-[var(--violet-line)] bg-[var(--violet-dim)] px-2.5 py-1 text-[10.5px] text-[var(--violet-fg)] hover:brightness-110"
-              >
-                <span>
-                  {t("hud.expandThinking", { count: block.content.length })}
-                </span>
-              </button>
-            )
-          ) : null
-        ) : hasContent ? (
-          <div
-            onDoubleClick={onStartEdit}
-            title={
-              block.editable !== false ? t("hud.doubleClickEditHint") : undefined
-            }
-          >
-            <div className="text-[13.5px] leading-[1.64] break-words text-[var(--text-hi)]">
-              {parseContentWithCodeBlocks(displayContent, searchHighlight, t)}
-            </div>
-            {isLong && !isSearchHit && (
-              <button
-                type="button"
-                onClick={() => setLongExpanded((v) => !v)}
-                className="hud-mono mt-1.5 inline-flex items-center gap-1 rounded-[3px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[10.5px] text-[var(--text-mid)] hover:text-[var(--text-hi)]"
-              >
-                {longExpanded ? (
-                  <>
-                    <ChevronUp className="size-3" />
-                    <span>{t("hud.collapseLong")}</span>
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="size-3" />
-                    <span>
-                      {t("hud.expandLong", {
-                        count: Math.round(block.content.length / 1000),
-                      })}
-                    </span>
-                  </>
-                )}
+                />
+                <span>{t("hud.loadOutputs", { count: 1 })}</span>
               </button>
             )}
+            {onForkInPty && (
+              <button
+                type="button"
+                onClick={onForkInPty}
+                className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[11px] text-[var(--text-low)] hover:bg-[var(--cyan-dim)] hover:text-[var(--cyan-fg)]"
+                title={t("terminal.forkEmbedded")}
+              >
+                <GitFork className="size-3" />
+              </button>
+            )}
+            {isSpike && (
+              <span className="hud-mono rounded bg-[var(--crimson-dim)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--crimson-fg)]">
+                ⚠ {t("hud.spikeStamp", { tokens: formatTokenCount(estimatedTokens) })}
+              </span>
+            )}
+            <span className="hud-mono ml-auto text-[10.5px] text-[var(--text-low)]">
+              {formatTokenCount(estimatedTokens)} tok
+            </span>
           </div>
-        ) : block.toolCalls && block.toolCalls.length > 0 ? null : (
-          <div className="hud-mono text-[11px] italic text-[var(--text-low)]">
-            {t("hud.emptyFrame")}
-          </div>
-        )}
-      </div>
+        </div>
+      ) : block.toolCalls && block.toolCalls.length > 0 ? null : (
+        <div className="hud-mono px-2 py-1 text-[11.5px] italic text-[var(--text-low)]">
+          {t("hud.emptyFrame")}
+        </div>
+      )}
     </div>
   );
 });

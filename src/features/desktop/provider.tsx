@@ -16,10 +16,63 @@ import type {
   AppState,
   DesktopSettingsPatch,
   DesktopSnapshot,
+  EditingBlock,
   LocaleId,
+  OpenSessionTab,
   Session,
   ThemeId,
 } from "@/features/desktop/types";
+
+const OPEN_TABS_STORAGE_KEY = "memory-forge.open-tabs";
+const MAX_OPEN_TABS = 12;
+
+export function sessionTabKey(platform: string, sessionKey: string): string {
+  return `${platform}::${sessionKey}`;
+}
+
+function orderPinnedFirst(tabs: OpenSessionTab[]): OpenSessionTab[] {
+  const pinned = tabs.filter((t) => t.pinned);
+  const rest = tabs.filter((t) => !t.pinned);
+  return [...pinned, ...rest];
+}
+
+function capTabs(
+  tabs: OpenSessionTab[],
+  protectedKeys: Set<string>
+): OpenSessionTab[] {
+  const next = [...tabs];
+  while (next.length > MAX_OPEN_TABS) {
+    const evictIdx = next.findIndex(
+      (t) =>
+        !(t.pinned || protectedKeys.has(sessionTabKey(t.platform, t.sessionKey)))
+    );
+    if (evictIdx < 0) break;
+    next.splice(evictIdx, 1);
+  }
+  return next;
+}
+
+function loadInitialTabs(): OpenSessionTab[] {
+  try {
+    const raw = localStorage.getItem(OPEN_TABS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const valid = parsed.filter(
+      (x): x is OpenSessionTab =>
+        Boolean(x && typeof x.platform === "string" && typeof x.sessionKey === "string")
+    );
+    return capTabs(orderPinnedFirst(valid), new Set());
+  } catch {
+    return [];
+  }
+}
+
+function saveTabsToStorage(tabs: OpenSessionTab[]) {
+  try {
+    localStorage.setItem(OPEN_TABS_STORAGE_KEY, JSON.stringify(orderPinnedFirst(tabs)));
+  } catch {}
+}
 
 const initialAppState: AppState = {
   currentPlatform: "all",
@@ -32,6 +85,7 @@ const initialAppState: AppState = {
   roleFilter: "all",
   searchQuery: "",
   editingBlock: null,
+  editDrafts: {},
   editLog: [],
   showEditLog: false,
   sessionStatus: null,
@@ -41,6 +95,9 @@ const initialAppState: AppState = {
   ptyBayMaximized: false,
   commandPaletteOpen: false,
   railCollapsed: false,
+  railHoverPeek: false,
+  locateRequestNonce: 0,
+  openSessionTabs: loadInitialTabs(),
 };
 
 function updateSessionTree(
@@ -63,6 +120,62 @@ function updateSessionTree(
   });
 }
 
+export function isDirtyEdit(edit: EditingBlock | null): edit is EditingBlock {
+  return Boolean(edit && edit.content !== edit.originalContent);
+}
+
+function activeTabKey(state: AppState): string | null {
+  const platform = state.selectedSessionPlatform ?? state.sessionDetail?.platform;
+  return platform && state.selectedSessionKey
+    ? sessionTabKey(platform, state.selectedSessionKey)
+    : null;
+}
+
+function protectedTabKeys(state: AppState, ...extra: Array<string | null>) {
+  const keys = new Set(Object.keys(state.editDrafts));
+  for (const key of [activeTabKey(state), ...extra]) {
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+
+function switchSelection(
+  state: AppState,
+  platform: string | null,
+  sessionKey: string | null
+): Pick<
+  AppState,
+  "selectedSessionPlatform" | "selectedSessionKey" | "editingBlock" | "editDrafts"
+> {
+  const fromKey = activeTabKey(state);
+  const toKey = platform && sessionKey ? sessionTabKey(platform, sessionKey) : null;
+  if (fromKey === toKey) {
+    return {
+      selectedSessionPlatform: platform,
+      selectedSessionKey: sessionKey,
+      editingBlock: state.editingBlock,
+      editDrafts: state.editDrafts,
+    };
+  }
+  const editDrafts = { ...state.editDrafts };
+  const current = state.editingBlock;
+  if (isDirtyEdit(current)) {
+    const draftKey =
+      current.platform && current.sessionKey
+        ? sessionTabKey(current.platform, current.sessionKey)
+        : fromKey;
+    if (draftKey) editDrafts[draftKey] = current;
+  }
+  const restored = toKey ? (editDrafts[toKey] ?? null) : null;
+  if (toKey) delete editDrafts[toKey];
+  return {
+    selectedSessionPlatform: platform,
+    selectedSessionKey: sessionKey,
+    editingBlock: restored,
+    editDrafts,
+  };
+}
+
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "setCurrentPlatform": {
@@ -70,11 +183,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         currentPlatform: action.payload,
-        selectedSessionKey: null,
-        selectedSessionPlatform: null,
-        sessionDetail: null,
-        editLog: [],
-        showEditLog: false,
         sessionStatus: null,
       };
     }
@@ -96,19 +204,57 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case "setSelectedSessionKey":
       return {
         ...state,
-        selectedSessionKey: action.payload,
+        ...switchSelection(
+          state,
+          action.payload ? state.selectedSessionPlatform : null,
+          action.payload
+        ),
         sessionStatus: null,
       };
-    case "selectSession":
+    case "selectSession": {
+      const { platform, sessionKey } = action.payload;
+      const key = sessionTabKey(platform, sessionKey);
+      const switched = switchSelection(state, platform, sessionKey);
+      const exists = state.openSessionTabs.some(
+        (t) => sessionTabKey(t.platform, t.sessionKey) === key
+      );
+      let nextTabs = state.openSessionTabs;
+      if (!exists) {
+        const found = state.sessions.find(
+          (s) => s.platform === platform && s.sessionKey === sessionKey
+        );
+        const fallbackTitle =
+          found?.aliasTitle || found?.displayTitle || sessionKey.slice(0, 8);
+        nextTabs = capTabs(
+          [...state.openSessionTabs, { platform, sessionKey, title: fallbackTitle }],
+          new Set([key, ...Object.keys(switched.editDrafts)])
+        );
+        saveTabsToStorage(nextTabs);
+      }
       return {
         ...state,
-        selectedSessionPlatform: action.payload.platform,
-        selectedSessionKey: action.payload.sessionKey,
-        editingBlock: null,
+        ...switched,
         sessionStatus: null,
+        railHoverPeek: false,
+        openSessionTabs: nextTabs,
       };
-    case "setSessionDetail":
-      return { ...state, sessionDetail: action.payload };
+    }
+    case "setSessionDetail": {
+      const detail = action.payload;
+      if (!detail) return { ...state, sessionDetail: null };
+      if (detail.sessionKey !== state.selectedSessionKey) return state;
+      const bestTitle = detail.aliasTitle || detail.title || detail.sessionId;
+      const idx = state.openSessionTabs.findIndex(
+        (t) =>
+          t.platform === detail.platform && t.sessionKey === detail.sessionKey
+      );
+      if (idx < 0) return { ...state, sessionDetail: detail };
+      const nextTabs = state.openSessionTabs.map((t, i) =>
+        i === idx ? { ...t, title: bestTitle, cwd: detail.cwd } : t
+      );
+      saveTabsToStorage(nextTabs);
+      return { ...state, sessionDetail: detail, openSessionTabs: nextTabs };
+    }
     case "setDashboard":
       return { ...state, dashboard: action.payload };
     case "setRoleFilter":
@@ -117,6 +263,19 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, searchQuery: action.payload };
     case "setEditingBlock":
       return { ...state, editingBlock: action.payload };
+    case "clearEditingBlock": {
+      const current = state.editingBlock;
+      if (
+        !current ||
+        current.id !== action.payload.id ||
+        (action.payload.sessionKey &&
+          current.sessionKey &&
+          current.sessionKey !== action.payload.sessionKey)
+      ) {
+        return state;
+      }
+      return { ...state, editingBlock: null };
+    }
     case "setEditLog":
       return { ...state, editLog: action.payload };
     case "setShowEditLog":
@@ -128,8 +287,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case "setShowArchived":
       return {
         ...state,
+        ...switchSelection(state, null, null),
         showArchived: action.payload,
-        selectedSessionKey: null,
         sessionDetail: null,
       };
     case "setPtyBayOpen":
@@ -147,7 +306,134 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case "setCommandPaletteOpen":
       return { ...state, commandPaletteOpen: action.payload };
     case "setRailCollapsed":
-      return { ...state, railCollapsed: action.payload };
+      return {
+        ...state,
+        railCollapsed: action.payload,
+        railHoverPeek: false,
+      };
+    case "setRailHoverPeek":
+      return {
+        ...state,
+        railHoverPeek: state.railCollapsed ? action.payload : false,
+      };
+    case "requestLocateSession":
+      return {
+        ...state,
+        railCollapsed: false,
+        railHoverPeek: false,
+        locateRequestNonce: state.locateRequestNonce + 1,
+      };
+    case "upsertSessionTab": {
+      const exists = state.openSessionTabs.some(
+        (t) =>
+          t.platform === action.payload.platform &&
+          t.sessionKey === action.payload.sessionKey
+      );
+      const nextTabs = exists
+        ? state.openSessionTabs.map((t) =>
+            t.platform === action.payload.platform &&
+            t.sessionKey === action.payload.sessionKey
+              ? { ...t, title: action.payload.title }
+              : t
+          )
+        : capTabs(
+            [...state.openSessionTabs, action.payload],
+            protectedTabKeys(
+              state,
+              sessionTabKey(action.payload.platform, action.payload.sessionKey)
+            )
+          );
+      saveTabsToStorage(nextTabs);
+      return { ...state, openSessionTabs: nextTabs };
+    }
+    case "togglePinSessionTab": {
+      const nextTabs = orderPinnedFirst(
+        state.openSessionTabs.map((t) =>
+          t.platform === action.payload.platform &&
+          t.sessionKey === action.payload.sessionKey
+            ? { ...t, pinned: !t.pinned }
+            : t
+        )
+      );
+      saveTabsToStorage(nextTabs);
+      return { ...state, openSessionTabs: nextTabs };
+    }
+    case "closeSessionTab": {
+      const idx = state.openSessionTabs.findIndex(
+        (t) =>
+          t.platform === action.payload.platform &&
+          t.sessionKey === action.payload.sessionKey
+      );
+      const nextTabs = state.openSessionTabs.filter(
+        (t) =>
+          !(
+            t.platform === action.payload.platform &&
+            t.sessionKey === action.payload.sessionKey
+          )
+      );
+      saveTabsToStorage(nextTabs);
+      const wasActive =
+        state.selectedSessionPlatform === action.payload.platform &&
+        state.selectedSessionKey === action.payload.sessionKey;
+      if (!wasActive) return { ...state, openSessionTabs: nextTabs };
+      const fallback = nextTabs[Math.min(idx, nextTabs.length - 1)] ?? null;
+      return {
+        ...state,
+        ...switchSelection(
+          state,
+          fallback?.platform ?? null,
+          fallback?.sessionKey ?? null
+        ),
+        openSessionTabs: nextTabs,
+        sessionDetail: fallback ? state.sessionDetail : null,
+      };
+    }
+    case "closeOtherSessionTabs": {
+      const nextTabs = state.openSessionTabs.filter(
+        (t) =>
+          t.pinned ||
+          (t.platform === action.payload.platform &&
+            t.sessionKey === action.payload.sessionKey)
+      );
+      saveTabsToStorage(nextTabs);
+      return {
+        ...state,
+        ...switchSelection(
+          state,
+          action.payload.platform,
+          action.payload.sessionKey
+        ),
+        openSessionTabs: nextTabs,
+      };
+    }
+    case "closeRightSessionTabs": {
+      const pivot = state.openSessionTabs.findIndex(
+        (t) =>
+          t.platform === action.payload.platform &&
+          t.sessionKey === action.payload.sessionKey
+      );
+      if (pivot < 0) return state;
+      const nextTabs = state.openSessionTabs.filter(
+        (t, idx) => idx <= pivot || t.pinned
+      );
+      saveTabsToStorage(nextTabs);
+      const activeStillOpen = nextTabs.some(
+        (t) =>
+          t.platform === state.selectedSessionPlatform &&
+          t.sessionKey === state.selectedSessionKey
+      );
+      return activeStillOpen
+        ? { ...state, openSessionTabs: nextTabs }
+        : {
+            ...state,
+            ...switchSelection(
+              state,
+              action.payload.platform,
+              action.payload.sessionKey
+            ),
+            openSessionTabs: nextTabs,
+          };
+    }
     default:
       return state;
   }

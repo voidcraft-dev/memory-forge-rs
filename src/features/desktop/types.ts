@@ -238,6 +238,23 @@ export type PromptUpdateInput = {
 
 // ─── App State ───
 
+export type OpenSessionTab = {
+  platform: string;
+  sessionKey: string;
+  title: string;
+  pinned?: boolean;
+  cwd?: string;
+};
+
+export type EditingBlock = {
+  id: string;
+  content: string;
+  role: string;
+  originalContent: string;
+  platform?: string;
+  sessionKey?: string;
+};
+
 export type AppState = {
   currentPlatform: string;
   selectedSessionPlatform: string | null;
@@ -248,7 +265,8 @@ export type AppState = {
   dashboard: DashboardSummary | null;
   roleFilter: "all" | "user" | "assistant" | "thinking" | "spike";
   searchQuery: string;
-  editingBlock: { id: string; content: string; role: string; originalContent: string } | null;
+  editingBlock: EditingBlock | null;
+  editDrafts: Record<string, EditingBlock>;
   editLog: EditLogEntry[];
   showEditLog: boolean;
   sessionStatus: SessionStatus | null;
@@ -258,6 +276,9 @@ export type AppState = {
   ptyBayMaximized: boolean;
   commandPaletteOpen: boolean;
   railCollapsed: boolean;
+  railHoverPeek: boolean;
+  locateRequestNonce: number;
+  openSessionTabs: OpenSessionTab[];
 };
 
 export type AppAction =
@@ -272,7 +293,8 @@ export type AppAction =
   | { type: "setDashboard"; payload: DashboardSummary | null }
   | { type: "setRoleFilter"; payload: "all" | "user" | "assistant" | "thinking" | "spike" }
   | { type: "setSearchQuery"; payload: string }
-  | { type: "setEditingBlock"; payload: { id: string; content: string; role: string; originalContent: string } | null }
+  | { type: "setEditingBlock"; payload: EditingBlock | null }
+  | { type: "clearEditingBlock"; payload: { id: string; sessionKey?: string } }
   | { type: "setEditLog"; payload: EditLogEntry[] }
   | { type: "setShowEditLog"; payload: boolean }
   | { type: "setSessionStatus"; payload: SessionStatus | null }
@@ -281,4 +303,11 @@ export type AppAction =
   | { type: "setPtyBayOpen"; payload: boolean }
   | { type: "setPtyBayMaximized"; payload: boolean }
   | { type: "setCommandPaletteOpen"; payload: boolean }
-  | { type: "setRailCollapsed"; payload: boolean };
+  | { type: "setRailCollapsed"; payload: boolean }
+  | { type: "setRailHoverPeek"; payload: boolean }
+  | { type: "requestLocateSession" }
+  | { type: "upsertSessionTab"; payload: OpenSessionTab }
+  | { type: "togglePinSessionTab"; payload: { platform: string; sessionKey: string } }
+  | { type: "closeSessionTab"; payload: { platform: string; sessionKey: string } }
+  | { type: "closeOtherSessionTabs"; payload: { platform: string; sessionKey: string } }
+  | { type: "closeRightSessionTabs"; payload: { platform: string; sessionKey: string } };

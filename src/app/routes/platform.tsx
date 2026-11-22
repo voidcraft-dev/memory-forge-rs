@@ -12,11 +12,11 @@ export default function PlatformPage() {
   const [railWidth, setRailWidth] = useState<number>(() => {
     try {
       const saved = Number(localStorage.getItem("memory-forge.rail-width"));
-      return Number.isFinite(saved) && saved >= 220 && saved <= 480
+      return Number.isFinite(saved) && saved >= 210 && saved <= 480
         ? saved
-        : 278;
+        : 256;
     } catch {
-      return 278;
+      return 256;
     }
   });
   const [isResizingRail, setIsResizingRail] = useState(false);
@@ -25,23 +25,46 @@ export default function PlatformPage() {
     dispatch({ type: "setCurrentPlatform", payload: platform || "all" });
   }, [platform, dispatch]);
 
+  const isPeeking = state.railCollapsed && state.railHoverPeek;
+
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 overflow-hidden">
-      {!state.railCollapsed && (
+      {/* Left 6px Edge Hover-Peek Trigger when Sidebar is Collapsed (Rin F-96!) */}
+      {state.railCollapsed && !state.railHoverPeek && (
         <div
-          style={{ width: `${railWidth}px` }}
-          className={cn(
-            "relative hidden h-full shrink-0 md:block",
-            !isResizingRail && "transition-[width] duration-150"
-          )}
-        >
-          <SessionList />
-          {/* Right Edge Column Resize Sash */}
+          onMouseEnter={() =>
+            dispatch({ type: "setRailHoverPeek", payload: true })
+          }
+          className="absolute inset-y-0 left-0 z-30 w-1.5"
+        />
+      )}
+
+      {/* Docked Sidebar / Floating Hover-Peek Sidebar Drawer */}
+      <div
+        onMouseLeave={
+          isPeeking
+            ? () => dispatch({ type: "setRailHoverPeek", payload: false })
+            : undefined
+        }
+        style={{ width: `${railWidth}px` }}
+        className={cn(
+          state.railCollapsed
+            ? isPeeking
+              ? "absolute inset-y-2 left-2 z-40 overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--bg-rack)] shadow-[var(--shadow-elev)]"
+              : "hidden"
+            : "relative hidden h-full shrink-0 md:block",
+          !(state.railCollapsed || isResizingRail) &&
+            "transition-[width] duration-150"
+        )}
+      >
+        <SessionList />
+        {!state.railCollapsed && (
+          /* Right Edge Column Resize Sash */
           <div
             onDoubleClick={() => {
-              setRailWidth(278);
+              setRailWidth(256);
               try {
-                localStorage.setItem("memory-forge.rail-width", "278");
+                localStorage.setItem("memory-forge.rail-width", "256");
               } catch {}
             }}
             onPointerDown={(e) => {
@@ -54,13 +77,13 @@ export default function PlatformPage() {
 
               let latestW = railWidth;
               const onMove = (ev: PointerEvent) => {
-                if (ev.clientX < 120) {
+                if (ev.clientX < 110) {
                   dispatch({ type: "setRailCollapsed", payload: true });
                   cleanup();
                   return;
                 }
                 const clamped = Math.max(
-                  220,
+                  210,
                   Math.min(Math.min(500, window.innerWidth - 360), ev.clientX)
                 );
                 latestW = clamped;
@@ -88,10 +111,9 @@ export default function PlatformPage() {
                 ? "bg-[var(--cyan)]"
                 : "hover:bg-[var(--cyan)]/75"
             )}
-            title="左右拖拽调整会话栏宽度 · 双击恢复默认"
           />
-        </div>
-      )}
+        )}
+      </div>
 
       <SessionDetail />
       <EditLogPanel />

@@ -480,7 +480,32 @@ export type MessageKey =
   | "hud.ctxNoResumeCmd"
   | "hud.ctxCopyMessage"
   | "hud.ctxSaveAsPrompt"
-  | "hud.ctxSavedAsPrompt";
+  | "hud.ctxSavedAsPrompt"
+  | "hud.locateInSidebar"
+  | "hud.sidebarHoverHint"
+  | "hud.closeTab"
+  | "hud.pinnedSection"
+  | "hud.projectsSection"
+  | "hud.ungroupedSessions"
+  | "hud.toolVerbRead"
+  | "hud.toolVerbEdit"
+  | "hud.toolVerbWrite"
+  | "hud.toolVerbRun"
+  | "hud.toolVerbSearch"
+  | "hud.toolVerbFind"
+  | "hud.toolVerbList"
+  | "hud.toolVerbTodo"
+  | "hud.toolVerbCall"
+  | "hud.filesChangedSummary"
+  | "hud.tabRename"
+  | "hud.tabDoubleClickHint"
+  | "hud.tabPin"
+  | "hud.tabUnpin"
+  | "hud.tabCloseOthers"
+  | "hud.tabCloseRight"
+  | "hud.clearWorkspaceFilter"
+  | "hud.workspaceFilterEmpty"
+  | "hud.unsavedDraft";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -953,6 +978,31 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "hud.ctxCopyMessage": "复制整条消息内容",
     "hud.ctxSaveAsPrompt": "存入本地提示词库",
     "hud.ctxSavedAsPrompt": "已存入提示词库",
+    "hud.locateInSidebar": "在侧栏中定位当前会话",
+    "hud.sidebarHoverHint": "点击固定展开侧栏 · 鼠标移上可临时预览",
+    "hud.closeTab": "关闭页签",
+    "hud.pinnedSection": "置顶",
+    "hud.projectsSection": "项目",
+    "hud.ungroupedSessions": "未归属目录",
+    "hud.toolVerbRead": "读取",
+    "hud.toolVerbEdit": "编辑",
+    "hud.toolVerbWrite": "写入",
+    "hud.toolVerbRun": "运行",
+    "hud.toolVerbSearch": "搜索",
+    "hud.toolVerbFind": "查找",
+    "hud.toolVerbList": "列目录",
+    "hud.toolVerbTodo": "更新待办",
+    "hud.toolVerbCall": "调用",
+    "hud.filesChangedSummary": "本轮涉及 {count} 个文件改动",
+    "hud.tabRename": "重命名",
+    "hud.tabDoubleClickHint": "双击",
+    "hud.tabPin": "固定页签",
+    "hud.tabUnpin": "取消固定",
+    "hud.tabCloseOthers": "关闭其他",
+    "hud.tabCloseRight": "关闭右侧",
+    "hud.clearWorkspaceFilter": "清除项目过滤",
+    "hud.workspaceFilterEmpty": "当前列表中没有这个项目的会话（可加载更多或清除过滤）",
+    "hud.unsavedDraft": "有未保存的改写草稿，切回此页签会自动恢复",
   },
   en: {
     appName: "Memory Forge",
@@ -1424,6 +1474,31 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "hud.ctxCopyMessage": "Copy Full Message",
     "hud.ctxSaveAsPrompt": "Save to Prompt Library",
     "hud.ctxSavedAsPrompt": "Saved to Prompt Library",
+    "hud.locateInSidebar": "Locate active session in sidebar",
+    "hud.sidebarHoverHint": "Click to dock sidebar · Hover to peek",
+    "hud.closeTab": "Close tab",
+    "hud.pinnedSection": "Pinned",
+    "hud.projectsSection": "Projects",
+    "hud.ungroupedSessions": "Other Sessions",
+    "hud.toolVerbRead": "Read",
+    "hud.toolVerbEdit": "Edit",
+    "hud.toolVerbWrite": "Write",
+    "hud.toolVerbRun": "Run",
+    "hud.toolVerbSearch": "Search",
+    "hud.toolVerbFind": "Find",
+    "hud.toolVerbList": "List",
+    "hud.toolVerbTodo": "Todo",
+    "hud.toolVerbCall": "Call",
+    "hud.filesChangedSummary": "{count} files touched in this turn",
+    "hud.tabRename": "Rename",
+    "hud.tabDoubleClickHint": "DblClick",
+    "hud.tabPin": "Pin Tab",
+    "hud.tabUnpin": "Unpin Tab",
+    "hud.tabCloseOthers": "Close Others",
+    "hud.tabCloseRight": "Close to the Right",
+    "hud.clearWorkspaceFilter": "Clear project filter",
+    "hud.workspaceFilterEmpty": "No sessions for this project in the current list (load more or clear the filter)",
+    "hud.unsavedDraft": "Unsaved edit draft — restored when you return to this tab",
   },
 };
 

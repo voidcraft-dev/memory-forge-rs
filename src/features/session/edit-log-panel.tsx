@@ -83,7 +83,8 @@ export function EditLogPanel() {
   const { t, state, dispatch } = useDesktop();
   const { confirm, dialogProps } = useConfirmDialog();
   const editLog = state.editLog;
-  const selectedSessionKey = state.selectedSessionKey;
+  const selectedSessionKey =
+    state.sessionDetail?.sessionKey ?? state.selectedSessionKey;
   const showEditLog = state.showEditLog;
   const activePlatform =
     state.sessionDetail?.platform ||

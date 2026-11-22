@@ -1,18 +1,22 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
+  ArrowRightToLine,
   BookOpen,
   ChevronUp,
   Copy,
   ExternalLink,
   Folder,
   LayoutGrid,
+  LocateFixed,
   Maximize2,
   Minimize2,
   Minus,
   Moon,
   PanelLeft,
   Pencil,
+  Pin,
+  PinOff,
   Play,
   Plus,
   RotateCw,
@@ -29,8 +33,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { api } from "@/features/desktop/api";
-import { useDesktop } from "@/features/desktop/provider";
-import type { Session, TimelineBlock } from "@/features/desktop/types";
+import { isDirtyEdit, useDesktop } from "@/features/desktop/provider";
+import type {
+  OpenSessionTab,
+  Session,
+  TimelineBlock,
+} from "@/features/desktop/types";
+import {
+  cleanHumanPreview,
+  isUuidLikeTitle,
+  PlatformMark,
+} from "@/features/session/session-list";
 import { EmbeddedTerminalPanel } from "@/features/terminal/embedded-terminal-panel";
 import { NewSessionDialog } from "@/features/terminal/new-session-dialog";
 import { useTerminal } from "@/features/terminal/terminal-context";
@@ -68,13 +81,23 @@ export function formatTokenCount(tokens: number): string {
   return String(tokens);
 }
 
+export function normalizeCleanPath(raw: string): string {
+  const cleaned = raw
+    .trim()
+    .replace(/^\\\\\?\\/, "")
+    .replace(/^\/\/\?\//, "")
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "");
+  return cleaned.replace(/^([a-z]):\//, (_, drv: string) => `${drv.toUpperCase()}:/`);
+}
+
 export function formatWorkspaceShortName(cwd: string): string {
-  const normalized = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
+  const normalized = normalizeCleanPath(cwd);
   const parts = normalized.split("/").filter(Boolean);
   if (parts.length >= 2) {
     return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
   }
-  return parts[parts.length - 1] || cwd;
+  return parts[parts.length - 1] || normalized || cwd;
 }
 
 function formatPtyTabTitle(title: string): string {
@@ -121,6 +144,13 @@ export default function ShellLayout() {
     y: number;
     term: EmbeddedTerminalSession;
   } | null>(null);
+  const [tabCtxMenu, setTabCtxMenu] = useState<{
+    x: number;
+    y: number;
+    tab: OpenSessionTab;
+  } | null>(null);
+  const [renamingTabKey, setRenamingTabKey] = useState<string | null>(null);
+  const [renamingTabDraft, setRenamingTabDraft] = useState("");
   const [isWinMaximized, setIsWinMaximized] = useState(false);
   const [ptyHeight, setPtyHeight] = useState<number>(() => {
     try {
@@ -191,12 +221,21 @@ export default function ShellLayout() {
       .catch(() => {});
   }, []);
 
-  // Global WebView default context-menu shield (allows inputs/textareas & xterm) + close PTY menu
+  // Global WebView default context-menu shield + instant pointerdown capture dismissal
   useEffect(() => {
-    const onGlobalContextMenu = (event: MouseEvent) => {
-      setPtyCtxMenu(null);
-      if (event.defaultPrevented) return;
+    const onGlobalPointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-context-menu]")) return;
+      setPtyCtxMenu(null);
+      setTabCtxMenu(null);
+    };
+    const onGlobalContextMenu = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest("[data-context-menu]")) {
+        setPtyCtxMenu(null);
+        setTabCtxMenu(null);
+      }
+      if (event.defaultPrevented) return;
       if (
         target?.closest(
           'input, textarea, [contenteditable="true"], .xterm'
@@ -208,12 +247,24 @@ export default function ShellLayout() {
       if (selection) return;
       event.preventDefault();
     };
-    const onGlobalClick = () => setPtyCtxMenu(null);
+    const closeMenus = () => {
+      setPtyCtxMenu(null);
+      setTabCtxMenu(null);
+    };
+    window.addEventListener("pointerdown", onGlobalPointerDown, true);
     window.addEventListener("contextmenu", onGlobalContextMenu);
-    window.addEventListener("click", onGlobalClick);
+    window.addEventListener("blur", closeMenus);
+    window.addEventListener("resize", closeMenus);
+    document.addEventListener("scroll", closeMenus, {
+      capture: true,
+      passive: true,
+    });
     return () => {
+      window.removeEventListener("pointerdown", onGlobalPointerDown, true);
       window.removeEventListener("contextmenu", onGlobalContextMenu);
-      window.removeEventListener("click", onGlobalClick);
+      window.removeEventListener("blur", closeMenus);
+      window.removeEventListener("resize", closeMenus);
+      document.removeEventListener("scroll", closeMenus, { capture: true });
     };
   }, []);
 
@@ -221,6 +272,13 @@ export default function ShellLayout() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      const target = event.target as HTMLElement | null;
+      const inTextField =
+        target !== cmdInputRef.current &&
+        Boolean(
+          target?.closest('input, textarea, select, [contenteditable="true"]')
+        );
+      if (inTextField && (key === "k" || key === "w" || key === "b")) return;
       if ((event.ctrlKey || event.metaKey) && key === "k") {
         event.preventDefault();
         setCmdQuery("");
@@ -229,14 +287,35 @@ export default function ShellLayout() {
           type: "setCommandPaletteOpen",
           payload: !state.commandPaletteOpen,
         });
+      } else if ((event.ctrlKey || event.metaKey) && key === "w") {
+        if (state.selectedSessionKey && state.selectedSessionPlatform) {
+          const activeTab = state.openSessionTabs.find(
+            (x) =>
+              x.platform === state.selectedSessionPlatform &&
+              x.sessionKey === state.selectedSessionKey
+          );
+          if (activeTab && !activeTab.pinned) {
+            event.preventDefault();
+            dispatch({
+              type: "closeSessionTab",
+              payload: {
+                platform: activeTab.platform,
+                sessionKey: activeTab.sessionKey,
+              },
+            });
+          }
+        }
       } else if ((event.ctrlKey || event.metaKey) && event.key === "`") {
         event.preventDefault();
         dispatch({ type: "setPtyBayOpen", payload: !state.ptyBayOpen });
       } else if ((event.ctrlKey || event.metaKey) && key === "b") {
         event.preventDefault();
         dispatch({ type: "setRailCollapsed", payload: !state.railCollapsed });
-      } else if (event.key === "Escape" && state.commandPaletteOpen) {
-        dispatch({ type: "setCommandPaletteOpen", payload: false });
+      } else if (event.key === "Escape") {
+        setTabCtxMenu(null);
+        if (state.commandPaletteOpen) {
+          dispatch({ type: "setCommandPaletteOpen", payload: false });
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -244,8 +323,11 @@ export default function ShellLayout() {
   }, [
     dispatch,
     state.commandPaletteOpen,
+    state.openSessionTabs,
     state.ptyBayOpen,
     state.railCollapsed,
+    state.selectedSessionKey,
+    state.selectedSessionPlatform,
   ]);
 
   useEffect(() => {
@@ -325,16 +407,6 @@ export default function ShellLayout() {
     }
   };
 
-  const handleDragMouseDown = (e: React.MouseEvent<HTMLElement>) => {
-    if (!isTauriApp || e.buttons !== 1) return;
-    if (e.target !== e.currentTarget) return;
-    const win = getCurrentWindow();
-    if (e.detail === 2) {
-      void win.toggleMaximize();
-    } else {
-      void win.startDragging();
-    }
-  };
 
   // Command Palette Items
   const commandItems = useMemo(() => {
@@ -488,11 +560,10 @@ export default function ShellLayout() {
       {/* ==================== 38PX FRAMELESS UNIFIED TITLEBAR (RIN / OPENCODE STYLE) ==================== */}
       <header
         data-tauri-drag-region
-        onMouseDown={handleDragMouseDown}
-        className="z-30 flex h-[38px] min-w-0 items-center border-b border-[var(--line-hair)] bg-[var(--bg-rack)] pl-2 select-none"
+        className="z-30 flex h-[38px] min-w-0 items-center border-b border-[var(--line-hair)] bg-[var(--bg-rack)] pl-1.5 select-none"
       >
-        {/* Left: Sidebar Toggle + Subtle Monochrome Brand Glyph + Borderless Tabs */}
-        <div className="flex shrink-0 items-center gap-1">
+        {/* Left: Sidebar Toggle (with Hover Peek!) + Locate Button + Adaptive Session TabStrip */}
+        <div className="flex min-w-0 flex-1 items-center gap-0.5 self-stretch pr-2">
           <button
             type="button"
             onClick={() => {
@@ -503,100 +574,266 @@ export default function ShellLayout() {
                   payload: !state.railCollapsed,
                 });
             }}
-            className="grid size-7 place-items-center rounded-[5px] text-[var(--text-mid)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
-            title={`${t("sidebar.collapse")} (Ctrl+B)`}
+            onMouseEnter={() => {
+              if (isWorkbench && state.railCollapsed) {
+                dispatch({ type: "setRailHoverPeek", payload: true });
+              }
+            }}
+            className="grid size-7 shrink-0 place-items-center rounded-full text-[var(--text-mid)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+            title={
+              state.railCollapsed
+                ? t("hud.sidebarHoverHint")
+                : `${t("sidebar.collapse")} (Ctrl+B)`
+            }
           >
-            <PanelLeft className="size-4" />
+            <PanelLeft className="size-[15px]" />
           </button>
 
-          {/* Subtle Precision Geometric Mark */}
-          <span
-            className="mx-0.5 flex items-center gap-1.5 px-1 text-[var(--text-low)]"
-            title={`Memory Forge v${snapshot?.version ?? "3.9.0"}`}
-          >
-            <svg
-              aria-hidden="true"
-              className="size-3.5 text-[var(--forge-fg)]"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
+          {state.selectedSessionKey && isWorkbench && (
+            <button
+              type="button"
+              onClick={() => dispatch({ type: "requestLocateSession" })}
+              className="grid size-7 shrink-0 place-items-center rounded-full text-[var(--text-mid)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+              title={t("hud.locateInSidebar")}
             >
-              <path d="M12 2L4 7v10l8 5 8-5V7l-8-5z" />
-              <circle cx="12" cy="12" r="2.2" />
-            </svg>
-          </span>
+              <LocateFixed className="size-[15px]" />
+            </button>
+          )}
 
-          {/* Borderless Clean Navigation Tabs */}
-          <nav aria-label={t("appName")} className="flex items-center gap-0.5">
+          {/* Rin-Style Adaptive TabStrip (Zero Scrollbar + Flex Shrink + Wheel Scroll!) */}
+          {state.openSessionTabs.length > 0 ? (
+            <div
+              onWheel={(e) => {
+                if (e.deltaY !== 0) {
+                  e.currentTarget.scrollLeft += e.deltaY;
+                }
+              }}
+              className="no-scrollbar ml-1 flex min-w-0 items-center gap-0.5 overflow-x-auto py-1"
+            >
+              {state.openSessionTabs.map((tab) => {
+                const compKey = `${tab.platform}::${tab.sessionKey}`;
+                const hasDraft =
+                  Boolean(state.editDrafts[compKey]) ||
+                  (isDirtyEdit(state.editingBlock) &&
+                    state.editingBlock.platform === tab.platform &&
+                    state.editingBlock.sessionKey === tab.sessionKey);
+                const tabActive =
+                  isWorkbench &&
+                  state.selectedSessionKey === tab.sessionKey &&
+                  (state.selectedSessionPlatform || tab.platform) ===
+                    tab.platform;
+                const matchedSession = state.sessions.find(
+                  (s) =>
+                    s.platform === tab.platform &&
+                    s.sessionKey === tab.sessionKey
+                );
+                const rawTitle =
+                  matchedSession?.aliasTitle || tab.title || tab.sessionKey;
+                const displayTabTitle = !isUuidLikeTitle(rawTitle)
+                  ? normalizeCleanPath(rawTitle)
+                  : cleanHumanPreview(matchedSession?.preview).slice(0, 28) ||
+                    tab.sessionKey.slice(0, 8);
+                const isRenamingThis = renamingTabKey === compKey;
+
+                return (
+                  <div
+                    key={compKey}
+                    onAuxClick={(e) => {
+                      if (e.button === 1 && !tab.pinned) {
+                        e.preventDefault();
+                        dispatch({
+                          type: "closeSessionTab",
+                          payload: {
+                            platform: tab.platform,
+                            sessionKey: tab.sessionKey,
+                          },
+                        });
+                      }
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setTabCtxMenu({
+                        x: Math.min(window.innerWidth - 208, e.clientX),
+                        y: 38,
+                        tab: {
+                          ...tab,
+                          title: displayTabTitle,
+                          cwd: matchedSession?.cwd || tab.cwd,
+                        },
+                      });
+                    }}
+                    title={displayTabTitle}
+                    className={cn(
+                      "group/tab flex h-[27px] max-w-[164px] shrink-0 items-center gap-1.5 rounded-[7px] px-2.5 text-xs transition-colors",
+                      tab.pinned ? "min-w-[78px]" : "min-w-[98px] flex-1",
+                      tabActive
+                        ? "border border-[var(--line-hair)] bg-[var(--bg-void)] font-medium text-[var(--text-hi)] shadow-2xs"
+                        : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)]/75 hover:text-[var(--text-hi)]"
+                    )}
+                  >
+                    <PlatformMark platform={tab.platform} size={12} />
+
+                    {isRenamingThis ? (
+                      <input
+                        autoFocus
+                        className="h-5 min-w-0 flex-1 rounded bg-[var(--bg-panel)] px-1 text-xs text-[var(--text-hi)] outline-none ring-1 ring-[var(--cyan)]"
+                        onBlur={async () => {
+                          const trimmed = renamingTabDraft.trim();
+                          setRenamingTabKey(null);
+                          await api
+                            .setAlias(tab.platform, tab.sessionKey, trimmed)
+                            .catch(() => {});
+                          dispatch({
+                            type: "updateSession",
+                            payload: {
+                              sessionKey: tab.sessionKey,
+                              updates: { aliasTitle: trimmed },
+                            },
+                          });
+                          dispatch({
+                            type: "upsertSessionTab",
+                            payload: {
+                              ...tab,
+                              title: trimmed || displayTabTitle,
+                            },
+                          });
+                        }}
+                        onChange={(e) => setRenamingTabDraft(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.currentTarget.blur();
+                          } else if (e.key === "Escape") {
+                            setRenamingTabKey(null);
+                          }
+                        }}
+                        value={renamingTabDraft}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!isWorkbench) navigate("/");
+                          dispatch({
+                            type: "selectSession",
+                            payload: {
+                              platform: tab.platform,
+                              sessionKey: tab.sessionKey,
+                            },
+                          });
+                        }}
+                        onDoubleClick={() => {
+                          setRenamingTabDraft(displayTabTitle);
+                          setRenamingTabKey(compKey);
+                        }}
+                        className="min-w-0 flex-1 truncate text-left"
+                      >
+                        {displayTabTitle}
+                      </button>
+                    )}
+
+                    {hasDraft && (
+                      <span
+                        className="size-1.5 shrink-0 rounded-full bg-[var(--forge)]"
+                        title={t("hud.unsavedDraft")}
+                      />
+                    )}
+
+                    {tab.pinned ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dispatch({
+                            type: "togglePinSessionTab",
+                            payload: {
+                              platform: tab.platform,
+                              sessionKey: tab.sessionKey,
+                            },
+                          });
+                        }}
+                        className="grid size-4 shrink-0 place-items-center rounded-full text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+                        title={t("hud.tabUnpin")}
+                      >
+                        <Pin className="size-2.5 rotate-45" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dispatch({
+                            type: "closeSessionTab",
+                            payload: {
+                              platform: tab.platform,
+                              sessionKey: tab.sessionKey,
+                            },
+                          });
+                        }}
+                        className={cn(
+                          "size-4 shrink-0 place-items-center rounded-full text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]",
+                          tabActive
+                            ? "grid opacity-80 hover:opacity-100"
+                            : "hidden group-hover/tab:grid"
+                        )}
+                        title={`${t("hud.closeTab")} (Ctrl+W)`}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
             <button
               type="button"
               onClick={() => navigate("/")}
-              className={cn(
-                "relative inline-flex h-7 items-center gap-1.5 rounded-[5px] px-2.5 text-xs font-medium transition-colors",
-                isWorkbench
-                  ? "bg-[var(--bg-hover)] font-semibold text-[var(--text-hi)]"
-                  : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)]/60 hover:text-[var(--text-hi)]"
-              )}
+              className="ml-1 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[6px] px-2.5 text-xs font-medium text-[var(--text-hi)] hover:bg-[var(--bg-hover)]"
             >
-              <Scissors
-                className={cn(
-                  "size-3.5",
-                  isWorkbench && "text-[var(--cyan-fg)]"
-                )}
-              />
+              <Scissors className="size-3.5 text-[var(--cyan-fg)]" />
               <span>{t("hud.nav.workbench")}</span>
             </button>
+          )}
 
-            <button
-              type="button"
-              onClick={() => navigate("/radar")}
-              className={cn(
-                "relative inline-flex h-7 items-center gap-1.5 rounded-[5px] px-2.5 text-xs font-medium transition-colors",
-                isRadar
-                  ? "bg-[var(--bg-hover)] font-semibold text-[var(--text-hi)]"
-                  : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)]/60 hover:text-[var(--text-hi)]"
-              )}
-            >
-              <LayoutGrid
-                className={cn("size-3.5", isRadar && "text-[var(--cyan-fg)]")}
-              />
-              <span>{t("hud.nav.radar")}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate("/prompts")}
-              className={cn(
-                "relative inline-flex h-7 items-center gap-1.5 rounded-[5px] px-2.5 text-xs font-medium transition-colors",
-                isArsenal
-                  ? "bg-[var(--bg-hover)] font-semibold text-[var(--text-hi)]"
-                  : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)]/60 hover:text-[var(--text-hi)]"
-              )}
-            >
-              <BookOpen
-                className={cn(
-                  "size-3.5",
-                  isArsenal && "text-[var(--cyan-fg)]"
-                )}
-              />
-              <span>{t("hud.nav.arsenal")}</span>
-            </button>
-          </nav>
+          {/* Trailing Drag Region */}
+          <div data-tauri-drag-region className="min-w-[48px] flex-1 self-stretch" />
         </div>
-
-        {/* Center: Pure Calm Drag Breathing Space (like rin / OpenCode!) */}
-        <div
-          data-tauri-drag-region
-          onMouseDown={handleDragMouseDown}
-          className="h-full min-w-[40px] flex-1"
-        />
 
         {/* Right: Borderless Ghost Utility Icons + Native Window Caption Buttons */}
         <div className="flex h-full shrink-0 items-center">
           <div className="flex items-center gap-0.5 pr-1.5">
+            {/* Overview & Prompt Library Ghost Buttons */}
+            <button
+              type="button"
+              onClick={() => navigate(isRadar ? "/" : "/radar")}
+              className={cn(
+                "inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs transition-colors",
+                isRadar
+                  ? "bg-[var(--bg-hover)] font-semibold text-[var(--text-hi)]"
+                  : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+              )}
+              title={t("hud.nav.radar")}
+            >
+              <LayoutGrid className="size-3.5" />
+              <span className="hidden lg:inline">{t("hud.nav.radar")}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate(isArsenal ? "/" : "/prompts")}
+              className={cn(
+                "inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs transition-colors",
+                isArsenal
+                  ? "bg-[var(--bg-hover)] font-semibold text-[var(--text-hi)]"
+                  : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+              )}
+              title={t("hud.nav.arsenal")}
+            >
+              <BookOpen className="size-3.5" />
+              <span className="hidden lg:inline">{t("hud.nav.arsenal")}</span>
+            </button>
             {/* Command Palette Trigger */}
             <button
               type="button"
@@ -1255,9 +1492,265 @@ export default function ShellLayout() {
         </div>
       )}
 
+      {/* Full-Window Click-Catcher Backdrop while any TopBar / PTY menu is open (blocks Tauri drag-region from swallowing clicks!) */}
+      {(tabCtxMenu || ptyCtxMenu) && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => {
+            setTabCtxMenu(null);
+            setPtyCtxMenu(null);
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setTabCtxMenu(null);
+            setPtyCtxMenu(null);
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setTabCtxMenu(null);
+            setPtyCtxMenu(null);
+          }}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setTabCtxMenu(null);
+            setPtyCtxMenu(null);
+          }}
+        />
+      )}
+
+      {/* TopBar Session Tab Right-Click Context Menu (Exact Rin Menu!) */}
+      {tabCtxMenu && (
+        <div
+          data-context-menu
+          style={{ left: `${tabCtxMenu.x}px`, top: `${tabCtxMenu.y}px` }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+          className="fixed z-50 w-[202px] rounded-[9px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1.5 text-xs text-[var(--text-hi)] shadow-2xl"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const target = tabCtxMenu.tab;
+              setTabCtxMenu(null);
+              if (!isWorkbench) navigate("/");
+              dispatch({
+                type: "selectSession",
+                payload: {
+                  platform: target.platform,
+                  sessionKey: target.sessionKey,
+                },
+              });
+              setTimeout(() => dispatch({ type: "requestLocateSession" }), 30);
+            }}
+            className="flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+          >
+            <LocateFixed className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+            <span className="truncate">{t("hud.locateInSidebar")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={async () => {
+              const target = tabCtxMenu.tab;
+              setTabCtxMenu(null);
+              try {
+                const detail =
+                  state.sessionDetail?.sessionKey === target.sessionKey
+                    ? state.sessionDetail
+                    : await api.getSessionDetail(
+                        target.platform,
+                        target.sessionKey
+                      );
+                const cmd = detail.commands?.resume;
+                if (!cmd) {
+                  dispatch({
+                    type: "setSessionStatus",
+                    payload: { tone: "error", message: t("hud.ctxNoResumeCmd") },
+                  });
+                  return;
+                }
+                await navigator.clipboard.writeText(cmd);
+                dispatch({
+                  type: "setSessionStatus",
+                  payload: { tone: "success", message: t("session.copied") },
+                });
+              } catch {
+                dispatch({
+                  type: "setSessionStatus",
+                  payload: {
+                    tone: "error",
+                    message: t("session.terminalOpenFailed"),
+                  },
+                });
+              }
+            }}
+            className="flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+          >
+            <Terminal className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+            <span className="truncate">{t("terminal.copyResumeCmd")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const sk = tabCtxMenu.tab.sessionKey;
+              setTabCtxMenu(null);
+              void navigator.clipboard.writeText(sk);
+            }}
+            className="flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+          >
+            <Copy className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+            <span className="truncate">{t("hud.ctxCopySessionId")}</span>
+          </button>
+
+          {tabCtxMenu.tab.cwd && (
+            <button
+              type="button"
+              onClick={() => {
+                const cwd = tabCtxMenu.tab.cwd ?? "";
+                setTabCtxMenu(null);
+                void navigator.clipboard.writeText(cwd);
+              }}
+              className="flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+            >
+              <Folder className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+              <span className="truncate">{t("hud.ctxCopyCwd")}</span>
+            </button>
+          )}
+
+          <div className="my-1 border-t border-[var(--line-hair)]" />
+
+          <button
+            type="button"
+            onClick={() => {
+              const target = tabCtxMenu.tab;
+              setTabCtxMenu(null);
+              setRenamingTabDraft(target.title);
+              setRenamingTabKey(`${target.platform}::${target.sessionKey}`);
+            }}
+            className="flex w-full items-center justify-between gap-2 rounded-[6px] px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+          >
+            <span className="flex items-center gap-2.5 truncate">
+              <Pencil className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+              <span>{t("hud.tabRename")}</span>
+            </span>
+            <span className="text-[11px] text-[var(--text-low)]">
+              {t("hud.tabDoubleClickHint")}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const target = tabCtxMenu.tab;
+              setTabCtxMenu(null);
+              dispatch({
+                type: "togglePinSessionTab",
+                payload: {
+                  platform: target.platform,
+                  sessionKey: target.sessionKey,
+                },
+              });
+            }}
+            className="flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+          >
+            {tabCtxMenu.tab.pinned ? (
+              <PinOff className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+            ) : (
+              <Pin className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+            )}
+            <span className="truncate">
+              {tabCtxMenu.tab.pinned ? t("hud.tabUnpin") : t("hud.tabPin")}
+            </span>
+          </button>
+
+          <div className="my-1 border-t border-[var(--line-hair)]" />
+
+          <button
+            type="button"
+            disabled={Boolean(tabCtxMenu.tab.pinned)}
+            onClick={() => {
+              const target = tabCtxMenu.tab;
+              setTabCtxMenu(null);
+              dispatch({
+                type: "closeSessionTab",
+                payload: {
+                  platform: target.platform,
+                  sessionKey: target.sessionKey,
+                },
+              });
+            }}
+            className="flex w-full items-center justify-between gap-2 rounded-[6px] px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)] disabled:opacity-40"
+          >
+            <span className="flex items-center gap-2.5 truncate">
+              <X className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+              <span>{t("hud.closeTab")}</span>
+            </span>
+            <span className="hud-mono text-[11px] text-[var(--text-low)]">
+              Ctrl+W
+            </span>
+          </button>
+
+          <button
+            type="button"
+            disabled={
+              state.openSessionTabs.filter((x) => !x.pinned).length <= 1
+            }
+            onClick={() => {
+              const target = tabCtxMenu.tab;
+              setTabCtxMenu(null);
+              dispatch({
+                type: "closeOtherSessionTabs",
+                payload: {
+                  platform: target.platform,
+                  sessionKey: target.sessionKey,
+                },
+              });
+            }}
+            className="flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)] disabled:opacity-40"
+          >
+            <Copy className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+            <span className="truncate">{t("hud.tabCloseOthers")}</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={(() => {
+              const idx = state.openSessionTabs.findIndex(
+                (x) =>
+                  x.platform === tabCtxMenu.tab.platform &&
+                  x.sessionKey === tabCtxMenu.tab.sessionKey
+              );
+              return (
+                idx < 0 ||
+                !state.openSessionTabs.slice(idx + 1).some((x) => !x.pinned)
+              );
+            })()}
+            onClick={() => {
+              const target = tabCtxMenu.tab;
+              setTabCtxMenu(null);
+              dispatch({
+                type: "closeRightSessionTabs",
+                payload: {
+                  platform: target.platform,
+                  sessionKey: target.sessionKey,
+                },
+              });
+            }}
+            className="flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)] disabled:opacity-40"
+          >
+            <ArrowRightToLine className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+            <span className="truncate">{t("hud.tabCloseRight")}</span>
+          </button>
+        </div>
+      )}
+
       {/* PTY Tab Right-Click Context Menu */}
       {ptyCtxMenu && (
         <div
+          data-context-menu
           style={{ left: `${ptyCtxMenu.x}px`, top: `${ptyCtxMenu.y}px` }}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}

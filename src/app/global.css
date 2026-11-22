@@ -32,44 +32,51 @@
    ========================================================================== */
 :root,
 :root[data-theme="chrono"] {
-  --radius: 0.3125rem;
-  --bg-void: #06080c;
-  --bg-rack: #0a0d13;
-  --bg-panel: #0e131b;
-  --bg-elevated: #141b26;
-  --bg-hover: #192231;
-  --bg-code: #07090e;
-  --bg-pty: #06080c;
+  --radius: 0.375rem;
+  --bg-void: #14161a;
+  --bg-rack: #101216;
+  --bg-panel: #191c22;
+  --bg-elevated: #20242c;
+  --bg-hover: #252a34;
+  --bg-code: #111317;
+  --bg-pty: #0a0c10;
+  --bubble: rgba(255, 255, 255, 0.065);
+  --row-selected: rgba(255, 255, 255, 0.085);
 
-  --line-hair: rgba(148, 163, 184, 0.13);
-  --line-strong: rgba(148, 163, 184, 0.26);
-  --line-subtle: rgba(148, 163, 184, 0.07);
+  --line-hair: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --line-subtle: rgba(255, 255, 255, 0.045);
 
-  --text-hi: #edf2f8;
-  --text-mid: #9aa8bc;
-  --text-low: #5e6d85;
-  --text-faint: #3d4859;
+  --text-hi: #ededef;
+  --text-mid: #9ca3af;
+  --text-low: #6b7280;
+  --text-faint: #4b5563;
   --text-on-forge: #090b0e;
+
+  --diff-add-bg: rgba(34, 197, 94, 0.14);
+  --diff-add-fg: #4ade80;
+  --diff-del-bg: rgba(244, 63, 94, 0.15);
+  --diff-del-fg: #fb7185;
 
   --forge: #f59e0b;
   --forge-fg: #fbbf24;
   --forge-dim: rgba(245, 158, 11, 0.13);
-  --forge-line: rgba(245, 158, 11, 0.44);
+  --forge-line: rgba(245, 158, 11, 0.42);
 
-  --cyan: #22d3ee;
-  --cyan-fg: #38e1ff;
-  --cyan-dim: rgba(34, 211, 238, 0.11);
-  --cyan-line: rgba(34, 211, 238, 0.38);
+  --cyan: #38bdf8;
+  --cyan-fg: #7dd3fc;
+  --cyan-dim: rgba(56, 189, 248, 0.12);
+  --cyan-line: rgba(56, 189, 248, 0.36);
 
   --emerald: #10b981;
   --emerald-fg: #34d399;
   --emerald-dim: rgba(16, 185, 129, 0.13);
-  --emerald-line: rgba(16, 185, 129, 0.38);
+  --emerald-line: rgba(16, 185, 129, 0.36);
 
   --crimson: #f43f5e;
   --crimson-fg: #fda4af;
-  --crimson-dim: rgba(244, 63, 94, 0.13);
-  --crimson-line: rgba(244, 63, 94, 0.42);
+  --crimson-dim: rgba(244, 63, 94, 0.12);
+  --crimson-line: rgba(244, 63, 94, 0.38);
 
   --violet: #a78bfa;
   --violet-fg: #c4b5fd;
@@ -77,7 +84,7 @@
   --violet-line: rgba(167, 139, 250, 0.32);
 
   --asst-bar: #94a3b8;
-  --shadow-elev: 0 18px 46px rgba(0, 0, 0, 0.68);
+  --shadow-elev: 0 18px 46px rgba(0, 0, 0, 0.58);
 
   /* shadcn/Tailwind compatibility mapping */
   --background: var(--bg-void);
@@ -100,52 +107,60 @@
   --ring: var(--cyan);
 }
 
+/* OC-2 Warm Paper Light — Exact OpenCode / Rin Light Hierarchy */
 :root[data-theme="braun"] {
-  --bg-void: #eaedf2;
-  --bg-rack: #f3f5f8;
+  --bg-void: #fdfdfa;
+  --bg-rack: #f7f7f4;
   --bg-panel: #ffffff;
-  --bg-elevated: #f8fafc;
-  --bg-hover: #eef2f6;
-  --bg-code: #f1f5f9;
-  --bg-pty: #0d121c;
+  --bg-elevated: #f2f2ee;
+  --bg-hover: #ececea;
+  --bg-code: #f5f5f2;
+  --bg-pty: #111318;
+  --bubble: rgba(23, 23, 23, 0.055);
+  --row-selected: rgba(23, 23, 23, 0.07);
 
-  --line-hair: rgba(15, 23, 42, 0.13);
-  --line-strong: rgba(15, 23, 42, 0.25);
-  --line-subtle: rgba(15, 23, 42, 0.06);
+  --line-hair: #e2e2de;
+  --line-strong: #c9c9c4;
+  --line-subtle: rgba(23, 23, 23, 0.05);
 
-  --text-hi: #0f172a;
-  --text-mid: #475569;
-  --text-low: #64748b;
-  --text-faint: #94a3b8;
+  --text-hi: #171717;
+  --text-mid: #666666;
+  --text-low: #8f8f8f;
+  --text-faint: #b3b3b0;
   --text-on-forge: #ffffff;
+
+  --diff-add-bg: #e6f6ea;
+  --diff-add-fg: #1a7f37;
+  --diff-del-bg: #fdeceb;
+  --diff-del-fg: #cf222e;
 
   --forge: #d97706;
   --forge-fg: #b45309;
-  --forge-dim: rgba(217, 119, 6, 0.11);
-  --forge-line: rgba(217, 119, 6, 0.42);
+  --forge-dim: rgba(217, 119, 6, 0.1);
+  --forge-line: rgba(217, 119, 6, 0.38);
 
-  --cyan: #0284c7;
-  --cyan-fg: #0369a1;
-  --cyan-dim: rgba(2, 132, 199, 0.1);
-  --cyan-line: rgba(2, 132, 199, 0.36);
+  --cyan: #2563eb;
+  --cyan-fg: #1d4ed8;
+  --cyan-dim: rgba(37, 99, 235, 0.09);
+  --cyan-line: rgba(37, 99, 235, 0.3);
 
-  --emerald: #059669;
-  --emerald-fg: #047857;
-  --emerald-dim: rgba(5, 150, 105, 0.1);
-  --emerald-line: rgba(5, 150, 105, 0.35);
+  --emerald: #198b43;
+  --emerald-fg: #157337;
+  --emerald-dim: rgba(25, 139, 67, 0.09);
+  --emerald-line: rgba(25, 139, 67, 0.3);
 
-  --crimson: #e11d48;
-  --crimson-fg: #be123c;
-  --crimson-dim: rgba(225, 29, 72, 0.09);
-  --crimson-line: rgba(225, 29, 72, 0.35);
+  --crimson: #d92e3c;
+  --crimson-fg: #b91c2c;
+  --crimson-dim: rgba(217, 46, 60, 0.08);
+  --crimson-line: rgba(217, 46, 60, 0.3);
 
   --violet: #7c3aed;
   --violet-fg: #6d28d9;
-  --violet-dim: rgba(124, 58, 237, 0.09);
-  --violet-line: rgba(124, 58, 237, 0.3);
+  --violet-dim: rgba(124, 58, 237, 0.08);
+  --violet-line: rgba(124, 58, 237, 0.26);
 
-  --asst-bar: #64748b;
-  --shadow-elev: 0 16px 38px rgba(15, 23, 42, 0.14);
+  --asst-bar: #737373;
+  --shadow-elev: 0 14px 36px rgba(0, 0, 0, 0.1);
 
   --background: var(--bg-void);
   --foreground: var(--text-hi);
@@ -165,6 +180,19 @@
   --border: var(--line-hair);
   --input: var(--line-hair);
   --ring: var(--cyan);
+}
+
+@keyframes sidebar-session-locate {
+  from {
+    background-color: var(--cyan-dim);
+  }
+  to {
+    background-color: var(--row-selected);
+  }
+}
+
+.sidebar-session-located {
+  animation: sidebar-session-locate 1.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer base {
@@ -225,6 +253,16 @@
 }
 
 @layer components {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
   .hud-mono {
     font-family: "JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, monospace;
     font-variant-numeric: tabular-nums;

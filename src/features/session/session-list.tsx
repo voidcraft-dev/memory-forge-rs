@@ -3,17 +3,19 @@ import {
   AlertTriangle,
   Archive,
   ArchiveRestore,
-  Check,
   CheckCircle,
   CheckSquare,
   ChevronDown,
-  ChevronUp,
+  ChevronRight,
   Copy,
   ExternalLink,
   FileJson,
   Folder,
+  FolderOpen,
   Hash,
+  LayoutGrid,
   Pencil,
+  Pin,
   RefreshCw,
   Search,
   Star,
@@ -22,7 +24,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  type CSSProperties,
   useCallback,
   useEffect,
   useMemo,
@@ -30,7 +31,10 @@ import {
   useState,
 } from "react";
 import { useNavigate } from "react-router";
-import { formatWorkspaceShortName } from "@/components/layout/shell-layout";
+import {
+  formatWorkspaceShortName,
+  normalizeCleanPath,
+} from "@/components/layout/shell-layout";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
@@ -46,14 +50,15 @@ import type { RawJsonlImportPreview, Session } from "@/features/desktop/types";
 import { useTerminal } from "@/features/terminal/terminal-context";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 60;
 const JSONL_TRANSFER_PLATFORMS = ["claude", "codex", "pi"] as const;
-const DEFAULT_FALLBACK_PLATFORMS = ["claude", "codex", "opencode", "cursor", "devin"];
-
-const SESSION_CARD_RENDER_STYLE: CSSProperties = {
-  contentVisibility: "auto",
-  containIntrinsicSize: "96px",
-};
+const DEFAULT_FALLBACK_PLATFORMS = [
+  "claude",
+  "codex",
+  "opencode",
+  "cursor",
+  "devin",
+];
 
 export const PLATFORM_LABELS: Record<string, string> = {
   claude: "Claude",
@@ -61,94 +66,247 @@ export const PLATFORM_LABELS: Record<string, string> = {
   opencode: "OpenCode",
   cursor: "Cursor",
   devin: "Devin",
-  gemini: "Gemini",
-  kiro: "Kiro",
+  kiro: "Kiro CLI",
   "kiro-ide": "Kiro IDE",
-  grok: "Grok",
+  gemini: "Gemini",
   pi: "Pi",
-  zed: "Zed",
-  cline: "Cline",
-  qwen: "Qwen",
+  grok: "Grok",
   zcode: "ZCode",
   workbuddy: "WorkBuddy",
   cindy: "Cindy",
-  "cindy-global": "Cindy Intl",
+  "cindy-global": "Cindy Global",
+  zed: "Zed",
   dsh: "DSH",
-  "qoder-cn": "Qoder CN",
-  antigravity: "Antigravity",
+  "qoder-cn": "Qoder",
+  qwen: "Qwen",
+  cline: "Cline",
   codebuddy: "CodeBuddy",
+  antigravity: "Antigravity",
 };
+
+const CLAUDE_PATH =
+  "M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0v-3.1h3V5h17.998zM6 10.949h1.488V8.102H6zm10.51 0H18V8.102h-1.49z";
+
+const PLATFORM_ACCENT_COLOR: Record<string, string> = {
+  claude: "#d97757",
+  pi: "#6b72d6",
+  devin: "#0ea5e9",
+  codex: "#10b981",
+  opencode: "#6366f1",
+  cursor: "#2563eb",
+  kiro: "#8b5cf6",
+  "kiro-ide": "#8b5cf6",
+  cindy: "#ec4899",
+  "cindy-global": "#ec4899",
+  gemini: "#3b82f6",
+  qwen: "#7c3aed",
+  zed: "#ca8a04",
+};
+
+export function PlatformMark({
+  platform,
+  size = 13,
+  className,
+}: {
+  platform: string;
+  size?: number;
+  className?: string;
+}) {
+  const color = PLATFORM_ACCENT_COLOR[platform] ?? "var(--text-mid)";
+
+  if (platform === "claude") {
+    return (
+      <svg
+        aria-hidden="true"
+        className={cn("shrink-0", className)}
+        height={size}
+        style={{ color }}
+        viewBox="0 0 24 24"
+        width={size}
+      >
+        <path
+          clipRule="evenodd"
+          d={CLAUDE_PATH}
+          fill="currentColor"
+          fillRule="evenodd"
+        />
+      </svg>
+    );
+  }
+
+  if (platform === "pi") {
+    return (
+      <svg
+        aria-hidden="true"
+        className={cn("shrink-0", className)}
+        height={size}
+        style={{ color }}
+        viewBox="0 0 24 24"
+        width={size}
+      >
+        <g
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2.4}
+        >
+          <path d="M3.6 6.6h16.8" />
+          <path d="M8.4 6.6v11.8" />
+          <path d="M15.6 6.6v9.6c0 1.5.9 2.2 2.4 2.2" />
+        </g>
+      </svg>
+    );
+  }
+
+  if (platform === "devin") {
+    return (
+      <svg
+        aria-hidden="true"
+        className={cn("shrink-0", className)}
+        fill="none"
+        height={size}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2.2}
+        style={{ color }}
+        viewBox="0 0 24 24"
+        width={size}
+      >
+        <path d="M12 2.5L4 7.2v9.6l8 4.7 8-4.7V7.2L12 2.5z" />
+        <circle cx="12" cy="12" fill="currentColor" r="2.3" />
+      </svg>
+    );
+  }
+
+  if (platform === "codex") {
+    return (
+      <svg
+        aria-hidden="true"
+        className={cn("shrink-0", className)}
+        fill="none"
+        height={size}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2.3}
+        style={{ color }}
+        viewBox="0 0 24 24"
+        width={size}
+      >
+        <polyline points="5 8 10 12 5 16" />
+        <line x1="12" x2="19" y1="16" y2="16" />
+      </svg>
+    );
+  }
+
+  if (platform === "opencode") {
+    return (
+      <svg
+        aria-hidden="true"
+        className={cn("shrink-0", className)}
+        fill="none"
+        height={size}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2.2}
+        style={{ color }}
+        viewBox="0 0 24 24"
+        width={size}
+      >
+        <rect height="15" rx="3.5" width="15" x="4.5" y="4.5" />
+        <circle cx="12" cy="12" r="2.5" />
+      </svg>
+    );
+  }
+
+  const initial = (PLATFORM_LABELS[platform] ?? platform)
+    .slice(0, 1)
+    .toUpperCase();
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "hud-mono inline-grid shrink-0 place-items-center rounded-[3px] text-[9.5px] font-bold leading-none",
+        className
+      )}
+      style={{
+        width: size,
+        height: size,
+        color,
+        backgroundColor: "var(--bg-elevated)",
+      }}
+    >
+      {initial}
+    </span>
+  );
+}
 
 export function getPlatformBadgeStyle(platform: string): string {
   switch (platform) {
     case "claude":
       return "border-[var(--forge-line)] bg-[var(--forge-dim)] text-[var(--forge-fg)]";
     case "codex":
-    case "codebuddy":
       return "border-[var(--emerald-line)] bg-[var(--emerald-dim)] text-[var(--emerald-fg)]";
-    case "devin":
-    case "cursor":
-    case "qwen":
-    case "zcode":
-      return "border-[var(--cyan-line)] bg-[var(--cyan-dim)] text-[var(--cyan-fg)]";
     case "opencode":
     case "kiro":
     case "kiro-ide":
-    case "cline":
       return "border-[var(--violet-line)] bg-[var(--violet-dim)] text-[var(--violet-fg)]";
+    case "cursor":
+    case "devin":
+      return "border-[var(--cyan-line)] bg-[var(--cyan-dim)] text-[var(--cyan-fg)]";
     default:
-      return "border-[var(--line-strong)] bg-[var(--bg-elevated)] text-[var(--text-hi)]";
+      return "border-[var(--line-hair)] bg-[var(--bg-elevated)] text-[var(--text-mid)]";
   }
 }
 
-function parseTimestampMs(timestamp: string): number {
-  const num = Number.parseInt(timestamp, 10);
+function makeCompositeKey(session: Pick<Session, "platform" | "sessionKey">) {
+  return `${session.platform}::${session.sessionKey}`;
+}
+
+type PlatformCursor = { loaded: number; total: number };
+
+function allModePageSize(platformCount: number): number {
+  return Math.max(20, Math.ceil(PAGE_SIZE / Math.max(1, platformCount)) + 10);
+}
+
+function sortByUpdatedDesc(list: Session[]): Session[] {
+  return [...list].sort(
+    (a, b) =>
+      parseSessionTimestampMs(b.updatedAt) - parseSessionTimestampMs(a.updatedAt)
+  );
+}
+
+function parseSessionTimestampMs(value?: string | number | null): number {
+  if (!value) return 0;
+  const num = Number(value);
   if (Number.isFinite(num) && num > 0) {
     if (num > 10 ** 17) return num / 1_000_000;
     if (num > 10 ** 15) return num / 1000;
     if (num > 10 ** 12) return num;
     return num * 1000;
   }
-  const parsed = Date.parse(timestamp);
-  return Number.isFinite(parsed) ? parsed : 0;
+  const ts = new Date(String(value)).getTime();
+  return Number.isFinite(ts) ? ts : 0;
 }
 
-function formatRelativeTime(
-  timestamp: string,
-  justNowLabel: string,
-  hoursAgoLabel: string,
-  daysAgoLabel: string
+function formatCompactTime(
+  updatedAt: string | undefined,
+  isEn: boolean
 ): string {
-  const ms = parseTimestampMs(timestamp);
-  if (!ms) return "";
-  const hours = (Date.now() - ms) / (1000 * 60 * 60);
-  if (hours < 1) return justNowLabel;
-  if (hours < 24) return hoursAgoLabel.replace("{count}", String(Math.floor(hours)));
-  return daysAgoLabel.replace("{count}", String(Math.floor(hours / 24)));
-}
-
-function isUpdatedToday(timestamp: string): boolean {
-  const ms = parseTimestampMs(timestamp);
-  if (!ms) return false;
-  const d = new Date(ms);
-  const now = new Date();
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  );
-}
-
-function sessionTreeSome(
-  session: Session,
-  predicate: (item: Session) => boolean
-): boolean {
-  return (
-    predicate(session) ||
-    (session.agentGroup?.children ?? []).some((child) =>
-      sessionTreeSome(child, predicate)
-    )
-  );
+  const ts = parseSessionTimestampMs(updatedAt);
+  if (!ts) return "";
+  const diffMin = Math.floor((Date.now() - ts) / 60_000);
+  if (diffMin < 5) return isEn ? "now" : "刚刚";
+  if (diffMin < 60) return isEn ? `${diffMin}m` : `${diffMin}分`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return isEn ? `${diffHour}h` : `${diffHour}时`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return isEn ? `${diffDay}d` : `${diffDay}天`;
+  const d = new Date(ts);
+  return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function countSubagents(session: Session): number {
@@ -163,8 +321,7 @@ const UUID_LIKE_RE =
 
 export function isUuidLikeTitle(title?: string | null): boolean {
   if (!title) return true;
-  const trimmed = title.trim();
-  return UUID_LIKE_RE.test(trimmed);
+  return UUID_LIKE_RE.test(title.trim());
 }
 
 export function cleanHumanPreview(raw?: string | null): string {
@@ -179,6 +336,24 @@ export function cleanHumanPreview(raw?: string | null): string {
     .trim();
 }
 
+export function getSessionReadableTitle(
+  session: Pick<Session, "aliasTitle" | "displayTitle" | "preview" | "sessionId">,
+  untitledLabel: string
+): string {
+  if (session.aliasTitle?.trim()) return session.aliasTitle.trim();
+  const cleanedDisplay = session.displayTitle
+    ? normalizeCleanPath(session.displayTitle)
+    : "";
+  const isRawPathTitle =
+    /^[A-Za-z]:\//.test(cleanedDisplay) || cleanedDisplay.startsWith("/");
+  if (cleanedDisplay && !isUuidLikeTitle(cleanedDisplay) && !isRawPathTitle) {
+    return cleanedDisplay;
+  }
+  const preview = cleanHumanPreview(session.preview);
+  if (preview) return preview.slice(0, 64);
+  return cleanedDisplay || session.sessionId.slice(0, 8) || untitledLabel;
+}
+
 export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
   const navigate = useNavigate();
   const { t, state, dispatch, snapshot } = useDesktop();
@@ -189,12 +364,16 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
   const selectedSessionPlatform = state.selectedSessionPlatform;
   const searchQuery = state.searchQuery;
   const showArchived = state.showArchived;
+  const isEn = snapshot?.settings.locale === "en";
 
   const [searchInput, setSearchInput] = useState(searchQuery);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshDone, setRefreshDone] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [allCursors, setAllCursors] = useState<Record<string, PlatformCursor>>(
+    {}
+  );
   const [loading, setLoading] = useState(false);
   const [searchIndex, setSearchIndex] = useState({
     supported: false,
@@ -202,11 +381,20 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
     indexed: 0,
     total: 0,
   });
-  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
   const [batchOperating, setBatchOperating] = useState(false);
+
+  // Rin-style collapsible sections & locate flash
+  const [pinnedCollapsed, setPinnedCollapsed] = useState(false);
+  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(
+    new Set()
+  );
+  const [locatedCompositeKey, setLocatedCompositeKey] = useState<string | null>(
+    null
+  );
 
   const [importPlatform, setImportPlatform] = useState<string>("claude");
   const [importPreview, setImportPreview] =
@@ -222,64 +410,268 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
   const [renamingKey, setRenamingKey] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
 
+  const { confirm, dialogProps } = useConfirmDialog();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
+  const requestIdRef = useRef(0);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const latestSelectionRef = useRef({
+    key: selectedSessionKey,
+    platform: selectedSessionPlatform,
+  });
+
+  useEffect(() => {
+    latestSelectionRef.current = {
+      key: selectedSessionKey,
+      platform: selectedSessionPlatform,
+    };
+  }, [selectedSessionKey, selectedSessionPlatform]);
+
   useEffect(() => {
     if (!ctxMenu) return;
-    const close = () => setCtxMenu(null);
+    const onPointerDown = (ev: PointerEvent) => {
+      const target = ev.target as HTMLElement | null;
+      if (target?.closest("[data-context-menu]")) return;
+      setCtxMenu(null);
+    };
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === "Escape") setCtxMenu(null);
     };
-    window.addEventListener("click", close);
-    window.addEventListener("contextmenu", close);
+    window.addEventListener("pointerdown", onPointerDown, true);
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("click", close);
-      window.removeEventListener("contextmenu", close);
+      window.removeEventListener("pointerdown", onPointerDown, true);
       window.removeEventListener("keydown", onKey);
     };
   }, [ctxMenu]);
 
-  const { confirm, dialogProps } = useConfirmDialog();
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const requestIdRef = useRef(0);
-
-  // Active platforms derived from dashboard summary (hides 0-session adapters automatically!)
-  const { activePlatformList, idlePlatformCount, totalActiveCount } = useMemo(() => {
-    const visible = new Set(
-      snapshot?.settings.visiblePlatforms ?? DEFAULT_FALLBACK_PLATFORMS
-    );
-    const dashPlatforms = state.dashboard?.platforms ?? [];
-    if (dashPlatforms.length === 0) {
+  // Active platforms derived from dashboard summary
+  const { activePlatformList, idlePlatformCount, totalActiveCount } =
+    useMemo(() => {
+      const visible = new Set(
+        snapshot?.settings.visiblePlatforms ?? DEFAULT_FALLBACK_PLATFORMS
+      );
+      const dashPlatforms = state.dashboard?.platforms ?? [];
+      if (dashPlatforms.length === 0) {
+        return {
+          activePlatformList: DEFAULT_FALLBACK_PLATFORMS.filter((p) =>
+            visible.has(p)
+          ).map((platform) => ({ platform, count: 0 })),
+          idlePlatformCount: 0,
+          totalActiveCount: 0,
+        };
+      }
+      const withData = dashPlatforms.filter(
+        (p) => visible.has(p.platform) && p.count > 0
+      );
+      const zeroCount = dashPlatforms.filter(
+        (p) => visible.has(p.platform) && p.count === 0
+      ).length;
+      const sum = withData.reduce((acc, p) => acc + p.count, 0);
       return {
-        activePlatformList: DEFAULT_FALLBACK_PLATFORMS.filter((p) =>
-          visible.has(p)
-        ).map((p) => ({ platform: p, count: 0 })),
-        idlePlatformCount: Math.max(0, visible.size - 5),
-        totalActiveCount: sessions.length,
+        activePlatformList:
+          withData.length > 0
+            ? withData
+            : dashPlatforms.filter((p) => visible.has(p.platform)).slice(0, 5),
+        idlePlatformCount: zeroCount,
+        totalActiveCount: sum,
       };
-    }
-    const nonZero = dashPlatforms.filter(
-      (p) => visible.has(p.platform) && p.count > 0
-    );
-    const idle = dashPlatforms.filter(
-      (p) => visible.has(p.platform) && p.count === 0
-    ).length;
-    const sum = nonZero.reduce((acc, item) => acc + item.count, 0);
-    return {
-      activePlatformList: nonZero.map((p) => ({
-        platform: p.platform,
-        count: p.count,
-      })),
-      idlePlatformCount: idle,
-      totalActiveCount: sum,
-    };
-  }, [sessions.length, snapshot?.settings.visiblePlatforms, state.dashboard?.platforms]);
+    }, [snapshot?.settings.visiblePlatforms, state.dashboard?.platforms]);
 
-  const platformsToQueryInAll = useMemo(() => {
-    if (activePlatformList.length > 0) {
-      return activePlatformList.map((p) => p.platform);
+  const activePlatformsKey = activePlatformList.map((p) => p.platform).join("|");
+  const platformsToQueryInAll = useMemo(
+    () =>
+      activePlatformsKey
+        ? activePlatformsKey.split("|")
+        : DEFAULT_FALLBACK_PLATFORMS,
+    [activePlatformsKey]
+  );
+
+  const fetchSessionFeed = useCallback(
+    async (offset = 0) => {
+      if (currentPlatform !== "all") {
+        const page = await api.getSessions(
+          currentPlatform,
+          searchQuery,
+          PAGE_SIZE,
+          offset,
+          showArchived
+        );
+        return { ...page, cursors: {} as Record<string, PlatformCursor> };
+      }
+
+      const perPlatformLimit = allModePageSize(platformsToQueryInAll.length);
+      const results = await Promise.allSettled(
+        platformsToQueryInAll.map((plat) =>
+          api.getSessions(plat, searchQuery, perPlatformLimit, 0, showArchived)
+        )
+      );
+
+      const merged: Session[] = [];
+      const cursors: Record<string, PlatformCursor> = {};
+      let total = 0;
+      let anyRunning = false;
+      let indexedSum = 0;
+      let totalIdxSum = 0;
+
+      results.forEach((r, idx) => {
+        if (r.status !== "fulfilled") return;
+        merged.push(...r.value.items);
+        total += r.value.total;
+        cursors[platformsToQueryInAll[idx]] = {
+          loaded: r.value.items.length,
+          total: r.value.total,
+        };
+        if (r.value.searchIndex?.running) anyRunning = true;
+        indexedSum += r.value.searchIndex?.indexed ?? 0;
+        totalIdxSum += r.value.searchIndex?.total ?? 0;
+      });
+
+      return {
+        items: sortByUpdatedDesc(merged),
+        cursors,
+        total,
+        searchIndex: {
+          supported: totalIdxSum > 0,
+          running: anyRunning,
+          indexed: indexedSum,
+          total: totalIdxSum,
+        },
+      };
+    },
+    [currentPlatform, platformsToQueryInAll, searchQuery, showArchived]
+  );
+
+  // Load session list
+  useEffect(() => {
+    if (!snapshot) return;
+    let cancelled = false;
+    const requestId = ++requestIdRef.current;
+
+    setLoading(true);
+    fetchSessionFeed(0)
+      .then((page) => {
+        if (cancelled || requestId !== requestIdRef.current) return;
+        dispatch({ type: "setSessions", payload: page.items });
+        setTotalCount(page.total);
+        setAllCursors(page.cursors);
+        if (page.searchIndex) setSearchIndex(page.searchIndex);
+
+        if (page.items.length > 0 && !selectedSessionKey) {
+          const first = page.items[0];
+          dispatch({
+            type: "selectSession",
+            payload: { platform: first.platform, sessionKey: first.sessionKey },
+          });
+        }
+      })
+      .catch(() => {
+        if (cancelled || requestId !== requestIdRef.current) return;
+        dispatch({ type: "setSessions", payload: [] });
+        setTotalCount(0);
+        setAllCursors({});
+      })
+      .finally(() => {
+        if (!(cancelled || requestId !== requestIdRef.current)) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, fetchSessionFeed, Boolean(snapshot)]);
+
+  useEffect(() => {
+    setSelectionMode(false);
+    setSelectedKeys(new Set());
+    setLastClickedIndex(null);
+  }, [currentPlatform, showArchived, searchQuery]);
+
+  // Poll search index progress if building
+  useEffect(() => {
+    if (!(searchQuery.trim() && searchIndex.running)) return;
+    const timer = setTimeout(() => {
+      const requestId = ++requestIdRef.current;
+      fetchSessionFeed(0)
+        .then((page) => {
+          if (requestId !== requestIdRef.current) return;
+          dispatch({ type: "setSessions", payload: page.items });
+          setTotalCount(page.total);
+          setAllCursors(page.cursors);
+          if (page.searchIndex) setSearchIndex(page.searchIndex);
+        })
+        .catch(() => {});
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [dispatch, fetchSessionFeed, searchIndex.running, searchQuery]);
+
+  // Load session detail whenever selected session changes
+  useEffect(() => {
+    if (!selectedSessionKey) {
+      dispatch({ type: "setSessionDetail", payload: null });
+      dispatch({ type: "setEditLog", payload: [] });
+      return;
     }
-    return DEFAULT_FALLBACK_PLATFORMS;
-  }, [activePlatformList]);
+    const targetPlatform =
+      selectedSessionPlatform ||
+      (currentPlatform === "all" ? "claude" : currentPlatform);
+    let cancelled = false;
+    Promise.all([
+      api.getSessionDetail(targetPlatform, selectedSessionKey),
+      api.getEditLog(targetPlatform, selectedSessionKey),
+    ])
+      .then(([detail, logs]) => {
+        if (cancelled) return;
+        dispatch({ type: "setSessionDetail", payload: detail });
+        dispatch({ type: "setEditLog", payload: logs });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        dispatch({ type: "setSessionDetail", payload: null });
+        dispatch({ type: "setEditLog", payload: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPlatform, dispatch, selectedSessionKey, selectedSessionPlatform]);
+
+  // Handle "Locate Active Session in Sidebar" (Rin F-182)
+  useEffect(() => {
+    if (state.locateRequestNonce === 0 || !selectedSessionKey) return;
+    const plat = selectedSessionPlatform || currentPlatform;
+    const compKey = `${plat}::${selectedSessionKey}`;
+    setPinnedCollapsed(false);
+    setProjectsCollapsed(false);
+    const matched = sessions.find(
+      (s) => s.sessionKey === selectedSessionKey && s.platform === plat
+    );
+    if (matched?.cwd) {
+      const folderKey = formatWorkspaceShortName(matched.cwd);
+      setCollapsedFolders((prev) => {
+        const next = new Set(prev);
+        next.delete(folderKey);
+        return next;
+      });
+    }
+    requestAnimationFrame(() => {
+      const el = listScrollRef.current?.querySelector<HTMLElement>(
+        `[data-session-row-key="${CSS.escape(compKey)}"]`
+      );
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        setLocatedCompositeKey(compKey);
+        setTimeout(() => setLocatedCompositeKey(null), 1300);
+      }
+    });
+  }, [
+    currentPlatform,
+    selectedSessionKey,
+    selectedSessionPlatform,
+    sessions,
+    state.locateRequestNonce,
+  ]);
 
   const debouncedSetSearch = useCallback(
     (value: string) => {
@@ -287,250 +679,184 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         dispatch({ type: "setSearchQuery", payload: value });
-      }, 260);
+      }, 220);
     },
     [dispatch]
   );
 
-  useEffect(() => {
-    setSearchInput(searchQuery);
-  }, [currentPlatform, searchQuery]);
-
-  useEffect(
-    () => () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    },
-    []
+  // Filtered display list
+  const workspaceFilterActive = Boolean(
+    state.workspaceFilter && state.workspaceFilter !== "all"
   );
-
-  const fetchSessionFeed = useCallback(async () => {
-    if (currentPlatform === "all") {
-      const perPlatformLimit = searchQuery.trim() ? 25 : 25;
-      const settled = await Promise.allSettled(
-        platformsToQueryInAll.map(async (plat) => {
-          const res = await api.getSessions(
-            plat,
-            searchQuery,
-            perPlatformLimit,
-            0,
-            showArchived
-          );
-          return res.items.map((item) => ({
-            ...item,
-            platform: item.platform || plat,
-          }));
-        })
-      );
-      const merged: Session[] = [];
-      for (const entry of settled) {
-        if (entry.status === "fulfilled") merged.push(...entry.value);
-      }
-      merged.sort(
-        (a, b) => parseTimestampMs(b.updatedAt) - parseTimestampMs(a.updatedAt)
-      );
-      return {
-        items: merged,
-        total: merged.length,
-        searchIndex: { supported: false, running: false, indexed: 0, total: 0 },
-      };
-    }
-
-    const result = await api.getSessions(
-      currentPlatform,
-      searchQuery,
-      PAGE_SIZE,
-      0,
-      showArchived
+  const clearWorkspaceFilter = () =>
+    dispatch({ type: "setWorkspaceFilter", payload: "all" });
+  const displaySessions = useMemo(() => {
+    if (!workspaceFilterActive) return sessions;
+    const target = normalizeCleanPath(state.workspaceFilter);
+    return sessions.filter(
+      (s) => Boolean(s.cwd?.trim()) && normalizeCleanPath(s.cwd) === target
     );
-    return {
-      items: result.items.map((item) => ({
-        ...item,
-        platform: item.platform || currentPlatform,
-      })),
-      total: result.total,
-      searchIndex: result.searchIndex,
-    };
-  }, [currentPlatform, platformsToQueryInAll, searchQuery, showArchived]);
+  }, [sessions, state.workspaceFilter, workspaceFilterActive]);
 
-  // Load session list (wait for desktop settings snapshot so visiblePlatforms is respected)
-  useEffect(() => {
-    if (!snapshot) return;
-    let cancelled = false;
-    const requestId = ++requestIdRef.current;
+  // Rin-style Pinned + Project Folder Grouping
+  const { pinnedSessions, projectGroups } = useMemo(() => {
+    const pinned = displaySessions.filter((s) => s.favorite);
+    const unpinned = displaySessions.filter((s) => !s.favorite);
 
-    const load = async () => {
-      setLoading(true);
-      try {
-        const result = await fetchSessionFeed();
-        if (cancelled || requestId !== requestIdRef.current) return;
-        dispatch({ type: "setSessions", payload: result.items });
-        setTotalCount(result.total);
-        setSearchIndex(result.searchIndex);
-        dispatch({ type: "setEditingBlock", payload: null });
-        dispatch({ type: "setSessionStatus", payload: null });
+    const groupMap = new Map<
+      string,
+      { label: string; fullCwd: string; items: Session[]; latestTs: number }
+    >();
+    const ungroupedKey = "__ungrouped__";
 
-        // Auto-select most recent session if nothing is selected
-        if (result.items.length > 0 && !selectedSessionKey) {
-          const first = result.items[0];
-          dispatch({
-            type: "selectSession",
-            payload: { platform: first.platform, sessionKey: first.sessionKey },
-          });
-        }
-      } catch (err) {
-        if (cancelled || requestId !== requestIdRef.current) return;
-        console.error("Failed to load sessions:", err);
-        dispatch({ type: "setSessions", payload: [] });
-        setTotalCount(0);
-      } finally {
-        if (!cancelled && requestId === requestIdRef.current) setLoading(false);
-      }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [dispatch, fetchSessionFeed, Boolean(snapshot)]);
-
-  // Poll search index when running in single-platform search
-  useEffect(() => {
-    if (
-      currentPlatform === "all" ||
-      !searchQuery.trim() ||
-      !searchIndex.running
-    ) {
-      return;
-    }
-    let disposed = false;
-    let polling = false;
-    const timer = setInterval(async () => {
-      if (polling) return;
-      polling = true;
-      const requestId = ++requestIdRef.current;
-      try {
-        const result = await api.getSessions(
-          currentPlatform,
-          searchQuery,
-          PAGE_SIZE,
-          0,
-          showArchived
-        );
-        if (disposed || requestId !== requestIdRef.current) return;
-        dispatch({ type: "setSessions", payload: result.items });
-        setTotalCount(result.total);
-        setSearchIndex(result.searchIndex);
-      } catch {
-        // ignore transient poll error
-      } finally {
-        polling = false;
-      }
-    }, 1000);
-    return () => {
-      disposed = true;
-      clearInterval(timer);
-    };
-  }, [currentPlatform, dispatch, searchIndex.running, searchQuery, showArchived]);
-
-  // Load SessionDetail + EditLog together so FORGED badges & Audit count are always live!
-  useEffect(() => {
-    if (!selectedSessionKey) return;
-    const targetPlatform =
-      selectedSessionPlatform ||
-      sessions.find((s) => s.sessionKey === selectedSessionKey)?.platform ||
-      (currentPlatform !== "all" ? currentPlatform : "claude");
-
-    let cancelled = false;
-    const loadDetailAndLogs = async () => {
-      try {
-        const [detail, logs] = await Promise.all([
-          api.getSessionDetail(targetPlatform, selectedSessionKey),
-          api
-            .getEditLog(targetPlatform, selectedSessionKey)
-            .catch(() => []),
-        ]);
-        if (cancelled) return;
-        dispatch({ type: "setSessionDetail", payload: detail });
-        dispatch({ type: "setEditLog", payload: logs });
-        dispatch({
-          type: "updateSession",
-          payload: {
-            sessionKey: selectedSessionKey,
-            updates: {
-              displayTitle: detail.aliasTitle || detail.title,
-              aliasTitle: detail.aliasTitle,
-            },
-          },
+    for (const s of unpinned) {
+      const rawCwd = s.cwd?.trim() ?? "";
+      const folderKey = rawCwd ? formatWorkspaceShortName(rawCwd) : ungroupedKey;
+      const existing = groupMap.get(folderKey);
+      const ts = parseSessionTimestampMs(s.updatedAt);
+      if (existing) {
+        existing.items.push(s);
+        if (ts > existing.latestTs) existing.latestTs = ts;
+      } else {
+        groupMap.set(folderKey, {
+          label: rawCwd ? folderKey : t("hud.ungroupedSessions"),
+          fullCwd: rawCwd,
+          items: [s],
+          latestTs: ts,
         });
-      } catch (err) {
-        console.error("Failed to load session detail:", err);
       }
-    };
-    void loadDetailAndLogs();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedSessionKey, selectedSessionPlatform]);
+    }
 
-  const handleRefresh = async () => {
+    const groups = Array.from(groupMap.entries())
+      .map(([key, val]) => ({ key, ...val }))
+      .sort((a, b) => {
+        if (a.key === ungroupedKey) return 1;
+        if (b.key === ungroupedKey) return -1;
+        return b.latestTs - a.latestTs;
+      });
+
+    return { pinnedSessions: pinned, projectGroups: groups };
+  }, [displaySessions, t]);
+
+  const handleRefresh = async ({
+    reloadDetail = true,
+  }: { reloadDetail?: boolean } = {}) => {
+    const requestId = ++requestIdRef.current;
     setRefreshing(true);
     setRefreshDone(false);
     try {
-      const [feed, dash] = await Promise.all([
-        fetchSessionFeed(),
+      const [page, dash] = await Promise.all([
+        fetchSessionFeed(0),
         api.getDashboard().catch(() => null),
       ]);
-      dispatch({ type: "setSessions", payload: feed.items });
+      if (requestId === requestIdRef.current) {
+        dispatch({ type: "setSessions", payload: page.items });
+        setTotalCount(page.total);
+        setAllCursors(page.cursors);
+      }
       if (dash) dispatch({ type: "setDashboard", payload: dash });
-      setTotalCount(feed.total);
-      setSearchIndex(feed.searchIndex);
+
+      const { key: targetKey, platform: targetPlatform } =
+        latestSelectionRef.current;
+      if (reloadDetail && targetKey) {
+        const targetPlat =
+          targetPlatform ||
+          (currentPlatform === "all" ? "claude" : currentPlatform);
+        const [detail, logs] = await Promise.all([
+          api.getSessionDetail(targetPlat, targetKey),
+          api.getEditLog(targetPlat, targetKey),
+        ]);
+        if (latestSelectionRef.current.key === targetKey) {
+          dispatch({ type: "setSessionDetail", payload: detail });
+          dispatch({ type: "setEditLog", payload: logs });
+        }
+      }
       setRefreshDone(true);
-      setTimeout(() => setRefreshDone(false), 1400);
+      setTimeout(() => setRefreshDone(false), 1200);
     } catch {
       dispatch({
         type: "setSessionStatus",
         payload: { tone: "error", message: t("session.refreshFailed") },
       });
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
   };
 
   const handleLoadMore = async () => {
-    if (currentPlatform === "all") return;
+    if (loadingMore) return;
+    const requestId = requestIdRef.current;
     setLoadingMore(true);
     try {
-      const result = await api.getSessions(
+      if (currentPlatform === "all") {
+        const pending = Object.entries(allCursors).filter(
+          ([, cursor]) => cursor.loaded < cursor.total
+        );
+        if (pending.length === 0) return;
+        const limit = allModePageSize(platformsToQueryInAll.length);
+        const results = await Promise.allSettled(
+          pending.map(([plat, cursor]) =>
+            api.getSessions(plat, searchQuery, limit, cursor.loaded, showArchived)
+          )
+        );
+        if (requestId !== requestIdRef.current) return;
+        const existing = new Set(sessions.map(makeCompositeKey));
+        const additions: Session[] = [];
+        const nextCursors = { ...allCursors };
+        results.forEach((r, idx) => {
+          if (r.status !== "fulfilled") return;
+          const [plat, cursor] = pending[idx];
+          const fetched = r.value.items.length;
+          nextCursors[plat] = {
+            loaded: fetched > 0 ? cursor.loaded + fetched : r.value.total,
+            total: r.value.total,
+          };
+          for (const item of r.value.items) {
+            if (!existing.has(makeCompositeKey(item))) additions.push(item);
+          }
+        });
+        dispatch({
+          type: "setSessions",
+          payload: sortByUpdatedDesc([...sessions, ...additions]),
+        });
+        setAllCursors(nextCursors);
+        setTotalCount(
+          Object.values(nextCursors).reduce((sum, c) => sum + c.total, 0)
+        );
+        return;
+      }
+
+      const page = await api.getSessions(
         currentPlatform,
         searchQuery,
         PAGE_SIZE,
         sessions.length,
         showArchived
       );
-      dispatch({
-        type: "setSessions",
-        payload: [
-          ...sessions,
-          ...result.items.map((i) => ({
-            ...i,
-            platform: i.platform || currentPlatform,
-          })),
-        ],
-      });
-      setTotalCount(result.total);
-      setSearchIndex(result.searchIndex);
-    } catch (err) {
-      console.error("Failed to load more:", err);
+      if (requestId !== requestIdRef.current) return;
+      const existing = new Set(sessions.map((s) => s.sessionKey));
+      const merged = [
+        ...sessions,
+        ...page.items.filter((s) => !existing.has(s.sessionKey)),
+      ];
+      dispatch({ type: "setSessions", payload: merged });
+      setTotalCount(page.total);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingMore(false);
     }
-    setLoadingMore(false);
   };
 
-  const targetImportPlat = (
-    JSONL_TRANSFER_PLATFORMS as readonly string[]
-  ).includes(currentPlatform)
-    ? currentPlatform
-    : importPlatform;
-
   const handleChooseImport = async () => {
+    const targetPlat = JSONL_TRANSFER_PLATFORMS.includes(
+      currentPlatform as (typeof JSONL_TRANSFER_PLATFORMS)[number]
+    )
+      ? currentPlatform
+      : importPlatform;
+    setImportPlatform(targetPlat);
     setImportError(null);
+    setProbingImport(true);
     try {
       const selected = await openDialog({
         multiple: false,
@@ -538,15 +864,15 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
         filters: [{ name: "Session JSONL", extensions: ["jsonl"] }],
       });
       if (!selected || Array.isArray(selected)) return;
-      setProbingImport(true);
-      const preview = await api.probeJsonlImport(targetImportPlat, selected);
+      const preview = await api.probeJsonlImport(targetPlat, selected);
       setImportPreview(preview);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setImportError(message);
       dispatch({
         type: "setSessionStatus",
-        payload: { tone: "error", message },
+        payload: {
+          tone: "error",
+          message: err instanceof Error ? err.message : String(err),
+        },
       });
     } finally {
       setProbingImport(false);
@@ -559,29 +885,25 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
     setImportError(null);
     try {
       const result = await api.importRawJsonl(
-        importPreview.platform || targetImportPlat,
+        importPlatform,
         importPreview.sourcePath
       );
+      setImportPreview(null);
+      if (showArchived) dispatch({ type: "setShowArchived", payload: false });
       await handleRefresh();
       dispatch({
         type: "selectSession",
-        payload: {
-          platform: result.platform || targetImportPlat,
-          sessionKey: result.sessionKey,
-        },
+        payload: { platform: importPlatform, sessionKey: result.sessionKey },
       });
+      const msgKey = result.alreadyExists
+        ? "session.importExists"
+        : result.renamed
+          ? "session.importedRenamed"
+          : "session.imported";
       dispatch({
         type: "setSessionStatus",
-        payload: {
-          tone: "success",
-          message: result.alreadyExists
-            ? t("session.importExists")
-            : result.renamed
-              ? t("session.importedRenamed")
-              : t("session.imported"),
-        },
+        payload: { tone: "success", message: t(msgKey) },
       });
-      setImportPreview(null);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -589,65 +911,11 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
     }
   };
 
-  const exitSelectionMode = useCallback(() => {
-    setSelectionMode(false);
-    setSelectedKeys(new Set());
-    setLastClickedIndex(null);
-  }, []);
-
-  useEffect(() => {
-    exitSelectionMode();
-  }, [currentPlatform, showArchived, exitSelectionMode]);
-
-  const displaySessions = useMemo(() => {
-    return sessions.filter((session) => {
-      if (
-        favoritesOnly &&
-        !sessionTreeSome(session, (item) => Boolean(item.favorite))
-      ) {
-        return false;
-      }
-      if (
-        state.workspaceFilter !== "all" &&
-        !sessionTreeSome(
-          session,
-          (item) => item.cwd?.trim() === state.workspaceFilter
-        )
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [favoritesOnly, sessions, state.workspaceFilter]);
-
-  const { todaySessions, earlierSessions } = useMemo(() => {
-    const today: Session[] = [];
-    const earlier: Session[] = [];
-    for (const s of displaySessions) {
-      if (isUpdatedToday(s.updatedAt)) today.push(s);
-      else earlier.push(s);
-    }
-    return { todaySessions: today, earlierSessions: earlier };
-  }, [displaySessions]);
-
-  const makeCompositeKey = (s: Session) => `${s.platform}::${s.sessionKey}`;
-
-  const handleSelectAll = () => {
-    setSelectedKeys(new Set(displaySessions.map(makeCompositeKey)));
-    setLastClickedIndex(null);
-  };
-
-  const handleInvertSelection = () => {
-    const next = new Set<string>();
-    for (const s of displaySessions) {
-      const ck = makeCompositeKey(s);
-      if (!selectedKeys.has(ck)) next.add(ck);
-    }
-    setSelectedKeys(next);
-    setLastClickedIndex(null);
-  };
-
-  const handleCardClick = (session: Session, index: number, e: React.MouseEvent) => {
+  const handleCardClick = (
+    session: Session,
+    index: number,
+    e: React.MouseEvent
+  ) => {
     if (!selectionMode) {
       dispatch({
         type: "selectSession",
@@ -655,26 +923,28 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
       });
       return;
     }
-    const ck = makeCompositeKey(session);
+    const key = makeCompositeKey(session);
     const next = new Set(selectedKeys);
     if (e.shiftKey && lastClickedIndex !== null) {
-      const start = Math.min(lastClickedIndex, index);
-      const end = Math.max(lastClickedIndex, index);
-      const targetState = !next.has(ck);
-      for (let i = start; i <= end; i++) {
-        const item = displaySessions[i];
-        if (!item) continue;
-        const itemCk = makeCompositeKey(item);
-        if (targetState) next.add(itemCk);
-        else next.delete(itemCk);
+      const lo = Math.min(lastClickedIndex, index);
+      const hi = Math.max(lastClickedIndex, index);
+      for (let i = lo; i <= hi; i++) {
+        const s = displaySessions[i];
+        if (s) next.add(makeCompositeKey(s));
       }
-    } else if (next.has(ck)) {
-      next.delete(ck);
+    } else if (next.has(key)) {
+      next.delete(key);
     } else {
-      next.add(ck);
+      next.add(key);
     }
     setSelectedKeys(next);
     setLastClickedIndex(index);
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedKeys(new Set());
+    setLastClickedIndex(null);
   };
 
   const handleToggleFavorite = async (session: Session, e: React.MouseEvent) => {
@@ -705,11 +975,13 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
       return;
     }
     await api.toggleFlag(session.platform, session.sessionKey, "archived");
-    if (selectedSessionKey === session.sessionKey) {
-      dispatch({ type: "setSelectedSessionKey", payload: null });
-      dispatch({ type: "setSessionDetail", payload: null });
+    if (!showArchived) {
+      dispatch({
+        type: "closeSessionTab",
+        payload: { platform: session.platform, sessionKey: session.sessionKey },
+      });
     }
-    await handleRefresh();
+    await handleRefresh({ reloadDetail: false });
   };
 
   const handleSaveCardAlias = async (session: Session, val: string) => {
@@ -768,11 +1040,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
           detail.cwd || session.cwd || null,
           {
             platform: session.platform,
-            sessionTitle:
-              session.aliasTitle ||
-              cleanHumanPreview(session.preview) ||
-              session.displayTitle ||
-              session.sessionId,
+            sessionTitle: getSessionReadableTitle(session, t("session.untitled")),
           }
         );
         dispatch({ type: "setPtyBayOpen", payload: true });
@@ -787,7 +1055,10 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
     }
   };
 
-  const handleBatchAction = async (flag: "archived" | "favorite", set: boolean) => {
+  const handleBatchAction = async (
+    flag: "archived" | "favorite",
+    set: boolean
+  ) => {
     if (selectedKeys.size === 0) return;
     setBatchOperating(true);
     try {
@@ -829,173 +1100,210 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
   };
 
   const remaining =
-    currentPlatform === "all" ? 0 : Math.max(0, totalCount - sessions.length);
+    currentPlatform === "all"
+      ? Object.values(allCursors).reduce(
+          (sum, cursor) => sum + Math.max(0, cursor.total - cursor.loaded),
+          0
+        )
+      : Math.max(0, totalCount - sessions.length);
+
+  const renderSessionRow = (session: Session) => {
+    const compKey = makeCompositeKey(session);
+    const globalIdx = displaySessions.indexOf(session);
+    return (
+      <RinSessionRow
+        autoExpandSubagents={searchQuery.trim().length > 0}
+        isEn={isEn}
+        isLocated={locatedCompositeKey === compKey}
+        isMultiSelected={selectedKeys.has(compKey)}
+        isRenaming={renamingKey === compKey}
+        isSelected={
+          selectedSessionKey === session.sessionKey &&
+          (selectedSessionPlatform || session.platform) === session.platform
+        }
+        key={compKey}
+        onCancelRename={() => setRenamingKey(null)}
+        onChangeRename={setRenameDraft}
+        onClick={(e) => handleCardClick(session, globalIdx, e)}
+        onCommitRename={(val) => void handleSaveCardAlias(session, val)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setCtxMenu({
+            x: Math.min(window.innerWidth - 216, e.clientX),
+            y: Math.min(window.innerHeight - 270, e.clientY),
+            session,
+          });
+        }}
+        onOpenSubagent={(sub) =>
+          dispatch({
+            type: "selectSession",
+            payload: {
+              platform: sub.platform || session.platform,
+              sessionKey: sub.sessionKey,
+            },
+          })
+        }
+        onToggleArchive={handleToggleArchive}
+        onToggleFavorite={handleToggleFavorite}
+        renameDraft={renamingKey === compKey ? renameDraft : ""}
+        rowDataKey={compKey}
+        selectedSessionKey={selectedSessionKey}
+        selectionMode={selectionMode}
+        session={session}
+        showArchived={showArchived}
+        subagentsCountLabel={t("hud.subagentsCount", {
+          count: countSubagents(session),
+        })}
+        untitledLabel={t("session.untitled")}
+      />
+    );
+  };
 
   return (
     <aside
       className={cn(
-        "flex h-full min-h-0 flex-col overflow-hidden border-r border-[var(--line-hair)] bg-[var(--bg-rack)]",
+        "flex h-full min-h-0 flex-col overflow-hidden border-r border-[var(--line-hair)] bg-[var(--bg-rack)] select-none",
         collapsed && "hidden"
       )}
     >
-      {/* Rail Tactical Header */}
-      <div className="flex shrink-0 flex-col gap-2 border-b border-[var(--line-hair)] px-2.5 pt-2 pb-2">
-        <div className="flex items-center justify-between gap-1.5">
-          {/* Workspace Project Selector (Moved cleanly from Topbar!) */}
-          <div className="flex min-w-0 flex-1 items-center gap-1 rounded-[4px] border border-[var(--line-hair)] bg-[var(--bg-panel)] px-2 py-1">
-            <Folder className="size-3 shrink-0 text-[var(--cyan-fg)]" />
-            <select
-              aria-label={t("hud.allWorkspaces")}
-              className="hud-mono min-w-0 flex-1 truncate bg-transparent text-[10.5px] font-semibold text-[var(--text-hi)] outline-none"
-              onChange={(e) =>
-                dispatch({ type: "setWorkspaceFilter", payload: e.target.value })
-              }
-              value={state.workspaceFilter}
-            >
-              <option value="all">{t("hud.allWorkspaces")}</option>
-              {Array.from(
-                new Set(
-                  sessions
-                    .map((s) => s.cwd?.trim())
-                    .filter((v): v is string => Boolean(v))
-                )
-              ).map((cwd) => (
-                <option key={cwd} value={cwd}>
-                  {formatWorkspaceShortName(cwd)}
-                </option>
-              ))}
-            </select>
+      {/* ==================== RIN-STYLE CLEAN SIDEBAR HEADER ==================== */}
+      <div className="flex shrink-0 flex-col gap-1.5 px-2 pt-2 pb-1.5">
+        {/* Search Row + Ghost Utility Icons */}
+        <div className="flex items-center gap-1">
+          <div className="flex h-[28px] min-w-0 flex-1 items-center gap-1.5 rounded-[6px] border border-[var(--line-hair)] bg-[var(--bg-void)] px-2 focus-within:border-[var(--line-strong)]">
+            <Search className="size-3.5 shrink-0 text-[var(--text-low)]" />
+            <input
+              className="min-w-0 flex-1 bg-transparent text-xs text-[var(--text-hi)] placeholder:text-[var(--text-low)] outline-none"
+              onChange={(e) => debouncedSetSearch(e.target.value)}
+              placeholder={t("session.search")}
+              value={searchInput}
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => debouncedSetSearch("")}
+                className="text-[var(--text-low)] hover:text-[var(--text-hi)]"
+              >
+                <X className="size-3" />
+              </button>
+            )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={handleChooseImport}
-              disabled={probingImport}
-              className="grid size-[23px] place-items-center rounded-[3px] border border-[var(--line-hair)] bg-[var(--bg-panel)] text-[var(--text-mid)] hover:border-[var(--cyan-line)] hover:text-[var(--cyan-fg)]"
-              title={t("session.importJsonl")}
-            >
-              <Upload className={cn("size-3", probingImport && "animate-pulse")} />
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                selectionMode ? exitSelectionMode() : setSelectionMode(true)
-              }
-              className={cn(
-                "grid size-[23px] place-items-center rounded-[3px] border transition-colors",
-                selectionMode
-                  ? "border-[var(--cyan-line)] bg-[var(--cyan-dim)] text-[var(--cyan-fg)]"
-                  : "border-[var(--line-hair)] bg-[var(--bg-panel)] text-[var(--text-mid)] hover:text-[var(--text-hi)]"
-              )}
-              title={selectionMode ? t("session.exitSelect") : t("session.selectMode")}
-            >
-              <CheckSquare className="size-3" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setFavoritesOnly((v) => !v)}
-              className={cn(
-                "grid size-[23px] place-items-center rounded-[3px] border transition-colors",
-                favoritesOnly
-                  ? "border-[var(--forge-line)] bg-[var(--forge-dim)] text-[var(--forge-fg)]"
-                  : "border-[var(--line-hair)] bg-[var(--bg-panel)] text-[var(--text-mid)] hover:text-[var(--text-hi)]"
-              )}
-              title={t("session.favorite")}
-            >
-              <Star className={cn("size-3", favoritesOnly && "fill-current")} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setFavoritesOnly(false);
-                dispatch({ type: "setShowArchived", payload: !showArchived });
-              }}
-              className={cn(
-                "grid size-[23px] place-items-center rounded-[3px] border transition-colors",
-                showArchived
-                  ? "border-[var(--forge-line)] bg-[var(--forge-dim)] text-[var(--forge-fg)]"
-                  : "border-[var(--line-hair)] bg-[var(--bg-panel)] text-[var(--text-mid)] hover:text-[var(--text-hi)]"
-              )}
-              title={showArchived ? t("session.sessionsView") : t("session.archiveView")}
-            >
-              <Archive className="size-3" />
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleRefresh()}
-              disabled={refreshing}
-              className={cn(
-                "grid size-[23px] place-items-center rounded-[3px] border border-[var(--line-hair)] bg-[var(--bg-panel)] text-[var(--text-mid)] hover:text-[var(--text-hi)]",
-                refreshDone && "text-[var(--emerald-fg)]"
-              )}
-              title={t("session.refresh")}
-            >
-              {refreshDone ? (
-                <CheckCircle className="size-3" />
-              ) : (
-                <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleChooseImport}
+            disabled={probingImport}
+            className="grid size-6 shrink-0 place-items-center rounded-[5px] text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+            title={t("session.importJsonl")}
+          >
+            <Upload className={cn("size-3.5", probingImport && "animate-pulse")} />
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              selectionMode ? exitSelectionMode() : setSelectionMode(true)
+            }
+            className={cn(
+              "grid size-6 shrink-0 place-items-center rounded-[5px] transition-colors",
+              selectionMode
+                ? "bg-[var(--cyan-dim)] text-[var(--cyan-fg)]"
+                : "text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+            )}
+            title={
+              selectionMode ? t("session.exitSelect") : t("session.selectMode")
+            }
+          >
+            <CheckSquare className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              dispatch({ type: "setShowArchived", payload: !showArchived })
+            }
+            className={cn(
+              "grid size-6 shrink-0 place-items-center rounded-[5px] transition-colors",
+              showArchived
+                ? "bg-[var(--forge-dim)] text-[var(--forge-fg)]"
+                : "text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+            )}
+            title={
+              showArchived ? t("session.sessionsView") : t("session.archiveView")
+            }
+          >
+            <Archive className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            className={cn(
+              "grid size-6 shrink-0 place-items-center rounded-[5px] text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]",
+              refreshDone && "text-[var(--emerald-fg)]"
+            )}
+            title={t("session.refresh")}
+          >
+            {refreshDone ? (
+              <CheckCircle className="size-3.5" />
+            ) : (
+              <RefreshCw
+                className={cn("size-3.5", refreshing && "animate-spin")}
+              />
+            )}
+          </button>
         </div>
 
-        {/* Dynamic Active Platform Filter Pills (replaces 21-item sidebar!) */}
-        <div className="flex flex-wrap gap-1">
+        {/* Engine / Platform Icon Filter Bar (Rin ENGINE_FILTERS style!) */}
+        <div className="flex flex-wrap items-center gap-1">
           <button
             type="button"
             onClick={() => navigate("/")}
             className={cn(
-              "hud-mono inline-flex items-center gap-1 rounded-[3px] border px-1.5 py-0.5 text-[9.5px] font-semibold transition-colors",
+              "inline-flex h-[22px] items-center gap-1 rounded-[5px] px-1.5 text-[11px] font-medium transition-colors",
               currentPlatform === "all"
-                ? "border-[var(--text-hi)] bg-[var(--text-hi)] text-[var(--bg-panel)]"
-                : "border-[var(--line-hair)] bg-[var(--bg-panel)] text-[var(--text-mid)] hover:border-[var(--line-strong)] hover:text-[var(--text-hi)]"
+                ? "bg-[var(--row-selected)] font-semibold text-[var(--text-hi)]"
+                : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
             )}
           >
+            <LayoutGrid className="size-3" />
             <span>{t("session.filter.all")}</span>
             {totalActiveCount > 0 && (
-              <span className="opacity-70">{totalActiveCount}</span>
+              <span className="hud-mono text-[10px] text-[var(--text-low)]">
+                {totalActiveCount}
+              </span>
             )}
           </button>
+
           {activePlatformList.map((item) => {
             const active = currentPlatform === item.platform;
-            const label =
-              PLATFORM_LABELS[item.platform] ?? item.platform.toUpperCase();
+            const label = PLATFORM_LABELS[item.platform] ?? item.platform;
             return (
               <button
                 key={item.platform}
                 type="button"
                 onClick={() => navigate(`/${item.platform}`)}
                 className={cn(
-                  "hud-mono inline-flex items-center gap-1 rounded-[3px] border px-1.5 py-0.5 text-[9.5px] font-semibold transition-colors",
+                  "inline-flex h-[22px] items-center gap-1 rounded-[5px] px-1.5 text-[11px] font-medium transition-colors",
                   active
-                    ? "border-[var(--text-hi)] bg-[var(--text-hi)] text-[var(--bg-panel)]"
-                    : "border-[var(--line-hair)] bg-[var(--bg-panel)] text-[var(--text-mid)] hover:border-[var(--line-strong)] hover:text-[var(--text-hi)]"
+                    ? "bg-[var(--row-selected)] font-semibold text-[var(--text-hi)]"
+                    : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
                 )}
+                title={label}
               >
-                <span>{label.toUpperCase()}</span>
+                <PlatformMark platform={item.platform} size={12} />
+                <span>{label}</span>
                 {item.count > 0 && (
-                  <span className="opacity-70">{item.count}</span>
+                  <span className="hud-mono text-[10px] text-[var(--text-low)]">
+                    {item.count}
+                  </span>
                 )}
               </button>
             );
           })}
-          {currentPlatform !== "all" &&
-            !activePlatformList.some((x) => x.platform === currentPlatform) && (
-              <button
-                type="button"
-                className="hud-mono inline-flex items-center gap-1 rounded-[3px] border border-[var(--text-hi)] bg-[var(--text-hi)] px-1.5 py-0.5 text-[9.5px] font-semibold text-[var(--bg-panel)]"
-              >
-                <span>
-                  {(
-                    PLATFORM_LABELS[currentPlatform] ?? currentPlatform
-                  ).toUpperCase()}
-                </span>
-              </button>
-            )}
+
           {idlePlatformCount > 0 && (
             <span
-              className="hud-mono inline-flex items-center rounded-[3px] border border-dashed border-[var(--line-hair)] px-1.5 py-0.5 text-[9px] text-[var(--text-low)]"
+              className="hud-mono px-1 text-[10px] text-[var(--text-low)]"
               title={t("hud.idlePlatformsHint", { count: idlePlatformCount })}
             >
               {t("hud.idlePlatforms", { count: idlePlatformCount })}
@@ -1003,44 +1311,54 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
           )}
         </div>
 
-        {/* Search Input */}
-        <div className="flex h-[27px] items-center gap-1.5 rounded-[4px] border border-[var(--line-hair)] bg-[var(--bg-panel)] px-2 focus-within:border-[var(--cyan-line)]">
-          <Search className="size-3 shrink-0 text-[var(--text-low)]" />
-          <input
-            className="min-w-0 flex-1 bg-transparent text-xs text-[var(--text-hi)] placeholder:text-[var(--text-low)] outline-none"
-            onChange={(e) => debouncedSetSearch(e.target.value)}
-            placeholder={t("session.search")}
-            value={searchInput}
-          />
-          {searchInput && (
+        {workspaceFilterActive && (
+          <div
+            className="flex h-[24px] min-w-0 items-center gap-1.5 rounded-[5px] border border-[var(--cyan-line)] bg-[var(--cyan-dim)] pr-1 pl-2 text-[11px] text-[var(--cyan-fg)]"
+            title={state.workspaceFilter}
+          >
+            <Folder className="size-3 shrink-0" />
+            <span className="min-w-0 flex-1 truncate font-medium">
+              {formatWorkspaceShortName(state.workspaceFilter)}
+            </span>
             <button
               type="button"
-              onClick={() => debouncedSetSearch("")}
-              className="text-[var(--text-low)] hover:text-[var(--text-hi)]"
+              aria-label={t("hud.clearWorkspaceFilter")}
+              onClick={clearWorkspaceFilter}
+              className="grid size-5 shrink-0 place-items-center rounded-[4px] hover:bg-[var(--bg-panel)]"
+              title={t("hud.clearWorkspaceFilter")}
             >
               <X className="size-3" />
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Multi-Select Batch Action Strip */}
       {selectionMode && (
-        <div className="flex shrink-0 flex-col gap-1.5 border-b border-[var(--cyan-line)] bg-[var(--cyan-dim)] px-2.5 py-2">
+        <div className="flex shrink-0 flex-col gap-1.5 border-y border-[var(--cyan-line)] bg-[var(--cyan-dim)] px-2.5 py-2">
           <div className="hud-mono flex items-center gap-1.5 text-[10.5px]">
             <strong className="text-[var(--cyan-fg)]">
               {t("session.selectedCount", { count: selectedKeys.size })}
             </strong>
             <button
               type="button"
-              onClick={handleSelectAll}
+              onClick={() =>
+                setSelectedKeys(new Set(displaySessions.map(makeCompositeKey)))
+              }
               className="rounded px-1.5 py-0.5 text-[var(--text-mid)] hover:bg-[var(--bg-panel)] hover:text-[var(--text-hi)]"
             >
               {t("session.selectAll")}
             </button>
             <button
               type="button"
-              onClick={handleInvertSelection}
+              onClick={() => {
+                const next = new Set<string>();
+                for (const s of displaySessions) {
+                  const k = makeCompositeKey(s);
+                  if (!selectedKeys.has(k)) next.add(k);
+                }
+                setSelectedKeys(next);
+              }}
               className="rounded px-1.5 py-0.5 text-[var(--text-mid)] hover:bg-[var(--bg-panel)] hover:text-[var(--text-hi)]"
             >
               {t("session.invertSelection")}
@@ -1075,209 +1393,201 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
               type="button"
               disabled={batchOperating || selectedKeys.size === 0}
               onClick={() => void handleBatchAction("favorite", true)}
-              className="hud-btn flex-1 justify-center text-[11px]"
+              className="hud-btn text-[11px]"
             >
               <Star className="size-3" />
-              <span>{t("session.batchFavorite")}</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Search Index Banner */}
-      {searchQuery.trim() &&
-        searchIndex.supported &&
-        searchIndex.indexed < searchIndex.total && (
-          <div className="hud-mono shrink-0 border-b border-[var(--forge-line)] bg-[var(--forge-dim)] px-2.5 py-1.5 text-[10px] text-[var(--forge-fg)]">
-            {searchIndex.running
-              ? t("session.searchIndexing", {
-                  indexed: searchIndex.indexed,
-                  total: searchIndex.total,
-                })
-              : t("session.searchIndexIncomplete")}
-          </div>
-        )}
+      {/* Search Index Building Banner */}
+      {searchQuery.trim() && searchIndex.supported && searchIndex.running && (
+        <div className="hud-mono border-b border-[var(--forge-line)] bg-[var(--forge-dim)] px-2.5 py-1 text-[10px] text-[var(--forge-fg)]">
+          {t("session.searchIndexing", {
+            indexed: searchIndex.indexed,
+            total: searchIndex.total,
+          })}
+        </div>
+      )}
 
-      {/* Session Scroll Feed */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pt-1.5 pb-3">
-        {loading ? (
-          <div className="space-y-1.5 pt-1">
-            {Array.from({ length: 6 }).map((_, i) => (
+      {/* ==================== RIN-STYLE COMPACT TREE BODY ==================== */}
+      <div
+        ref={listScrollRef}
+        className="min-h-0 flex-1 overflow-y-auto px-1.5 py-1"
+      >
+        {loading && displaySessions.length === 0 ? (
+          <div className="space-y-1 px-1 pt-2">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
-                className="h-20 animate-pulse rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-panel)] p-2.5"
+                className="h-7 animate-pulse rounded-[6px] bg-[var(--bg-hover)]/70"
               />
             ))}
           </div>
         ) : displaySessions.length === 0 ? (
-          <div className="py-14 text-center">
-            <p className="hud-mono text-xs text-[var(--text-low)]">
-              {showArchived
-                ? t("session.noArchivedSessions")
-                : t("session.noSessions")}
+          <div className="px-2 py-8 text-center text-xs text-[var(--text-low)]">
+            <p>
+              {workspaceFilterActive
+                ? t("hud.workspaceFilterEmpty")
+                : showArchived
+                  ? t("session.noArchivedSessions")
+                  : t("session.noSessions")}
             </p>
-          </div>
-        ) : (
-          <>
-            {todaySessions.length > 0 && (
-              <>
-                <div className="hud-mono flex justify-between px-1 pt-1.5 pb-1 text-[10px] font-semibold text-[var(--text-low)]">
-                  <span>{t("hud.groupToday")}</span>
-                  <span>{todaySessions.length}</span>
-                </div>
-                {todaySessions.map((session) => {
-                  const globalIdx = displaySessions.indexOf(session);
-                  return (
-                    <HudSessionCard
-                      autoExpandSubagents={searchQuery.trim().length > 0}
-                      daysAgoLabel={t("session.daysAgo")}
-                      hoursAgoLabel={t("session.hoursAgo")}
-                      isMultiSelected={selectedKeys.has(makeCompositeKey(session))}
-                      isSelected={
-                        selectedSessionKey === session.sessionKey &&
-                        (selectedSessionPlatform || session.platform) ===
-                          session.platform
-                      }
-                      isRenaming={renamingKey === makeCompositeKey(session)}
-                      justNowLabel={t("session.justNow")}
-                      key={makeCompositeKey(session)}
-                      onCancelRename={() => setRenamingKey(null)}
-                      onChangeRename={setRenameDraft}
-                      onClick={(e) => handleCardClick(session, globalIdx, e)}
-                      onCommitRename={(val) =>
-                        void handleSaveCardAlias(session, val)
-                      }
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setCtxMenu({
-                          x: Math.min(window.innerWidth - 216, e.clientX),
-                          y: Math.min(window.innerHeight - 270, e.clientY),
-                          session,
-                        });
-                      }}
-                      onOpenSubagent={(sub) =>
-                        dispatch({
-                          type: "selectSession",
-                          payload: {
-                            platform: sub.platform || session.platform,
-                            sessionKey: sub.sessionKey,
-                          },
-                        })
-                      }
-                      onToggleArchive={handleToggleArchive}
-                      onToggleFavorite={handleToggleFavorite}
-                      readOnlyLabel={t("hud.readOnly")}
-                      renameDraft={
-                        renamingKey === makeCompositeKey(session)
-                          ? renameDraft
-                          : ""
-                      }
-                      selectedSessionKey={selectedSessionKey}
-                      selectionMode={selectionMode}
-                      session={session}
-                      showArchived={showArchived}
-                      subagentsCountLabel={t("hud.subagentsCount", {
-                        count: countSubagents(session),
-                      })}
-                      untitledLabel={t("session.untitled")}
-                    />
-                  );
-                })}
-              </>
-            )}
-
-            {earlierSessions.length > 0 && (
-              <>
-                <div className="hud-mono flex justify-between px-1 pt-2.5 pb-1 text-[10px] font-semibold text-[var(--text-low)]">
-                  <span>{t("hud.groupEarlier")}</span>
-                  <span>{earlierSessions.length}</span>
-                </div>
-                {earlierSessions.map((session) => {
-                  const globalIdx = displaySessions.indexOf(session);
-                  return (
-                    <HudSessionCard
-                      autoExpandSubagents={searchQuery.trim().length > 0}
-                      daysAgoLabel={t("session.daysAgo")}
-                      hoursAgoLabel={t("session.hoursAgo")}
-                      isMultiSelected={selectedKeys.has(makeCompositeKey(session))}
-                      isSelected={
-                        selectedSessionKey === session.sessionKey &&
-                        (selectedSessionPlatform || session.platform) ===
-                          session.platform
-                      }
-                      isRenaming={renamingKey === makeCompositeKey(session)}
-                      justNowLabel={t("session.justNow")}
-                      key={makeCompositeKey(session)}
-                      onCancelRename={() => setRenamingKey(null)}
-                      onChangeRename={setRenameDraft}
-                      onClick={(e) => handleCardClick(session, globalIdx, e)}
-                      onCommitRename={(val) =>
-                        void handleSaveCardAlias(session, val)
-                      }
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setCtxMenu({
-                          x: Math.min(window.innerWidth - 216, e.clientX),
-                          y: Math.min(window.innerHeight - 270, e.clientY),
-                          session,
-                        });
-                      }}
-                      onOpenSubagent={(sub) =>
-                        dispatch({
-                          type: "selectSession",
-                          payload: {
-                            platform: sub.platform || session.platform,
-                            sessionKey: sub.sessionKey,
-                          },
-                        })
-                      }
-                      onToggleArchive={handleToggleArchive}
-                      onToggleFavorite={handleToggleFavorite}
-                      readOnlyLabel={t("hud.readOnly")}
-                      renameDraft={
-                        renamingKey === makeCompositeKey(session)
-                          ? renameDraft
-                          : ""
-                      }
-                      selectedSessionKey={selectedSessionKey}
-                      selectionMode={selectionMode}
-                      session={session}
-                      showArchived={showArchived}
-                      subagentsCountLabel={t("hud.subagentsCount", {
-                        count: countSubagents(session),
-                      })}
-                      untitledLabel={t("session.untitled")}
-                    />
-                  );
-                })}
-              </>
-            )}
-
-            {remaining > 0 && !favoritesOnly && !selectionMode && (
+            {workspaceFilterActive && (
               <button
                 type="button"
-                disabled={loadingMore}
-                onClick={() => void handleLoadMore()}
-                className="hud-mono mt-1.5 w-full rounded-[5px] border border-dashed border-[var(--line-strong)] py-2 text-[11px] text-[var(--text-mid)] hover:bg-[var(--bg-panel)] hover:text-[var(--text-hi)]"
+                onClick={clearWorkspaceFilter}
+                className="hud-btn mt-2.5 text-[11px]"
               >
-                {loadingMore
-                  ? t("loading")
-                  : t("session.loadMore", { count: remaining })}
+                <X className="size-3" />
+                <span>{t("hud.clearWorkspaceFilter")}</span>
               </button>
             )}
-          </>
+          </div>
+        ) : searchQuery.trim() || showArchived ? (
+          /* Flat list during search or archive view */
+          <div className="space-y-0.5">
+            {displaySessions.map(renderSessionRow)}
+          </div>
+        ) : (
+          /* Grouped view: ▾ 置顶 + ▾ 项目 → 📁 Folders */
+          <div className="space-y-2">
+            {pinnedSessions.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setPinnedCollapsed((v) => !v)}
+                  className="flex h-6 w-full items-center gap-1 rounded px-1.5 text-[11.5px] font-medium text-[var(--text-mid)] hover:text-[var(--text-hi)]"
+                >
+                  {pinnedCollapsed ? (
+                    <ChevronRight className="size-3 text-[var(--text-low)]" />
+                  ) : (
+                    <ChevronDown className="size-3 text-[var(--text-low)]" />
+                  )}
+                  <span>{t("hud.pinnedSection")}</span>
+                  <span className="hud-mono text-[10.5px] text-[var(--text-low)]">
+                    {pinnedSessions.length}
+                  </span>
+                </button>
+                {!pinnedCollapsed && (
+                  <div className="mt-0.5 space-y-[1px]">
+                    {pinnedSessions.map(renderSessionRow)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {projectGroups.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setProjectsCollapsed((v) => !v)}
+                  className="flex h-6 w-full items-center gap-1 rounded px-1.5 text-[11.5px] font-medium text-[var(--text-mid)] hover:text-[var(--text-hi)]"
+                >
+                  {projectsCollapsed ? (
+                    <ChevronRight className="size-3 text-[var(--text-low)]" />
+                  ) : (
+                    <ChevronDown className="size-3 text-[var(--text-low)]" />
+                  )}
+                  <span>{t("hud.projectsSection")}</span>
+                  <span className="hud-mono text-[10.5px] text-[var(--text-low)]">
+                    {projectGroups.length}
+                  </span>
+                </button>
+
+                {!projectsCollapsed && (
+                  <div className="mt-0.5 space-y-1">
+                    {projectGroups.map((group) => {
+                      const folderClosed = collapsedFolders.has(group.key);
+                      const hasSelectedInside = group.items.some(
+                        (s) =>
+                          s.sessionKey === selectedSessionKey &&
+                          (selectedSessionPlatform || s.platform) === s.platform
+                      );
+                      return (
+                        <div key={group.key}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCollapsedFolders((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(group.key)) next.delete(group.key);
+                                else next.add(group.key);
+                                return next;
+                              })
+                            }
+                            className="group/folder flex h-[28px] w-full items-center gap-1.5 rounded-[6px] px-2 text-left text-[12.5px] text-[var(--text-mid)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+                            title={group.fullCwd || group.label}
+                          >
+                            {folderClosed ? (
+                              <Folder className="size-3.5 shrink-0 text-[var(--text-low)]" />
+                            ) : (
+                              <FolderOpen className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+                            )}
+                            <span className="min-w-0 flex-1 truncate font-medium">
+                              {group.label}
+                            </span>
+                            {hasSelectedInside && folderClosed && (
+                              <span className="size-1.5 shrink-0 rounded-full bg-[var(--cyan)]" />
+                            )}
+                            <span className="hud-mono text-[10.5px] text-[var(--text-low)]">
+                              {group.items.length}
+                            </span>
+                          </button>
+
+                          {!folderClosed && (
+                            <div className="mt-[1px] space-y-[1px] pl-2">
+                              {group.items.map(renderSessionRow)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
+
+        {remaining > 0 &&
+          !selectionMode &&
+          !(loading && displaySessions.length === 0) && (
+            <button
+              type="button"
+              disabled={loadingMore}
+              onClick={() => void handleLoadMore()}
+              className="hud-mono mt-1.5 w-full rounded-[6px] py-1.5 text-[11px] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+            >
+              {loadingMore
+                ? t("loading")
+                : t("session.loadMore", { count: remaining })}
+            </button>
+          )}
       </div>
 
-      {/* Session Right-Click Context Menu */}
+      {/* Session Right-Click Context Menu + Click-Catcher Backdrop */}
       {ctxMenu && (
-        <div
-          style={{ left: `${ctxMenu.x}px`, top: `${ctxMenu.y}px` }}
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setCtxMenu(null);
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setCtxMenu(null);
+            }}
+          />
+          <div
+            data-context-menu
+            style={{ left: `${ctxMenu.x}px`, top: `${ctxMenu.y}px` }}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
-          className="fixed z-50 w-[208px] rounded-[6px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1 text-xs shadow-2xl"
+          className="fixed z-50 w-[208px] rounded-[7px] border border-[var(--line-strong)] bg-[var(--bg-panel)] p-1 text-xs shadow-2xl"
         >
           <button
             type="button"
@@ -1290,7 +1600,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
               });
               void handleResumeFromContextMenu(s, true);
             }}
-            className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-1.5 text-left text-[var(--emerald-fg)] hover:bg-[var(--emerald-dim)]"
+            className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-1.5 text-left text-[var(--emerald-fg)] hover:bg-[var(--emerald-dim)]"
           >
             <Terminal className="size-3.5 shrink-0" />
             <span className="truncate">{t("terminal.resumeEmbedded")}</span>
@@ -1303,10 +1613,49 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
               setCtxMenu(null);
               void handleResumeFromContextMenu(s, false);
             }}
-            className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-1.5 text-left text-[var(--text-hi)] hover:bg-[var(--bg-hover)]"
+            className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-1.5 text-left text-[var(--text-hi)] hover:bg-[var(--bg-hover)]"
           >
             <ExternalLink className="size-3.5 shrink-0 text-[var(--cyan-fg)]" />
             <span className="truncate">{t("terminal.resumeExternal")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={async () => {
+              const s = ctxMenu.session;
+              setCtxMenu(null);
+              try {
+                const detail =
+                  state.sessionDetail?.sessionKey === s.sessionKey
+                    ? state.sessionDetail
+                    : await api.getSessionDetail(s.platform, s.sessionKey);
+                const cmd = detail.commands?.resume;
+                if (!cmd) {
+                  dispatch({
+                    type: "setSessionStatus",
+                    payload: { tone: "error", message: t("hud.ctxNoResumeCmd") },
+                  });
+                  return;
+                }
+                await navigator.clipboard.writeText(cmd);
+                dispatch({
+                  type: "setSessionStatus",
+                  payload: { tone: "success", message: t("session.copied") },
+                });
+              } catch {
+                dispatch({
+                  type: "setSessionStatus",
+                  payload: {
+                    tone: "error",
+                    message: t("session.terminalOpenFailed"),
+                  },
+                });
+              }
+            }}
+            className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-1.5 text-left text-[var(--text-hi)] hover:bg-[var(--bg-hover)]"
+          >
+            <Copy className="size-3.5 shrink-0 text-[var(--text-mid)]" />
+            <span className="truncate">{t("terminal.copyResumeCmd")}</span>
           </button>
 
           <div className="my-1 border-t border-[var(--line-subtle)]" />
@@ -1322,7 +1671,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
               );
               setRenamingKey(makeCompositeKey(s));
             }}
-            className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-1.5 text-left text-[var(--text-hi)] hover:bg-[var(--bg-hover)]"
+            className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-1.5 text-left text-[var(--text-hi)] hover:bg-[var(--bg-hover)]"
           >
             <Pencil className="size-3.5 shrink-0 text-[var(--text-mid)]" />
             <span className="truncate">{t("session.setAlias")}</span>
@@ -1346,13 +1695,13 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
                 },
               });
             }}
-            className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-1.5 text-left text-[var(--text-hi)] hover:bg-[var(--bg-hover)]"
+            className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-1.5 text-left text-[var(--text-hi)] hover:bg-[var(--bg-hover)]"
           >
-            <Star
+            <Pin
               className={cn(
                 "size-3.5 shrink-0",
                 ctxMenu.session.favorite
-                  ? "fill-current text-[var(--forge-fg)]"
+                  ? "text-[var(--forge-fg)]"
                   : "text-[var(--text-mid)]"
               )}
             />
@@ -1371,7 +1720,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
               setSelectionMode(true);
               setSelectedKeys(new Set([makeCompositeKey(s)]));
             }}
-            className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-1.5 text-left text-[var(--text-hi)] hover:bg-[var(--bg-hover)]"
+            className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-1.5 text-left text-[var(--text-hi)] hover:bg-[var(--bg-hover)]"
           >
             <CheckSquare className="size-3.5 shrink-0 text-[var(--text-mid)]" />
             <span className="truncate">{t("session.selectMode")}</span>
@@ -1387,7 +1736,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
                 setCtxMenu(null);
                 void navigator.clipboard.writeText(cwd);
               }}
-              className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-1.5 text-left text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+              className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-1.5 text-left text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
             >
               <Copy className="size-3.5 shrink-0" />
               <span className="truncate">{t("hud.ctxCopyCwd")}</span>
@@ -1401,7 +1750,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
               setCtxMenu(null);
               void navigator.clipboard.writeText(sid);
             }}
-            className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-1.5 text-left text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+            className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-1.5 text-left text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
           >
             <Hash className="size-3.5 shrink-0" />
             <span className="truncate">{t("hud.ctxCopySessionId")}</span>
@@ -1416,7 +1765,7 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
               setCtxMenu(null);
               void handleToggleArchive(s);
             }}
-            className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-1.5 text-left text-[var(--crimson-fg)] hover:bg-[var(--crimson-dim)]"
+            className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-1.5 text-left text-[var(--crimson-fg)] hover:bg-[var(--crimson-dim)]"
           >
             {showArchived ? (
               <ArchiveRestore className="size-3.5 shrink-0" />
@@ -1427,7 +1776,8 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
               {showArchived ? t("session.unarchive") : t("session.archive")}
             </span>
           </button>
-        </div>
+          </div>
+        </>
       )}
 
       <ConfirmDialog {...dialogProps} />
@@ -1464,40 +1814,38 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
                   </select>
                 </div>
               )}
-              <div className="rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] p-3">
-                <p className="font-semibold text-[var(--text-hi)]">
-                  {importPreview.title || "Untitled Session"}
-                </p>
-                {importPreview.preview && (
-                  <p className="mt-1 line-clamp-2 text-[var(--text-mid)]">
-                    {importPreview.preview}
-                  </p>
-                )}
-              </div>
-              <div className="hud-mono space-y-1.5 rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-code)] p-3 text-[11px]">
-                <div>
-                  <span className="text-[var(--text-low)]">ID: </span>
-                  <span>{importPreview.sessionId}</span>
+
+              <div className="space-y-1.5 rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] p-3">
+                <div className="font-semibold text-[var(--text-hi)]">
+                  {importPreview.title || t("session.untitled")}
                 </div>
-                <div>
-                  <span className="text-[var(--text-low)]">CWD: </span>
-                  <span className="break-all">{importPreview.cwd || "—"}</span>
+                <div className="hud-mono text-[11px] text-[var(--text-low)]">
+                  {importPreview.sessionId}
+                  {importPreview.cwd ? ` · ${importPreview.cwd}` : ""}
                 </div>
-                <div>
-                  <span className="text-[var(--text-low)]">TARGET: </span>
-                  <span className="break-all text-[var(--cyan-fg)]">
-                    {importPreview.targetPath}
-                  </span>
+                <div className="hud-mono break-all text-[10.5px] text-[var(--text-low)]">
+                  {importPreview.sourcePath}
                 </div>
               </div>
-              {importPreview.conflict && (
-                <div className="flex items-start gap-2 rounded-[5px] border border-[var(--forge-line)] bg-[var(--forge-dim)] p-2.5 text-[var(--forge-fg)]">
-                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                  <span>
-                    {importPreview.conflict === "same"
-                      ? t("session.importConflictSame")
-                      : t("session.importConflictDifferent")}
-                  </span>
+
+              {importPreview.conflict !== null && (
+                <div className="rounded-[5px] border border-[var(--forge-line)] bg-[var(--forge-dim)] p-2.5 text-[var(--forge-fg)]">
+                  {importPreview.conflict === "same"
+                    ? t("session.importConflictSame")
+                    : t("session.importConflictDifferent")}
+                </div>
+              )}
+              {importPreview.warnings.length > 0 && (
+                <div className="space-y-1 rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] p-2.5">
+                  <div className="flex items-center gap-1.5 font-semibold text-[var(--forge-fg)]">
+                    <AlertTriangle className="size-3.5" />
+                    <span>{t("session.importWarnings")}</span>
+                  </div>
+                  {importPreview.warnings.map((w) => (
+                    <p key={w} className="text-[var(--text-mid)]">
+                      {w}
+                    </p>
+                  ))}
                 </div>
               )}
               {importError && (
@@ -1536,15 +1884,19 @@ export function SessionList({ collapsed = false }: { collapsed?: boolean }) {
   );
 }
 
-function HudSessionCard({
+/* ==================== RIN-STYLE 30PX BORDERLESS SESSION ROW ==================== */
+function RinSessionRow({
   session,
+  rowDataKey,
   isSelected,
+  isLocated,
   selectedSessionKey,
   showArchived,
   selectionMode,
   isMultiSelected,
   isRenaming,
   renameDraft,
+  isEn,
   onClick,
   onContextMenu,
   onChangeRename,
@@ -1553,22 +1905,21 @@ function HudSessionCard({
   onOpenSubagent,
   onToggleFavorite,
   onToggleArchive,
-  justNowLabel,
-  hoursAgoLabel,
-  daysAgoLabel,
   untitledLabel,
-  readOnlyLabel,
   subagentsCountLabel,
   autoExpandSubagents,
 }: {
   session: Session;
+  rowDataKey: string;
   isSelected: boolean;
+  isLocated: boolean;
   selectedSessionKey: string | null;
   showArchived: boolean;
   selectionMode: boolean;
   isMultiSelected: boolean;
   isRenaming: boolean;
   renameDraft: string;
+  isEn: boolean;
   onClick: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onChangeRename: (val: string) => void;
@@ -1577,184 +1928,110 @@ function HudSessionCard({
   onOpenSubagent: (sub: Session) => void;
   onToggleFavorite: (session: Session, e: React.MouseEvent) => void;
   onToggleArchive: (session: Session, e: React.MouseEvent) => void;
-  justNowLabel: string;
-  hoursAgoLabel: string;
-  daysAgoLabel: string;
   untitledLabel: string;
-  readOnlyLabel: string;
   subagentsCountLabel: string;
   autoExpandSubagents: boolean;
 }) {
-  const [copiedCwd, setCopiedCwd] = useState(false);
   const [agentsExpanded, setAgentsExpanded] = useState(autoExpandSubagents);
   const subagentCount = countSubagents(session);
   const highlight = selectionMode ? isMultiSelected : isSelected;
-  const relTime = formatRelativeTime(
-    session.updatedAt,
-    justNowLabel,
-    hoursAgoLabel,
-    daysAgoLabel
-  );
-  const platLabel =
-    PLATFORM_LABELS[session.platform] ?? session.platform.toUpperCase();
+  const relTime = formatCompactTime(session.updatedAt, isEn);
+  const readableTitle = getSessionReadableTitle(session, untitledLabel);
 
   useEffect(() => {
     if (autoExpandSubagents) setAgentsExpanded(true);
   }, [autoExpandSubagents]);
 
   return (
-    <div
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      style={SESSION_CARD_RENDER_STYLE}
-      className={cn(
-        "group relative mb-1.5 cursor-pointer rounded-[5px] border py-2 pr-2.5 pl-3 transition-colors select-none",
-        highlight
-          ? "reticle reticle-cyan border-[var(--cyan-line)] bg-[linear-gradient(90deg,var(--cyan-dim),var(--bg-panel)_65%)]"
-          : "border-[var(--line-hair)] bg-[var(--bg-panel)] hover:border-[var(--line-strong)] hover:bg-[var(--bg-elevated)]"
-      )}
-    >
-      {/* Left 2.5px Signal Spine */}
-      <span
+    <div data-session-row-key={rowDataKey}>
+      <div
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+        title={
+          session.cwd
+            ? `${readableTitle}\n${session.cwd}`
+            : readableTitle
+        }
         className={cn(
-          "absolute top-1.5 bottom-1.5 left-0 w-[2.5px] rounded-r",
+          "group/row flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-[6px] px-2 text-[13px] transition-colors",
           highlight
-            ? "bg-[var(--cyan)]"
-            : "bg-transparent group-hover:bg-[var(--line-strong)]"
+            ? "bg-[var(--row-selected)] font-medium text-[var(--text-hi)]"
+            : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]",
+          isLocated && "sidebar-session-located"
         )}
-      />
-
-      {/* Top Meta Row */}
-      <div className="mb-1 flex items-center gap-1.5">
-        {selectionMode && (
-          <span className="hud-mono text-[10px] font-bold text-[var(--cyan-fg)]">
+      >
+        {selectionMode ? (
+          <span className="hud-mono text-[10.5px] font-bold text-[var(--cyan-fg)]">
             [{isMultiSelected ? "✓" : " "}]
           </span>
-        )}
-        <span
-          className={cn(
-            "hud-mono rounded-[2px] border px-1.5 py-[0.5px] text-[9px] font-bold tracking-wider uppercase",
-            getPlatformBadgeStyle(session.platform)
-          )}
-        >
-          {platLabel}
-        </span>
-
-        {!session.editable && (
-          <span className="hud-mono rounded-[2px] border border-[var(--line-hair)] px-1 text-[8.5px] text-[var(--text-low)]">
-            {readOnlyLabel}
-          </span>
+        ) : (
+          <PlatformMark platform={session.platform} size={13} />
         )}
 
-        {!session.aliasTitle && isUuidLikeTitle(session.displayTitle) && (
-          <span className="hud-mono text-[9.5px] text-[var(--text-low)]">
-            #{session.sessionId.slice(0, 6)}
-          </span>
+        {isRenaming ? (
+          <input
+            autoFocus
+            className="h-5 min-w-0 flex-1 rounded-[4px] border border-[var(--cyan)] bg-[var(--bg-void)] px-1.5 text-xs font-medium text-[var(--text-hi)] outline-none"
+            onBlur={() => onCommitRename(renameDraft)}
+            onChange={(e) => onChangeRename(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.stopPropagation();
+                onCommitRename(renameDraft);
+              } else if (e.key === "Escape") {
+                e.stopPropagation();
+                onCancelRename();
+              }
+            }}
+            value={renameDraft}
+          />
+        ) : (
+          <span className="min-w-0 flex-1 truncate">{readableTitle}</span>
         )}
 
-        <span className="hud-mono ml-auto text-[10px] text-[var(--text-low)]">
-          {relTime}
-        </span>
-
-        {!selectionMode && (
-          <div
-            className={cn(
-              "flex items-center gap-0.5 transition-opacity",
-              session.favorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            )}
-          >
-            <button
-              type="button"
-              onClick={(e) => onToggleFavorite(session, e)}
-              className={cn(
-                "rounded p-0.5",
-                session.favorite
-                  ? "text-[var(--forge-fg)]"
-                  : "text-[var(--text-low)] hover:text-[var(--forge-fg)]"
-              )}
-            >
-              <Star className={cn("size-3", session.favorite && "fill-current")} />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => onToggleArchive(session, e)}
-              className="rounded p-0.5 text-[var(--text-low)] opacity-0 group-hover:opacity-100 hover:text-[var(--crimson-fg)]"
-            >
-              {showArchived ? (
-                <ArchiveRestore className="size-3" />
-              ) : (
-                <Archive className="size-3" />
-              )}
-            </button>
-          </div>
+        {!selectionMode && !isRenaming && (
+          <>
+            <span className="hud-mono shrink-0 text-[11px] text-[var(--text-low)] group-hover/row:hidden">
+              {relTime}
+            </span>
+            <div className="hidden shrink-0 items-center gap-0.5 group-hover/row:flex">
+              <button
+                type="button"
+                onClick={(e) => onToggleFavorite(session, e)}
+                className={cn(
+                  "grid size-5 place-items-center rounded-[4px] hover:bg-[var(--bg-void)]",
+                  session.favorite
+                    ? "text-[var(--forge-fg)]"
+                    : "text-[var(--text-low)] hover:text-[var(--forge-fg)]"
+                )}
+              >
+                <Pin className="size-3" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => onToggleArchive(session, e)}
+                className="grid size-5 place-items-center rounded-[4px] text-[var(--text-low)] hover:bg-[var(--bg-void)] hover:text-[var(--crimson-fg)]"
+              >
+                {showArchived ? (
+                  <ArchiveRestore className="size-3" />
+                ) : (
+                  <Archive className="size-3" />
+                )}
+              </button>
+            </div>
+          </>
         )}
       </div>
 
-      {/* Session Title (Inline Rename OR Human Preview) */}
-      {isRenaming ? (
-        <input
-          autoFocus
-          className="h-6 w-full rounded-[3px] border border-[var(--cyan)] bg-[var(--bg-void)] px-1.5 text-xs font-semibold text-[var(--text-hi)] outline-none"
-          onBlur={() => onCommitRename(renameDraft)}
-          onChange={(e) => onChangeRename(e.target.value)}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.stopPropagation();
-              onCommitRename(renameDraft);
-            } else if (e.key === "Escape") {
-              e.stopPropagation();
-              onCancelRename();
-            }
-          }}
-          value={renameDraft}
-        />
-      ) : (
-        <div className="truncate text-[12.5px] leading-snug font-semibold text-[var(--text-hi)]">
-          {session.aliasTitle ||
-            (!isUuidLikeTitle(session.displayTitle)
-              ? session.displayTitle
-              : cleanHumanPreview(session.preview) ||
-                session.displayTitle ||
-                untitledLabel)}
-        </div>
-      )}
-
-      {/* Preview / CWD */}
-      {session.cwd ? (
-        <div className="mt-1 flex items-center gap-1 text-[10px] text-[var(--text-low)]">
-          <span className="hud-mono min-w-0 flex-1 truncate">{session.cwd}</span>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              void navigator.clipboard.writeText(session.cwd);
-              setCopiedCwd(true);
-              setTimeout(() => setCopiedCwd(false), 1200);
-            }}
-            className="opacity-0 group-hover:opacity-100 hover:text-[var(--text-hi)]"
-            title="复制路径"
-          >
-            {copiedCwd ? (
-              <Check className="size-2.5 text-[var(--emerald-fg)]" />
-            ) : (
-              <Copy className="size-2.5" />
-            )}
-          </button>
-        </div>
-      ) : session.preview ? (
-        <p className="mt-0.5 truncate text-[11px] text-[var(--text-low)]">
-          {session.preview}
-        </p>
-      ) : null}
-
-      {/* Content Search Hits */}
+      {/* Content Search Hits (only during FTS search) */}
       {session.contentMatches && session.contentMatches.length > 0 && (
-        <div className="mt-1.5 space-y-1 border-t border-dashed border-[var(--line-hair)] pt-1.5">
+        <div className="mb-1 ml-6 space-y-0.5">
           {session.contentMatches.slice(0, 2).map((m, i) => (
             <div
               key={i}
-              className="hud-mono truncate rounded-[2px] bg-[var(--forge-dim)] px-1.5 py-0.5 text-[10px] text-[var(--forge-fg)]"
+              onClick={onClick}
+              className="hud-mono cursor-pointer truncate rounded-[4px] bg-[var(--forge-dim)] px-1.5 py-0.5 text-[10px] text-[var(--forge-fg)]"
             >
               #{m.matchIndex + 1}: {m.snippet}
             </div>
@@ -1762,46 +2039,45 @@ function HudSessionCard({
         </div>
       )}
 
-      {/* Subagent Tree */}
+      {/* Subagent Children */}
       {subagentCount > 0 && (
-        <div
-          className="mt-1.5 border-t border-dashed border-[var(--line-hair)] pt-1"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="ml-5">
           <button
             type="button"
-            onClick={() => setAgentsExpanded((v) => !v)}
-            className="hud-mono flex w-full items-center justify-between text-[10px] text-[var(--cyan-fg)] hover:underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAgentsExpanded((v) => !v);
+            }}
+            className="hud-mono flex h-5 items-center gap-1 px-1.5 text-[10.5px] text-[var(--text-low)] hover:text-[var(--text-hi)]"
           >
-            <span>{subagentsCountLabel}</span>
             {agentsExpanded ? (
-              <ChevronUp className="size-3" />
+              <ChevronDown className="size-2.5" />
             ) : (
-              <ChevronDown className="size-3" />
+              <ChevronRight className="size-2.5" />
             )}
+            <span>{subagentsCountLabel}</span>
           </button>
           {agentsExpanded && (
-            <div className="mt-1 space-y-0.5 pl-1">
-              {(session.agentGroup?.children ?? []).map((child) => {
-                const subActive = selectedSessionKey === child.sessionKey;
+            <div className="space-y-[1px] border-l border-[var(--line-hair)] pl-2">
+              {(session.agentGroup?.children ?? []).map((sub) => {
+                const subActive = selectedSessionKey === sub.sessionKey;
                 return (
                   <button
-                    key={child.sessionKey}
+                    key={sub.sessionKey}
                     type="button"
-                    onClick={() => onOpenSubagent(child)}
+                    onClick={() => onOpenSubagent(sub)}
                     className={cn(
-                      "hud-mono flex w-full items-center gap-1.5 rounded-[3px] px-1.5 py-0.5 text-left text-[10px]",
+                      "flex h-[26px] w-full items-center gap-1.5 truncate rounded-[5px] px-2 text-left text-[12px]",
                       subActive
-                        ? "bg-[var(--cyan-dim)] font-semibold text-[var(--cyan-fg)]"
-                        : "text-[var(--text-mid)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
+                        ? "bg-[var(--row-selected)] font-medium text-[var(--text-hi)]"
+                        : "text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-hi)]"
                     )}
                   >
-                    <span className="text-[var(--cyan-fg)]">↳</span>
-                    <span className="flex-1 truncate">
-                      {child.agentGroup?.nickname ||
-                        child.aliasTitle ||
-                        child.displayTitle ||
-                        child.sessionId}
+                    <span className="truncate">
+                      {sub.agentGroup?.nickname ||
+                        sub.agentGroup?.role ||
+                        sub.displayTitle ||
+                        sub.sessionId}
                     </span>
                   </button>
                 );
