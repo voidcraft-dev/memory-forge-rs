@@ -3,6 +3,7 @@ import {
   Check,
   FolderOpen,
   GripVertical,
+  Info,
   Languages,
   Rocket,
   SlidersHorizontal,
@@ -10,15 +11,14 @@ import {
   Terminal,
 } from "lucide-react";
 import { type ComponentType, useState } from "react";
+import { Link } from "react-router";
 import { localeCatalog, themeCatalog } from "@/features/desktop/catalog";
 import { useDesktop } from "@/features/desktop/provider";
-import type { ThemeId } from "@/features/desktop/types";
 import { cn } from "@/lib/utils";
 
 const PLATFORM_ITEMS = [
   { id: "claude", labelKey: "platformClaude" as const, isPlatform: true },
   { id: "codex", labelKey: "platformCodex" as const, isPlatform: true },
-  { id: "terminal-sessions", labelKey: "terminalSessions" as const, isPlatform: false },
   { id: "opencode", labelKey: "platformOpencode" as const, isPlatform: true },
   { id: "grok", labelKey: "platformGrok" as const, isPlatform: true },
   { id: "pi", labelKey: "platformPi" as const, isPlatform: true },
@@ -42,51 +42,41 @@ const PLATFORM_ITEMS = [
 
 const TERMINAL_OPTIONS = {
   windows: [
-    { value: "cmd", labelKey: "terminalCmd" as const },
-    { value: "powershell", labelKey: "terminalPowerShell" as const },
     { value: "wt", labelKey: "terminalWindowsTerminal" as const },
+    { value: "powershell", labelKey: "terminalPowerShell" as const },
+    { value: "cmd", labelKey: "terminalCmd" as const },
   ],
   macos: [
     { value: "terminal", labelKey: "terminalMacTerminal" as const },
     { value: "iterm2", labelKey: "terminalITerm2" as const },
-    { value: "alacritty", labelKey: "terminalAlacritty" as const },
-    { value: "kitty", labelKey: "terminalKitty" as const },
     { value: "ghostty", labelKey: "terminalGhostty" as const },
     { value: "wezterm", labelKey: "terminalWezTerm" as const },
+    { value: "kitty", labelKey: "terminalKitty" as const },
+    { value: "alacritty", labelKey: "terminalAlacritty" as const },
     { value: "kaku", labelKey: "terminalKaku" as const },
   ],
   linux: [
     { value: "gnome-terminal", labelKey: "terminalGnomeTerminal" as const },
     { value: "konsole", labelKey: "terminalKonsole" as const },
     { value: "xfce4-terminal", labelKey: "terminalXfceTerminal" as const },
-    { value: "alacritty", labelKey: "terminalAlacritty" as const },
-    { value: "kitty", labelKey: "terminalKitty" as const },
     { value: "ghostty", labelKey: "terminalGhostty" as const },
+    { value: "kitty", labelKey: "terminalKitty" as const },
+    { value: "alacritty", labelKey: "terminalAlacritty" as const },
   ],
 } as const;
 
 function getDesktopPlatform(): keyof typeof TERMINAL_OPTIONS {
   if (typeof navigator === "undefined") return "windows";
-  const platform = navigator.platform.toLowerCase();
-  if (platform.includes("mac")) return "macos";
-  if (platform.includes("linux")) return "linux";
+  const p = navigator.platform.toLowerCase();
+  if (p.includes("mac")) return "macos";
+  if (p.includes("linux")) return "linux";
   return "windows";
-}
-
-function getTerminalOptions() {
-  return TERMINAL_OPTIONS[getDesktopPlatform()];
-}
-
-function getDefaultTerminal() {
-  const platform = getDesktopPlatform();
-  if (platform === "macos") return "terminal";
-  if (platform === "linux") return "gnome-terminal";
-  return "cmd";
 }
 
 export default function SettingsPage() {
   const {
     snapshot,
+    resolvedTheme,
     loading,
     saving,
     t,
@@ -97,15 +87,14 @@ export default function SettingsPage() {
     setReduceMotion,
     updateSettings,
   } = useDesktop();
-  const [draggingPlatformId, setDraggingPlatformId] = useState<string | null>(null);
-  const [dragOverPlatformId, setDragOverPlatformId] = useState<string | null>(null);
+  const [draggingPlatformId, setDraggingPlatformId] = useState<string | null>(
+    null
+  );
 
   if (loading || !snapshot) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="panel-surface animate-pulse rounded-[24px] px-5 py-4 text-quiet text-sm">
-          {t("loading")}
-        </div>
+      <div className="hud-mono flex h-full items-center justify-center text-xs text-[var(--text-low)]">
+        {t("loading")}
       </div>
     );
   }
@@ -114,172 +103,196 @@ export default function SettingsPage() {
     "claude",
     "codex",
     "opencode",
-    "grok",
-    "pi",
   ];
-  const navigationItems = snapshot.settings.navigationItems ?? [
-    "claude",
-    "codex",
-    "terminal-sessions",
-    "opencode",
-    "grok",
-    "pi",
-  ];
+  const navigationItems = snapshot.settings.navigationItems ?? visiblePlatforms;
   const orderedPlatformItems = [
-    ...navigationItems.flatMap((navigationId) => {
-      const item = PLATFORM_ITEMS.find(({ id }) => id === navigationId);
+    ...navigationItems.flatMap((id) => {
+      const item = PLATFORM_ITEMS.find((x) => x.id === id);
       return item ? [item] : [];
     }),
     ...PLATFORM_ITEMS.filter(({ id }) => !navigationItems.includes(id)),
   ];
 
-  const togglePlatformVisible = async (
-    platformId: string,
-    enabled: boolean
-  ) => {
-    const item = PLATFORM_ITEMS.find(({ id }) => id === platformId);
+  const togglePlatformVisible = async (platformId: string, enabled: boolean) => {
     const nextNavigationItems = enabled
       ? [...navigationItems, platformId]
-      : navigationItems.filter((itemId) => itemId !== platformId);
-    const patch = { navigationItems: nextNavigationItems } as {
-      navigationItems: string[];
-      visiblePlatforms?: string[];
-    };
-    if (item?.isPlatform) {
-      patch.visiblePlatforms = enabled
-        ? visiblePlatforms.includes(platformId)
-          ? visiblePlatforms
-          : [...visiblePlatforms, platformId]
-        : visiblePlatforms.filter((itemId) => itemId !== platformId);
-    }
-    await updateSettings(patch);
+      : navigationItems.filter((id) => id !== platformId);
+    const nextVisiblePlatforms = enabled
+      ? visiblePlatforms.includes(platformId)
+        ? visiblePlatforms
+        : [...visiblePlatforms, platformId]
+      : visiblePlatforms.filter((id) => id !== platformId);
+    await updateSettings({
+      navigationItems: nextNavigationItems,
+      visiblePlatforms: nextVisiblePlatforms,
+    });
   };
 
   const reorderPlatform = async (sourceId: string, targetId: string) => {
-    const sourceIndex = navigationItems.indexOf(sourceId);
-    const targetIndex = navigationItems.indexOf(targetId);
-    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
-
+    const srcIdx = navigationItems.indexOf(sourceId);
+    const tgtIdx = navigationItems.indexOf(targetId);
+    if (srcIdx < 0 || tgtIdx < 0 || srcIdx === tgtIdx) return;
     const next = [...navigationItems];
-    const [moved] = next.splice(sourceIndex, 1);
-    next.splice(targetIndex, 0, moved);
+    const [moved] = next.splice(srcIdx, 1);
+    next.splice(tgtIdx, 0, moved);
     setDraggingPlatformId(null);
-    setDragOverPlatformId(null);
     await updateSettings({ navigationItems: next });
   };
 
-  const movePlatform = async (platformId: string, direction: -1 | 1) => {
-    const sourceIndex = navigationItems.indexOf(platformId);
-    const targetIndex = sourceIndex + direction;
-    if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= navigationItems.length) return;
-    await reorderPlatform(platformId, navigationItems[targetIndex]);
-  };
+  const platform = getDesktopPlatform();
+  const defaultTerm =
+    platform === "macos"
+      ? "terminal"
+      : platform === "linux"
+        ? "gnome-terminal"
+        : "cmd";
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto pr-2 pb-8">
-      {/* Centered, Unified Column Layout Container */}
-      <div className="mx-auto w-full max-w-4xl space-y-6">
-        {/* Header section with stable solid colors for light & dark themes */}
-        <section className="relative overflow-hidden rounded-[28px] border border-border/80 bg-gradient-to-br from-card/85 via-card/75 to-card/45 px-6 py-6 shadow-black/5 shadow-lg backdrop-blur-md md:px-8">
-          {/* Glow Spheres */}
-          <div className="pointer-events-none absolute -top-12 -left-12 size-48 rounded-full bg-primary/8 blur-[90px]" />
-          <div className="pointer-events-none absolute -right-16 -bottom-16 size-56 rounded-full bg-violet-500/6 blur-[110px]" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.04),transparent_72%)] lg:block" />
-
-          <div className="relative flex select-none items-center justify-between gap-4">
-            <div>
-              <p className="font-bold text-fine text-primary uppercase tracking-[0.28em]">
-                {t("settings")}
-              </p>
-              <h2 className="mt-1.5 font-extrabold text-2xl text-foreground">
-                Memory Forge
-              </h2>
-            </div>
-            <div className="shrink-0 rounded-xl border border-border/80 bg-white/10 px-4 py-2 font-semibold text-foreground/80 text-xs backdrop-blur-md">
-              {saving
-                ? "Saving..."
-                : `${t("themeSection")}: ${snapshot.settings.theme}`}
-            </div>
+    <div className="h-full overflow-y-auto px-4 py-4 md:px-6">
+      <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-3.5 pb-8">
+        {/* Top Config Header */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span className="hud-mono text-[10px] font-bold tracking-[0.08em] text-[var(--cyan-fg)]">
+              {t("hud.settingsSubtitle")}
+            </span>
+            <h1 className="text-base font-bold text-[var(--text-hi)]">
+              {t("settings")} · v{snapshot.version}
+            </h1>
           </div>
-        </section>
-
-        {/* 1. Theme Configuration */}
-        <section className="setting-card rounded-[24px] p-5">
-          <SectionHeader
-            description={t("themeSectionDesc")}
-            icon={Sparkles}
-            title={t("themeSection")}
-          />
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-            {themeCatalog.map((theme) => (
-              <ThemeCard
-                active={snapshot.settings.theme === theme.id}
-                description={theme.description[snapshot.settings.locale]}
-                key={theme.id}
-                onSelect={setTheme}
-                preview={theme.preview}
-                themeId={theme.id}
-                title={theme.label[snapshot.settings.locale]}
-              />
-            ))}
+          <div className="flex items-center gap-2">
+            {saving && (
+              <span className="hud-mono text-xs text-[var(--forge-fg)]">
+                {t("loading")}
+              </span>
+            )}
+            <Link to="/about" className="hud-btn">
+              <Info className="size-3.5 text-[var(--cyan-fg)]" />
+              <span>{t("hud.aboutAndUpdate")}</span>
+            </Link>
           </div>
-        </section>
+        </div>
 
-        {/* 2. Language Selection */}
-        <section className="setting-card rounded-[24px] p-5">
-          <SectionHeader
-            description={t("languageSectionDesc")}
-            icon={Languages}
-            title={t("languageSection")}
-          />
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            {localeCatalog.map((locale) => (
-              <button
-                className={cn(
-                  "cursor-pointer rounded-[22px] border px-4 py-4 text-left transition-all duration-300 hover:scale-[1.01]",
-                  snapshot.settings.locale === locale.id
-                    ? "border-primary/25 bg-primary/4"
-                    : "border-border/60 bg-white/4 hover:border-border/80 hover:bg-white/6"
-                )}
-                key={locale.id}
-                onClick={() => void setLocale(locale.id)}
-                type="button"
+        {/* 1. Dual Precision HUD Theme + Language */}
+        <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+          <section className="hud-panel p-4">
+            <HudSectionHead
+              desc={t("hud.themeDualDesc")}
+              icon={Sparkles}
+              title={t("themeSection")}
+            />
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              {themeCatalog.map((th) => {
+                const active = resolvedTheme === th.id;
+                return (
+                  <button
+                    key={th.id}
+                    type="button"
+                    onClick={() => void setTheme(th.id)}
+                    className={cn(
+                      "flex flex-col justify-between gap-2 rounded-[5px] border p-3 text-left transition-all",
+                      active
+                        ? "reticle border-[var(--forge)] bg-[var(--forge-dim)]"
+                        : "border-[var(--line-hair)] bg-[var(--bg-elevated)] hover:border-[var(--line-strong)]"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex gap-1.5">
+                        {th.preview.map((c) => (
+                          <span
+                            key={c}
+                            className="size-3.5 rounded-[2px] border border-black/20"
+                            style={{ backgroundColor: c }}
+                          />
+                        ))}
+                      </div>
+                      {active && (
+                        <Check className="size-3.5 text-[var(--forge-fg)]" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-[var(--text-hi)]">
+                        {th.label[snapshot.settings.locale]}
+                      </p>
+                      <p className="mt-0.5 text-[11px] leading-snug text-[var(--text-mid)]">
+                        {th.description[snapshot.settings.locale]}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="hud-panel p-4">
+            <HudSectionHead
+              desc={t("languageSectionDesc")}
+              icon={Languages}
+              title={`${t("languageSection")} & ${t("preferredTerminal")}`}
+            />
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              {localeCatalog.map((loc) => {
+                const active = snapshot.settings.locale === loc.id;
+                return (
+                  <button
+                    key={loc.id}
+                    type="button"
+                    onClick={() => void setLocale(loc.id)}
+                    className={cn(
+                      "flex items-center justify-between rounded-[5px] border px-3 py-2.5 text-left transition-colors",
+                      active
+                        ? "border-[var(--cyan-line)] bg-[var(--cyan-dim)] text-[var(--cyan-fg)]"
+                        : "border-[var(--line-hair)] bg-[var(--bg-elevated)] hover:border-[var(--line-strong)]"
+                    )}
+                  >
+                    <span className="text-xs font-bold">
+                      {loc.label[snapshot.settings.locale]}
+                    </span>
+                    {active && <Check className="size-3.5" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-[5px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-3 py-2">
+              <span className="flex items-center gap-1.5 text-xs font-medium">
+                <Terminal className="size-3.5 text-[var(--emerald-fg)]" />
+                <span>{t("preferredTerminal")}</span>
+              </span>
+              <select
+                className="hud-mono rounded-[4px] border border-[var(--line-strong)] bg-[var(--bg-void)] px-2.5 py-1 text-xs text-[var(--text-hi)] outline-none"
+                onChange={(e) =>
+                  void updateSettings({ preferredTerminal: e.target.value })
+                }
+                value={snapshot.settings.preferredTerminal ?? defaultTerm}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-base">
-                      {locale.label[snapshot.settings.locale]}
-                    </p>
-                    <p className="mt-1 text-quiet text-sm leading-6">
-                      {locale.description[snapshot.settings.locale]}
-                    </p>
-                  </div>
-                  {snapshot.settings.locale === locale.id && (
-                    <Check className="fade-in zoom-in size-4 animate-in text-primary duration-200" />
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
+                {TERMINAL_OPTIONS[platform].map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </section>
+        </div>
 
-        {/* 3. Desktop Behavior Toggles */}
-        <section className="setting-card rounded-[24px] p-5">
-          <SectionHeader
-            description={t("desktopBehaviorDesc")}
+        {/* 2. Desktop Behavior */}
+        <section className="hud-panel p-4">
+          <HudSectionHead
+            desc={t("desktopBehaviorDesc")}
             icon={Rocket}
             title={t("desktopBehavior")}
           />
-          <div className="mt-5 space-y-3">
-            <ToggleRow
+          <div className="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-3">
+            <HudToggleRow
               checked={snapshot.settings.closeToTrayOnClose}
-              description={t("closeBehaviorDesc")}
+              desc={t("closeBehaviorDesc")}
               label={t("closeBehavior")}
               onToggle={setCloseToTrayOnClose}
             />
-            <ToggleRow
+            <HudToggleRow
               checked={snapshot.settings.launchOnStartup}
-              description={
+              desc={
                 snapshot.autostartSupported
                   ? t("launchOnStartupDesc")
                   : t("autostartUnavailable")
@@ -288,150 +301,63 @@ export default function SettingsPage() {
               label={t("launchOnStartup")}
               onToggle={setLaunchOnStartup}
             />
-            <ToggleRow
+            <HudToggleRow
               checked={snapshot.settings.reduceMotion}
-              description={t("reduceMotionDesc")}
+              desc={t("reduceMotionDesc")}
               label={t("reduceMotion")}
               onToggle={setReduceMotion}
             />
           </div>
         </section>
 
-        {/* 4. Preferred terminal */}
-        <section className="setting-card rounded-[24px] p-5">
-          <SectionHeader
-            description={t("terminalSectionDesc")}
-            icon={Terminal}
-            title={t("terminalSection")}
-          />
-          <div className="mt-5">
-            <label className="block font-semibold text-sm" htmlFor="preferred-terminal">
-              {t("preferredTerminal")}
-            </label>
-            <select
-              className="mt-2 h-10 w-full max-w-xs cursor-pointer rounded-xl border border-border/50 bg-muted/20 px-3.5 py-2 text-sm text-foreground transition-all duration-200 focus:border-primary/50 focus:bg-background/40 focus:outline-none"
-              id="preferred-terminal"
-              onChange={(event) =>
-                void updateSettings({ preferredTerminal: event.target.value })
-              }
-              value={snapshot.settings.preferredTerminal ?? getDefaultTerminal()}
-            >
-              {getTerminalOptions().map((terminal) => (
-                <option key={terminal.value} value={terminal.value}>
-                  {t(terminal.labelKey)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
-
-        {/* 5. Platform Visibility Filters */}
-        <section className="setting-card rounded-[24px] p-5">
-          <SectionHeader
-            description={t("sidebarSectionDesc")}
+        {/* 3. Platform Visibility & Priority */}
+        <section className="hud-panel p-4">
+          <HudSectionHead
+            desc={t("hud.adapterEnableDesc")}
             icon={SlidersHorizontal}
             title={t("sidebarSection")}
           />
-          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {orderedPlatformItems.map(({ id, labelKey }) => {
-              const enabled = navigationItems.includes(id);
-              const priority = navigationItems.indexOf(id);
+              const enabled = visiblePlatforms.includes(id);
               return (
                 <div
-                  className={cn(
-                    "flex min-h-14 items-center justify-between gap-2 rounded-[18px] border pr-3 pl-1.5 transition-[border-color,background-color,opacity,box-shadow] duration-200",
-                    enabled
-                      ? "border-primary/20 bg-primary/5"
-                      : "border-border/50 bg-white/3",
-                    draggingPlatformId === id && "opacity-50",
-                    dragOverPlatformId === id && "border-primary/50 bg-primary/10 ring-2 ring-primary/15"
-                  )}
                   key={id}
-                  onDragOver={(event) => {
-                    if (!enabled || !draggingPlatformId || draggingPlatformId === id) return;
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                    setDragOverPlatformId(id);
+                  draggable={enabled && !saving}
+                  onDragOver={(e) => {
+                    if (!enabled || !draggingPlatformId) return;
+                    e.preventDefault();
                   }}
-                  onDragLeave={() => {
-                    if (dragOverPlatformId === id) setDragOverPlatformId(null);
+                  onDragStart={() => setDraggingPlatformId(id)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggingPlatformId) {
+                      void reorderPlatform(draggingPlatformId, id);
+                    }
                   }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    if (draggingPlatformId) void reorderPlatform(draggingPlatformId, id);
-                  }}
+                  className={cn(
+                    "flex items-center justify-between gap-2 rounded-[4px] border px-2.5 py-2 transition-colors",
+                    enabled
+                      ? "border-[var(--cyan-line)] bg-[var(--cyan-dim)]"
+                      : "border-[var(--line-hair)] bg-[var(--bg-elevated)] opacity-60"
+                  )}
                 >
-                  <div className="flex min-w-0 items-center gap-1">
-                    <span
-                      aria-disabled={!enabled || saving}
-                      aria-label={t("sidebar.dragLabel", {
-                        platform: t(labelKey),
-                        priority: priority + 1,
-                      })}
-                      className={cn(
-                        "flex size-11 shrink-0 items-center justify-center rounded-xl text-quiet transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
-                        enabled && !saving
-                          ? "cursor-grab hover:bg-primary/10 hover:text-primary active:cursor-grabbing"
-                          : "cursor-default opacity-30"
-                      )}
-                      draggable={enabled && !saving}
-                      onDragEnd={() => {
-                        setDraggingPlatformId(null);
-                        setDragOverPlatformId(null);
-                      }}
-                      onDragStart={(event) => {
-                        if (!enabled || saving) return;
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", id);
-                        setDraggingPlatformId(id);
-                      }}
-                      onKeyDown={(event) => {
-                        if (!enabled || saving) return;
-                        if (event.key === "ArrowUp") {
-                          event.preventDefault();
-                          void movePlatform(id, -1);
-                        }
-                        if (event.key === "ArrowDown") {
-                          event.preventDefault();
-                          void movePlatform(id, 1);
-                        }
-                      }}
-                      role="button"
-                      tabIndex={enabled && !saving ? 0 : -1}
-                      title={enabled ? t("sidebar.dragHint") : t("sidebar.enableToReorder")}
-                    >
-                      <GripVertical className="size-4" />
-                    </span>
-                    <span className="min-w-0">
-                      <span
-                        className={cn(
-                          "block truncate font-semibold text-sm",
-                          enabled ? "text-foreground" : "text-quiet"
-                        )}
-                      >
-                        {t(labelKey)}
-                      </span>
-                      {enabled && (
-                        <span className="block font-medium text-[10px] text-primary/75 tabular-nums">
-                          #{priority + 1}
-                        </span>
-                      )}
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <GripVertical className="size-3.5 shrink-0 cursor-grab text-[var(--text-low)]" />
+                    <span className="truncate text-xs font-semibold">
+                      {t(labelKey)}
                     </span>
                   </div>
                   <button
                     aria-checked={enabled}
-                    aria-label={t(
-                      enabled ? "sidebar.hidePlatform" : "sidebar.showPlatform",
-                      { platform: t(labelKey) }
-                    )}
-                    className="toggle-track shrink-0 scale-[0.82]"
+                    className="toggle-track shrink-0 scale-85"
                     data-state={enabled ? "on" : "off"}
                     disabled={saving}
                     onClick={() => void togglePlatformVisible(id, !enabled)}
                     role="switch"
                     type="button"
                   >
-                    <span className="toggle-thumb animate-in duration-200" />
+                    <span className="toggle-thumb" />
                   </button>
                 </div>
               );
@@ -439,167 +365,167 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* 6. Directory Paths configuration */}
-        <section className="setting-card rounded-[24px] p-5">
-          <SectionHeader
-            description={t("platformPathsDesc")}
+        {/* 4. Custom Adapter Data Paths (All 21 Platforms) */}
+        <section className="hud-panel p-4">
+          <HudSectionHead
+            desc={t("platformPathsDesc")}
             icon={FolderOpen}
             title={t("platformPaths")}
           />
-          <div className="mt-5 space-y-3.5">
-            <PathRow
+          <div className="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-2">
+            <HudPathRow
               defaultHint="~/.claude"
               label={t("claudeHomePath")}
               onSave={(v) => updateSettings({ claudeHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.claudeHome ?? ""}
             />
-            <PathRow
+            <HudPathRow
               defaultHint="~/.codex"
               label={t("codexHomePath")}
               onSave={(v) => updateSettings({ codexHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.codexHome ?? ""}
             />
-            <PathRow
-              defaultHint="例如 F:\workspacevk；留空显示全部 Codex 会话"
+            <HudPathRow
+              defaultHint="例如 F:\workspace；留空显示全部 Codex 会话"
               label={t("codexProjectRootPath")}
               onSave={(v) => updateSettings({ codexProjectRoot: v || null })}
               pickMode="directory"
               value={snapshot.settings.codexProjectRoot ?? ""}
             />
-            <PathRow
-              defaultHint="%APPDATA%\\Cursor\\User"
+            <HudPathRow
+              defaultHint="%APPDATA%\Cursor\User"
               label={t("cursorHomePath")}
               onSave={(v) => updateSettings({ cursorHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.cursorHome ?? ""}
             />
-            <PathRow
+            <HudPathRow
               defaultHint="~/.local/share/opencode/opencode.db"
               label={t("opencodePath")}
               onSave={(v) => updateSettings({ opencodePath: v || null })}
               pickMode="file"
               value={snapshot.settings.opencodePath ?? ""}
             />
-            <PathRow
-              defaultHint="~/.kiro"
-              label={t("kiroHome")}
-              onSave={(v) => updateSettings({ kiroHome: v || null })}
+            <HudPathRow
+              defaultHint="%APPDATA%/devin/cli"
+              label={t("devinHome")}
+              onSave={(v) => updateSettings({ devinHome: v || null })}
               pickMode="directory"
-              value={snapshot.settings.kiroHome ?? ""}
+              value={snapshot.settings.devinHome ?? ""}
             />
-            <PathRow
-              defaultHint="%APPDATA%\\Kiro\\User\\globalStorage\\kiro.kiroagent"
-              label={t("kiroIdeHome")}
-              onSave={(v) => updateSettings({ kiroIdeHome: v || null })}
-              pickMode="directory"
-              value={snapshot.settings.kiroIdeHome ?? ""}
-            />
-            <PathRow
+            <HudPathRow
               defaultHint="~/.gemini"
               label={t("geminiHome")}
               onSave={(v) => updateSettings({ geminiHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.geminiHome ?? ""}
             />
-            <PathRow
+            <HudPathRow
+              defaultHint="~/.kiro"
+              label={t("kiroHome")}
+              onSave={(v) => updateSettings({ kiroHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.kiroHome ?? ""}
+            />
+            <HudPathRow
+              defaultHint="%APPDATA%\Kiro\User\globalStorage\kiro.kiroagent"
+              label={t("kiroIdeHome")}
+              onSave={(v) => updateSettings({ kiroIdeHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.kiroIdeHome ?? ""}
+            />
+            <HudPathRow
               defaultHint="~/.grok"
               label={t("grokHome")}
               onSave={(v) => updateSettings({ grokHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.grokHome ?? ""}
             />
-            <PathRow
+            <HudPathRow
               defaultHint="~/.pi/agent"
               label={t("piHome")}
               onSave={(v) => updateSettings({ piHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.piHome ?? ""}
             />
-            <PathRow
-              defaultHint="~/.zcode"
-              label={t("zcodeHome")}
-              onSave={(v) => updateSettings({ zcodeHome: v || null })}
-              pickMode="directory"
-              value={snapshot.settings.zcodeHome ?? ""}
-            />
-            <PathRow
-              defaultHint="~/.workbuddy"
-              label={t("workbuddyHome")}
-              onSave={(v) => updateSettings({ workbuddyHome: v || null })}
-              pickMode="directory"
-              value={snapshot.settings.workbuddyHome ?? ""}
-            />
-            <PathRow
-              defaultHint="%APPDATA%\\Cindy"
-              label={t("cindyHome")}
-              onSave={(v) => updateSettings({ cindyHome: v || null })}
-              pickMode="directory"
-              value={snapshot.settings.cindyHome ?? ""}
-            />
-            <PathRow
-              defaultHint="%APPDATA%\\CindyGlobal"
-              label={t("cindyGlobalHome")}
-              onSave={(v) => updateSettings({ cindyGlobalHome: v || null })}
-              pickMode="directory"
-              value={snapshot.settings.cindyGlobalHome ?? ""}
-            />
-            <PathRow
-              defaultHint="%LOCALAPPDATA%\\Zed"
+            <HudPathRow
+              defaultHint="%LOCALAPPDATA%\Zed"
               label={t("zedHome")}
               onSave={(v) => updateSettings({ zedHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.zedHome ?? ""}
             />
-            <PathRow
-              defaultHint="~/.dsh"
-              label={t("dshHome")}
-              onSave={(v) => updateSettings({ dshHome: v || null })}
-              pickMode="directory"
-              value={snapshot.settings.dshHome ?? ""}
-            />
-            <PathRow
-              defaultHint="~/.qoder-cn"
-              label={t("qoderCnHome")}
-              onSave={(v) => updateSettings({ qoderCnHome: v || null })}
-              pickMode="directory"
-              value={snapshot.settings.qoderCnHome ?? ""}
-            />
-            <PathRow
-              defaultHint="~/.qwen"
-              label={t("qwenHome")}
-              onSave={(v) => updateSettings({ qwenHome: v || null })}
-              pickMode="directory"
-              value={snapshot.settings.qwenHome ?? ""}
-            />
-            <PathRow
+            <HudPathRow
               defaultHint="~/.cline"
               label={t("clineHome")}
               onSave={(v) => updateSettings({ clineHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.clineHome ?? ""}
             />
-            <PathRow
-              defaultHint="~/.gemini/antigravity"
-              label={t("antigravityHome")}
-              onSave={(v) => updateSettings({ antigravityHome: v || null })}
+            <HudPathRow
+              defaultHint="~/.qwen"
+              label={t("qwenHome")}
+              onSave={(v) => updateSettings({ qwenHome: v || null })}
               pickMode="directory"
-              value={snapshot.settings.antigravityHome ?? ""}
+              value={snapshot.settings.qwenHome ?? ""}
             />
-            <PathRow
+            <HudPathRow
+              defaultHint="~/.zcode"
+              label={t("zcodeHome")}
+              onSave={(v) => updateSettings({ zcodeHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.zcodeHome ?? ""}
+            />
+            <HudPathRow
+              defaultHint="~/.workbuddy"
+              label={t("workbuddyHome")}
+              onSave={(v) => updateSettings({ workbuddyHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.workbuddyHome ?? ""}
+            />
+            <HudPathRow
               defaultHint="~/.codebuddy"
               label={t("codebuddyHome")}
               onSave={(v) => updateSettings({ codebuddyHome: v || null })}
               pickMode="directory"
               value={snapshot.settings.codebuddyHome ?? ""}
             />
-            <PathRow
-              defaultHint="%APPDATA%/devin/cli"
-              label={t("devinHome")}
-              onSave={(v) => updateSettings({ devinHome: v || null })}
+            <HudPathRow
+              defaultHint="~/.dsh"
+              label={t("dshHome")}
+              onSave={(v) => updateSettings({ dshHome: v || null })}
               pickMode="directory"
-              value={snapshot.settings.devinHome ?? ""}
+              value={snapshot.settings.dshHome ?? ""}
+            />
+            <HudPathRow
+              defaultHint="~/.qoder-cn"
+              label={t("qoderCnHome")}
+              onSave={(v) => updateSettings({ qoderCnHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.qoderCnHome ?? ""}
+            />
+            <HudPathRow
+              defaultHint="%APPDATA%\Cindy"
+              label={t("cindyHome")}
+              onSave={(v) => updateSettings({ cindyHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.cindyHome ?? ""}
+            />
+            <HudPathRow
+              defaultHint="%APPDATA%\CindyGlobal"
+              label={t("cindyGlobalHome")}
+              onSave={(v) => updateSettings({ cindyGlobalHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.cindyGlobalHome ?? ""}
+            />
+            <HudPathRow
+              defaultHint="~/.gemini/antigravity"
+              label={t("antigravityHome")}
+              onSave={(v) => updateSettings({ antigravityHome: v || null })}
+              pickMode="directory"
+              value={snapshot.settings.antigravityHome ?? ""}
             />
           </div>
         </section>
@@ -608,134 +534,76 @@ export default function SettingsPage() {
   );
 }
 
-function SectionHeader({
+function HudSectionHead({
   icon: Icon,
   title,
-  description,
+  desc,
 }: {
   icon: ComponentType<{ className?: string }>;
   title: string;
-  description: string;
+  desc: string;
 }) {
   return (
-    <div className="flex select-none items-start gap-3">
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary transition-transform duration-300 hover:scale-105">
-        <Icon className="size-4.5" />
+    <div className="flex items-start gap-2.5 border-b border-[var(--line-subtle)] pb-2.5">
+      <div className="grid size-7 shrink-0 place-items-center rounded-[4px] border border-[var(--cyan-line)] bg-[var(--cyan-dim)] text-[var(--cyan-fg)]">
+        <Icon className="size-3.5" />
       </div>
       <div>
-        <h3 className="font-bold text-base text-foreground">{title}</h3>
-        <p className="mt-1 text-quiet text-xs leading-relaxed">{description}</p>
+        <h2 className="text-xs font-bold text-[var(--text-hi)]">{title}</h2>
+        <p className="text-[11px] text-[var(--text-low)]">{desc}</p>
       </div>
     </div>
   );
 }
 
-function ThemeCard({
-  active,
-  themeId,
-  title,
-  description,
-  preview,
-  onSelect,
-}: {
-  active: boolean;
-  themeId: ThemeId;
-  title: string;
-  description: string;
-  preview: [string, string, string];
-  onSelect: (theme: ThemeId) => Promise<void>;
-}) {
-  return (
-    <button
-      className={cn(
-        "flex min-h-[128px] cursor-pointer flex-col justify-between rounded-[22px] border px-4 py-4 text-left transition-all duration-300 hover:scale-[1.01] relative overflow-hidden",
-        active
-          ? "border-primary bg-gradient-to-br from-primary/14 via-primary/4 to-transparent shadow-md shadow-primary/4"
-          : "border-border/60 bg-white/4 hover:border-border/80 hover:bg-white/7"
-      )}
-      onClick={() => void onSelect(themeId)}
-      type="button"
-    >
-      {active && (
-        <div className="absolute top-0 right-0 w-10 h-10 bg-primary/15 rounded-bl-2xl pointer-events-none flex items-center justify-center">
-          <Check className="size-3.5 text-primary stroke-[3]" />
-        </div>
-      )}
-      <div className="flex w-full items-start justify-between gap-3">
-        <div className="space-y-3.5">
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-border/30 bg-white/5 px-2 py-1 shadow-inner">
-            {preview.map((color) => (
-              <span
-                className="size-3 rounded-full shadow-sm transition-transform hover:scale-115"
-                key={color}
-                style={{ backgroundColor: color }}
-              />
-            ))}
-          </div>
-          <div>
-            <p className="font-bold text-base">{title}</p>
-            <p className="mt-1 text-quiet text-xs leading-relaxed">
-              {description}
-            </p>
-          </div>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function ToggleRow({
+function HudToggleRow({
   checked,
   label,
-  description,
+  desc,
   disabled,
   onToggle,
 }: {
   checked: boolean;
   label: string;
-  description: string;
+  desc: string;
   disabled?: boolean;
   onToggle: (enabled: boolean) => Promise<void>;
 }) {
   return (
     <div
       className={cn(
-        "rounded-[22px] border px-4 py-4 transition-all duration-300",
+        "flex items-center justify-between gap-3 rounded-[4px] border p-2.5",
         disabled
-          ? "border-border/40 bg-white/2 opacity-50"
+          ? "border-[var(--line-hair)] opacity-50"
           : checked
-            ? "border-primary/25 bg-primary/4 hover:border-primary/35"
-            : "border-border/60 bg-white/4 hover:bg-white/6"
+            ? "border-[var(--cyan-line)] bg-[var(--cyan-dim)]"
+            : "border-[var(--line-hair)] bg-[var(--bg-elevated)]"
       )}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="font-semibold text-base">{label}</p>
-          <p className="mt-1 text-quiet text-xs leading-relaxed">
-            {description}
-          </p>
-        </div>
-        <button
-          aria-checked={checked}
-          className="toggle-track shrink-0"
-          data-state={checked ? "on" : "off"}
-          disabled={disabled}
-          onClick={() => {
-            if (!disabled) {
-              void onToggle(!checked);
-            }
-          }}
-          role="switch"
-          type="button"
-        >
-          <span className="toggle-thumb" />
-        </button>
+      <div className="min-w-0">
+        <p className="truncate text-xs font-semibold">{label}</p>
+        <p className="mt-0.5 line-clamp-1 text-[10.5px] text-[var(--text-low)]">
+          {desc}
+        </p>
       </div>
+      <button
+        aria-checked={checked}
+        className="toggle-track shrink-0"
+        data-state={checked ? "on" : "off"}
+        disabled={disabled}
+        onClick={() => {
+          if (!disabled) void onToggle(!checked);
+        }}
+        role="switch"
+        type="button"
+      >
+        <span className="toggle-thumb" />
+      </button>
     </div>
   );
 }
 
-function PathRow({
+function HudPathRow({
   label,
   defaultHint,
   pickMode,
@@ -753,12 +621,10 @@ function PathRow({
 
   const commit = async (v?: string) => {
     const trimmed = (v ?? draft).trim();
-    if (trimmed === (value ?? "")) {
-      return;
-    }
+    if (trimmed === (value ?? "")) return;
     await onSave(trimmed);
     setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    setTimeout(() => setSaved(false), 1400);
   };
 
   const handleBrowse = async () => {
@@ -771,41 +637,36 @@ function PathRow({
             ? [{ name: "Database", extensions: ["db"] }]
             : undefined,
       });
-      if (selected) {
+      if (typeof selected === "string") {
         setDraft(selected);
         await commit(selected);
       }
     } catch {
-      /* user cancelled */
+      // user cancelled
     }
   };
 
   return (
-    <div className="rounded-[22px] border border-border/60 bg-white/4 px-4 py-3.5 transition-all hover:border-border/80 hover:bg-white/6">
-      <div className="flex select-none items-center justify-between gap-3">
-        <label className="shrink-0 font-semibold text-sm">{label}</label>
-        {saved && (
-          <Check className="fade-in size-3.5 animate-in text-green-400 duration-200" />
-        )}
+    <div className="rounded-[4px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] p-2.5">
+      <div className="mb-1.5 flex items-center justify-between text-xs font-medium">
+        <span className="truncate">{label}</span>
+        {saved && <Check className="size-3.5 text-[var(--emerald-fg)]" />}
       </div>
-      <div className="mt-2 flex gap-2">
+      <div className="flex gap-1.5">
         <input
-          className="min-w-0 flex-1 rounded-xl border border-border/50 bg-muted/20 px-3.5 py-1.8 font-mono text-foreground text-xs transition-all duration-200 placeholder:text-muted-foreground/30 focus:border-primary/50 focus:bg-background/40 focus:outline-none"
+          className="hud-mono min-w-0 flex-1 rounded-[3px] border border-[var(--line-hair)] bg-[var(--bg-void)] px-2.5 py-1 text-[11px] text-[var(--text-hi)] placeholder:text-[var(--text-low)] outline-none focus:border-[var(--cyan)]"
           onBlur={() => void commit()}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              void commit();
-            }
+            if (e.key === "Enter") void commit();
           }}
           placeholder={defaultHint}
-          type="text"
           value={draft}
         />
         <button
-          className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-muted/20 text-muted-foreground transition-all duration-200 hover:border-primary/30 hover:bg-primary/15 hover:text-primary"
-          onClick={() => void handleBrowse()}
           type="button"
+          onClick={() => void handleBrowse()}
+          className="grid size-7 shrink-0 place-items-center rounded-[3px] border border-[var(--line-hair)] bg-[var(--bg-panel)] text-[var(--text-mid)] hover:border-[var(--cyan-line)] hover:text-[var(--cyan-fg)]"
         >
           <FolderOpen className="size-3.5" />
         </button>

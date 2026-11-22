@@ -1,0 +1,2667 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="chrono" data-density="standard">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MEMORY FORGE // CHRONO-SPLICE HUD v4.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ==========================================================================
+     5 PRECISION INSTRUMENT THEMES (Dark Flagship + Light Engineering Compatible)
+     Separates --signal (bars/borders) from --signal-fg (WCAG >= 5:1 text)
+     ========================================================================== */
+  :root,
+  :root[data-theme="chrono"] {
+    --bg-void: #06080c;
+    --bg-rack: #0a0d13;
+    --bg-panel: #0e131b;
+    --bg-elevated: #141b26;
+    --bg-hover: #1a2332;
+    --bg-code: #07090e;
+    --bg-pty: #06080c;
+    --backdrop: rgba(3, 5, 9, 0.74);
+
+    --line-hair: rgba(148, 163, 184, 0.13);
+    --line-strong: rgba(148, 163, 184, 0.26);
+    --line-subtle: rgba(148, 163, 184, 0.07);
+
+    --text-hi: #edf2f8;
+    --text-mid: #9aa8bc;
+    --text-low: #5e6d85;
+    --text-faint: #3d4859;
+    --text-on-forge: #090b0e;
+
+    --forge: #f59e0b;
+    --forge-fg: #fbbf24;
+    --forge-dim: rgba(245, 158, 11, 0.13);
+    --forge-line: rgba(245, 158, 11, 0.44);
+
+    --cyan: #22d3ee;
+    --cyan-fg: #38e1ff;
+    --cyan-dim: rgba(34, 211, 238, 0.11);
+    --cyan-line: rgba(34, 211, 238, 0.38);
+
+    --emerald: #10b981;
+    --emerald-fg: #34d399;
+    --emerald-dim: rgba(16, 185, 129, 0.13);
+    --emerald-line: rgba(16, 185, 129, 0.38);
+
+    --crimson: #f43f5e;
+    --crimson-fg: #fda4af;
+    --crimson-dim: rgba(244, 63, 94, 0.13);
+    --crimson-line: rgba(244, 63, 94, 0.42);
+
+    --violet: #a78bfa;
+    --violet-fg: #c4b5fd;
+    --violet-dim: rgba(167, 139, 250, 0.12);
+    --violet-line: rgba(167, 139, 250, 0.32);
+
+    --asst-bar: #94a3b8;
+    --shadow-elev: 0 18px 46px rgba(0, 0, 0, 0.68);
+  }
+
+  /* Theme 2: Deep Ocean Sonar (Dark) */
+  :root[data-theme="sonar"] {
+    --bg-void: #040d14;
+    --bg-rack: #07141f;
+    --bg-panel: #0a1b29;
+    --bg-elevated: #0f2537;
+    --bg-hover: #143047;
+    --bg-code: #050f17;
+    --bg-pty: #040c13;
+    --line-hair: rgba(103, 232, 249, 0.14);
+    --line-strong: rgba(103, 232, 249, 0.28);
+    --line-subtle: rgba(103, 232, 249, 0.07);
+    --text-hi: #e6f6fa;
+    --text-mid: #8cb7c7;
+    --text-low: #547b8c;
+    --text-faint: #335363;
+    --cyan: #2dd4bf;
+    --cyan-fg: #5eead4;
+    --cyan-dim: rgba(45, 212, 191, 0.13);
+    --cyan-line: rgba(45, 212, 191, 0.4);
+  }
+
+  /* Theme 3: Neural Twilight (Dark) */
+  :root[data-theme="twilight"] {
+    --bg-void: #090712;
+    --bg-rack: #0f0b1d;
+    --bg-panel: #151026;
+    --bg-elevated: #1d1635;
+    --bg-hover: #251d42;
+    --bg-code: #0a0814;
+    --bg-pty: #080610;
+    --line-hair: rgba(196, 181, 253, 0.14);
+    --line-strong: rgba(196, 181, 253, 0.28);
+    --line-subtle: rgba(196, 181, 253, 0.07);
+    --text-hi: #f1ecfa;
+    --text-mid: #a699c4;
+    --text-low: #6c5f8a;
+    --text-faint: #463c5e;
+    --cyan: #a78bfa;
+    --cyan-fg: #c4b5fd;
+    --cyan-dim: rgba(167, 139, 250, 0.15);
+    --cyan-line: rgba(167, 139, 250, 0.42);
+  }
+
+  /* Theme 4: Braun Titanium Engineering (Light — Crisp Industrial Manual) */
+  :root[data-theme="braun"] {
+    --bg-void: #eaedf2;
+    --bg-rack: #f3f5f8;
+    --bg-panel: #ffffff;
+    --bg-elevated: #f8fafc;
+    --bg-hover: #eef2f6;
+    --bg-code: #f1f5f9;
+    --bg-pty: #101622;
+    --backdrop: rgba(15, 23, 42, 0.42);
+
+    --line-hair: rgba(15, 23, 42, 0.12);
+    --line-strong: rgba(15, 23, 42, 0.24);
+    --line-subtle: rgba(15, 23, 42, 0.06);
+
+    --text-hi: #0f172a;
+    --text-mid: #475569;
+    --text-low: #64748b;
+    --text-faint: #94a3b8;
+    --text-on-forge: #ffffff;
+
+    --forge: #d97706;
+    --forge-fg: #b45309;
+    --forge-dim: rgba(217, 119, 6, 0.11);
+    --forge-line: rgba(217, 119, 6, 0.42);
+
+    --cyan: #0284c7;
+    --cyan-fg: #0369a1;
+    --cyan-dim: rgba(2, 132, 199, 0.1);
+    --cyan-line: rgba(2, 132, 199, 0.36);
+
+    --emerald: #059669;
+    --emerald-fg: #047857;
+    --emerald-dim: rgba(5, 150, 105, 0.1);
+    --emerald-line: rgba(5, 150, 105, 0.35);
+
+    --crimson: #e11d48;
+    --crimson-fg: #be123c;
+    --crimson-dim: rgba(225, 29, 72, 0.09);
+    --crimson-line: rgba(225, 29, 72, 0.35);
+
+    --violet: #7c3aed;
+    --violet-fg: #6d28d9;
+    --violet-dim: rgba(124, 58, 237, 0.09);
+    --violet-line: rgba(124, 58, 237, 0.3);
+
+    --asst-bar: #64748b;
+    --shadow-elev: 0 16px 38px rgba(15, 23, 42, 0.14);
+  }
+
+  /* Theme 5: Archival Linen Craft (Warm Light — Field Manual) */
+  :root[data-theme="linen"] {
+    --bg-void: #ebe3d5;
+    --bg-rack: #f3ece0;
+    --bg-panel: #fbf7f0;
+    --bg-elevated: #f6efe4;
+    --bg-hover: #ece3d3;
+    --bg-code: #efe7d9;
+    --bg-pty: #191512;
+    --backdrop: rgba(36, 26, 16, 0.42);
+
+    --line-hair: rgba(68, 46, 24, 0.14);
+    --line-strong: rgba(68, 46, 24, 0.28);
+    --line-subtle: rgba(68, 46, 24, 0.07);
+
+    --text-hi: #231a12;
+    --text-mid: #5c4b3b;
+    --text-low: #7d6a58;
+    --text-faint: #a3907c;
+    --text-on-forge: #ffffff;
+
+    --forge: #c2410c;
+    --forge-fg: #9a3412;
+    --forge-dim: rgba(194, 65, 12, 0.11);
+    --forge-line: rgba(194, 65, 12, 0.38);
+
+    --cyan: #0f766e;
+    --cyan-fg: #115e59;
+    --cyan-dim: rgba(15, 118, 110, 0.1);
+    --cyan-line: rgba(15, 118, 110, 0.35);
+
+    --emerald: #15803d;
+    --emerald-fg: #166534;
+    --emerald-dim: rgba(21, 128, 61, 0.1);
+    --emerald-line: rgba(21, 128, 61, 0.34);
+
+    --crimson: #be123c;
+    --crimson-fg: #9f1239;
+    --crimson-dim: rgba(190, 18, 60, 0.09);
+    --crimson-line: rgba(190, 18, 60, 0.34);
+
+    --violet: #6d28d9;
+    --violet-fg: #5b21b6;
+    --violet-dim: rgba(109, 40, 217, 0.09);
+    --violet-line: rgba(109, 40, 217, 0.28);
+
+    --asst-bar: #786655;
+    --shadow-elev: 0 16px 38px rgba(48, 32, 16, 0.15);
+  }
+
+  :root {
+    --font-sans: "IBM Plex Sans", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", "Noto Sans SC", ui-monospace, SFMono-Regular, Consolas, monospace;
+    --r-xs: 3px;
+    --r-sm: 5px;
+    --r-md: 7px;
+    --frame-pad-y: 9px;
+    --frame-pad-x: 13px;
+  }
+  :root[data-density="compact"] { --frame-pad-y: 6px; --frame-pad-x: 10px; }
+  :root[data-density="comfortable"] { --frame-pad-y: 13px; --frame-pad-x: 16px; }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: var(--bg-void);
+    color: var(--text-hi);
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+
+  button, input, textarea, select {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    outline: none;
+  }
+  button { cursor: pointer; user-select: none; white-space: nowrap; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: 1.5px solid var(--cyan);
+    outline-offset: 1px;
+  }
+
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  svg.ic {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    flex-shrink: 0;
+  }
+  svg.ic-sm { width: 12px; height: 12px; }
+
+  mark.hl {
+    background: var(--forge-dim);
+    color: var(--forge-fg);
+    border: 1px solid var(--forge-line);
+    border-radius: 2px;
+    padding: 0 2px;
+  }
+
+  /* Precision L-Corner Reticles */
+  .reticle { position: relative; }
+  .reticle::before, .reticle::after {
+    content: "";
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    pointer-events: none;
+  }
+  .reticle::before { top: -1px; left: -1px; border-top: 1.5px solid var(--forge); border-left: 1.5px solid var(--forge); }
+  .reticle::after { bottom: -1px; right: -1px; border-bottom: 1.5px solid var(--forge); border-right: 1.5px solid var(--forge); }
+  .reticle-cyan::before { border-color: var(--cyan); }
+  .reticle-cyan::after { border-color: var(--cyan); }
+
+  /* ==================== RACK SHELL ==================== */
+  #rack {
+    display: grid;
+    grid-template-rows: 42px minmax(0, 1fr);
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    background: var(--bg-void);
+  }
+
+  /* ==================== TOP TACTICAL HUD BAR ==================== */
+  #hud-top {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 10px;
+    background: var(--bg-rack);
+    border-bottom: 1px solid var(--line-hair);
+    min-width: 0;
+    z-index: 35;
+  }
+  .brand-cluster {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding-right: 9px;
+    border-right: 1px solid var(--line-hair);
+    flex-shrink: 0;
+  }
+  .brand-glyph {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--r-xs);
+    background: var(--forge-dim);
+    border: 1px solid var(--forge-line);
+    display: grid;
+    place-items: center;
+    color: var(--forge-fg);
+  }
+  .brand-title {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  .brand-sub {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-low);
+    letter-spacing: 0.05em;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+
+  /* 4-View Primary Switcher */
+  .mode-seg {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--r-sm);
+    background: var(--bg-void);
+    border: 1px solid var(--line-hair);
+    flex-shrink: 0;
+  }
+  .mode-btn {
+    height: 24px;
+    padding: 0 8px;
+    border-radius: var(--r-xs);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-mid);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.13s;
+  }
+  .mode-btn:hover { color: var(--text-hi); }
+  .mode-btn.active {
+    background: var(--bg-panel);
+    color: var(--cyan-fg);
+    box-shadow: inset 0 0 0 1px var(--cyan-line);
+  }
+
+  /* Workspace Selector */
+  .pop-wrap { position: relative; flex-shrink: 0; }
+  .ws-trigger {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: var(--r-sm);
+    background: var(--bg-panel);
+    border: 1px solid var(--line-hair);
+    font-size: 11.5px;
+  }
+  .ws-trigger:hover { border-color: var(--line-strong); }
+  .ws-trigger .ws-name {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    max-width: 145px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ws-trigger .ws-count {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 0 5px;
+    border-radius: var(--r-xs);
+    background: var(--cyan-dim);
+    color: var(--cyan-fg);
+  }
+
+  .pop-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    min-width: 290px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-elev);
+    padding: 6px;
+    z-index: 80;
+  }
+  .pop-menu.right { left: auto; right: 0; }
+  .pop-menu.open { display: block; }
+  .pop-head {
+    padding: 4px 8px 6px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    color: var(--text-low);
+    border-bottom: 1px solid var(--line-subtle);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  .pop-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: var(--r-sm);
+    text-align: left;
+    font-size: 12px;
+  }
+  .pop-item:hover { background: var(--bg-hover); }
+  .pop-item.active { background: var(--cyan-dim); color: var(--cyan-fg); font-weight: 600; }
+
+  /* Omnibar */
+  .omnibar {
+    flex: 1;
+    min-width: 110px;
+    max-width: 300px;
+    margin: 0 auto;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 9px;
+    border-radius: var(--r-sm);
+    background: var(--bg-panel);
+    border: 1px solid var(--line-hair);
+    color: var(--text-mid);
+    font-size: 11.5px;
+  }
+  .omnibar:hover { border-color: var(--line-strong); color: var(--text-hi); }
+  .omnibar span { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .kbd {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    padding: 1px 5px;
+    border-radius: var(--r-xs);
+    border: 1px solid var(--line-hair);
+    background: var(--bg-elevated);
+    color: var(--text-mid);
+    flex-shrink: 0;
+  }
+
+  /* Telemetry Cluster */
+  .telemetry-cluster { display: flex; align-items: center; gap: 5px; margin-left: auto; flex-shrink: 0; }
+  .tele-pill {
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 8px;
+    border-radius: var(--r-sm);
+    background: var(--bg-panel);
+    border: 1px solid var(--line-hair);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-mid);
+    transition: all 0.14s;
+  }
+  .tele-pill:hover { border-color: var(--line-strong); color: var(--text-hi); }
+  .tele-pill.active-amber { border-color: var(--forge-line); background: var(--forge-dim); color: var(--forge-fg); }
+  .tele-pill.active-emerald { border-color: var(--emerald-line); background: var(--emerald-dim); color: var(--emerald-fg); }
+
+  .ctx-meter { display: flex; gap: 2px; align-items: center; }
+  .ctx-seg { width: 3.5px; height: 10px; border-radius: 1px; background: var(--line-hair); }
+  .ctx-seg.on { background: var(--cyan); }
+  .ctx-seg.warn { background: var(--forge); }
+  .ctx-seg.crit { background: var(--crimson); }
+
+  .pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--emerald);
+    box-shadow: 0 0 7px var(--emerald);
+    animation: pulseGlow 2.2s ease-in-out infinite;
+  }
+  @keyframes pulseGlow { 50% { opacity: 0.35; } }
+
+  /* Quick Theme Dot Swatches in Top Bar */
+  .theme-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 6px;
+    height: 28px;
+    border-radius: var(--r-sm);
+    background: var(--bg-panel);
+    border: 1px solid var(--line-hair);
+  }
+  .t-dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line-strong);
+    transition: transform 0.14s;
+  }
+  .t-dot:hover { transform: scale(1.18); }
+  .t-dot.active { outline: 1.5px solid var(--forge); outline-offset: 1.5px; }
+
+  /* ==================== MAIN VIEWS ==================== */
+  .main-view {
+    display: none;
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .main-view.active { display: grid; }
+
+  /* ==================== VIEW 1: WORKBENCH ==================== */
+  #view-workbench.active {
+    grid-template-columns: 276px minmax(0, 1fr);
+    transition: grid-template-columns 0.2s ease;
+  }
+  #view-workbench.rail-collapsed { grid-template-columns: 0px minmax(0, 1fr); }
+
+  #session-rail {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--bg-rack);
+    border-right: 1px solid var(--line-hair);
+    display: flex;
+    flex-direction: column;
+  }
+  .rail-head {
+    flex-shrink: 0;
+    padding: 8px 9px 7px;
+    border-bottom: 1px solid var(--line-hair);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .rail-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+  }
+  .rail-kicker { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; color: var(--text-low); }
+  .rail-mini-btns { display: flex; gap: 3px; }
+  .icon-btn {
+    width: 23px;
+    height: 23px;
+    border-radius: var(--r-xs);
+    border: 1px solid var(--line-hair);
+    background: var(--bg-panel);
+    color: var(--text-mid);
+    display: grid;
+    place-items: center;
+  }
+  .icon-btn:hover { color: var(--text-hi); border-color: var(--line-strong); }
+  .icon-btn.on { color: var(--forge-fg); border-color: var(--forge-line); background: var(--forge-dim); }
+
+  .agent-pills { display: flex; gap: 3.5px; flex-wrap: wrap; }
+  .agent-pill {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: var(--r-xs);
+    border: 1px solid var(--line-hair);
+    background: var(--bg-panel);
+    color: var(--text-mid);
+    display: inline-flex;
+    align-items: center;
+    gap: 3.5px;
+  }
+  .agent-pill:hover { border-color: var(--line-strong); color: var(--text-hi); }
+  .agent-pill.active { background: var(--text-hi); color: var(--bg-panel); border-color: var(--text-hi); }
+
+  .rail-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 27px;
+    padding: 0 8px;
+    border-radius: var(--r-sm);
+    background: var(--bg-panel);
+    border: 1px solid var(--line-hair);
+  }
+  .rail-search:focus-within { border-color: var(--cyan-line); }
+  .rail-search input { flex: 1; font-size: 11.5px; min-width: 0; }
+  .rail-search input::placeholder { color: var(--text-low); }
+
+  /* Batch Selection Strip */
+  #batchBar {
+    display: none;
+    padding: 6px 9px;
+    background: var(--cyan-dim);
+    border-bottom: 1px solid var(--cyan-line);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  #batchBar.open { display: flex; }
+
+  .session-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 8px 10px; }
+  .s-group-label {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    color: var(--text-low);
+    padding: 5px 4px 3px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .s-card {
+    position: relative;
+    padding: 8px 9px 8px 11px;
+    margin-bottom: 5px;
+    border-radius: var(--r-sm);
+    background: var(--bg-panel);
+    border: 1px solid var(--line-hair);
+    cursor: pointer;
+    transition: background 0.13s, border-color 0.13s;
+  }
+  .s-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 5px;
+    bottom: 5px;
+    width: 2.5px;
+    background: transparent;
+  }
+  .s-card:hover { background: var(--bg-elevated); border-color: var(--line-strong); }
+  .s-card.active {
+    background: linear-gradient(90deg, var(--cyan-dim), var(--bg-panel) 62%);
+    border-color: var(--cyan-line);
+  }
+  .s-card.active::before { background: var(--cyan); }
+
+  .s-top { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+  .src-badge {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.5px 5px;
+    border-radius: 2px;
+    border: 1px solid var(--line-hair);
+    text-transform: uppercase;
+  }
+  .src-claude { color: var(--forge-fg); border-color: var(--forge-line); background: var(--forge-dim); }
+  .src-codex { color: var(--emerald-fg); border-color: var(--emerald-line); background: var(--emerald-dim); }
+  .src-devin { color: var(--cyan-fg); border-color: var(--cyan-line); background: var(--cyan-dim); }
+  .src-opencode { color: var(--violet-fg); border-color: var(--violet-line); background: var(--violet-dim); }
+  .src-cursor { color: var(--text-hi); border-color: var(--line-strong); background: var(--bg-elevated); }
+
+  .s-time { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--text-low); }
+  .s-title { font-size: 12.5px; font-weight: 600; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .s-cwd { font-family: var(--font-mono); font-size: 10px; color: var(--text-low); margin-top: 1.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .s-foot { display: flex; align-items: center; gap: 7px; margin-top: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--text-mid); }
+  .s-loadbar { flex: 1; height: 3px; background: var(--line-hair); border-radius: 2px; overflow: hidden; }
+  .s-loadbar > i { display: block; height: 100%; border-radius: 2px; }
+
+  .pill-tag {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 0 4px;
+    border-radius: 2px;
+  }
+  .pill-forged { color: var(--forge-fg); background: var(--forge-dim); border: 1px solid var(--forge-line); }
+  .pill-spike { color: var(--crimson-fg); background: var(--crimson-dim); border: 1px solid var(--crimson-line); }
+
+  .subagent-tree { margin-top: 5px; padding-top: 4px; border-top: 1px dashed var(--line-hair); display: flex; flex-direction: column; gap: 2px; }
+  .subagent-item { display: flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10px; color: var(--text-mid); }
+
+  .rail-engine-pod {
+    flex-shrink: 0;
+    padding: 7px 10px;
+    border-top: 1px solid var(--line-hair);
+    background: var(--bg-panel);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: var(--text-low);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .pod-row { display: flex; justify-content: space-between; align-items: center; }
+
+  /* ==================== CENTER SURGERY STAGE ==================== */
+  #center-column {
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #stage-header {
+    height: 42px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 12px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--line-hair);
+    min-width: 0;
+  }
+  .stage-title-group { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
+  .stage-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: var(--r-xs);
+  }
+  .stage-title:hover { background: var(--bg-hover); }
+  .star-btn { color: var(--text-low); padding: 3px; border-radius: 3px; }
+  .star-btn.starred { color: var(--forge-fg); }
+
+  .stage-actions { margin-left: auto; display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .hud-btn {
+    height: 26px;
+    padding: 0 9px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--line-hair);
+    background: var(--bg-elevated);
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-mid);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.13s;
+  }
+  .hud-btn:hover { color: var(--text-hi); border-color: var(--line-strong); background: var(--bg-hover); }
+  .hud-btn.primary-emerald {
+    background: var(--emerald-dim);
+    border-color: var(--emerald-line);
+    color: var(--emerald-fg);
+    font-weight: 600;
+  }
+  .hud-btn.primary-forge {
+    background: var(--forge);
+    border-color: var(--forge);
+    color: var(--text-on-forge);
+    font-weight: 700;
+  }
+  .hud-btn.danger { color: var(--crimson-fg); border-color: var(--crimson-line); background: var(--crimson-dim); }
+
+  /* ==================== CONTEXT DNA SPECTRUM + INLINE SEARCH ==================== */
+  #dna-strip {
+    flex-shrink: 0;
+    background: var(--bg-rack);
+    border-bottom: 1px solid var(--line-hair);
+    padding: 5px 12px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    user-select: none;
+  }
+  .dna-top-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    overflow: hidden;
+  }
+  .dna-label { color: var(--text-mid); letter-spacing: 0.07em; font-weight: 700; }
+
+  /* Compact Inline Session Search inside DNA bar! */
+  .inline-find {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: var(--r-xs);
+    background: var(--bg-panel);
+    border: 1px solid var(--line-hair);
+    width: 175px;
+  }
+  .inline-find:focus-within { border-color: var(--cyan-line); width: 215px; }
+  .inline-find input { flex: 1; font-size: 11px; min-width: 0; }
+  .inline-find input::placeholder { color: var(--text-low); }
+
+  .signal-filters { margin-left: auto; display: flex; gap: 2px; flex-shrink: 0; }
+  .sig-tab {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    padding: 2px 6px;
+    border-radius: var(--r-xs);
+    color: var(--text-low);
+    border: 1px solid transparent;
+  }
+  .sig-tab:hover { color: var(--text-hi); background: var(--bg-panel); }
+  .sig-tab.active { color: var(--text-hi); background: var(--bg-panel); border-color: var(--line-strong); font-weight: 600; }
+
+  .dna-track-wrap {
+    position: relative;
+    height: 31px;
+    background:
+      repeating-linear-gradient(90deg, var(--line-subtle) 0 1px, transparent 1px 16px),
+      var(--bg-void);
+    border: 1px solid var(--line-hair);
+    border-radius: var(--r-xs);
+    display: flex;
+    align-items: stretch;
+    padding: 2px 4px;
+    gap: 3px;
+    overflow-x: auto;
+  }
+  .dna-cell {
+    flex: 1 1 0;
+    max-width: 84px;
+    min-width: 34px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 2px 5px;
+    border-radius: 2px;
+    border: 1px solid var(--line-subtle);
+    background: var(--bg-panel);
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .dna-cell:hover { border-color: var(--line-strong); background: var(--bg-elevated); }
+  .dna-cell.in-range { background: var(--crimson-dim); border-color: var(--crimson); }
+  .dna-cell-head { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 8.5px; line-height: 1; color: var(--text-low); }
+  .dna-wave { display: flex; align-items: flex-end; gap: 2px; height: 12px; }
+  .dna-wave i { flex: 1; border-radius: 1px 1px 0 0; min-height: 2px; }
+  .dna-tail-budget {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 8px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: var(--text-faint);
+    letter-spacing: 0.06em;
+    pointer-events: none;
+  }
+
+  #range-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 4px 9px;
+    background: var(--crimson-dim);
+    border: 1px solid var(--crimson-line);
+    border-radius: var(--r-xs);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+  }
+  #range-bar.open { display: flex; }
+
+  /* ==================== CAUSAL TAPE STREAM ==================== */
+  #tape-stage {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 24px;
+  }
+  #tape-scroll { height: 100%; min-height: 0; overflow-y: auto; padding: 12px 18px 26px; scroll-behavior: smooth; }
+  .tape-inner { max-width: 920px; margin: 0 auto; }
+
+  .splice-slot { height: 15px; display: flex; align-items: center; opacity: 0; transition: opacity 0.14s; margin-left: 18px; }
+  .splice-slot:hover { opacity: 1; }
+  .splice-line { flex: 1; height: 1px; border-top: 1px dashed var(--forge-line); }
+  .splice-actions { display: flex; gap: 6px; padding: 0 8px; }
+  .splice-chip {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    padding: 1px 7px;
+    border-radius: var(--r-xs);
+    background: var(--bg-panel);
+    border: 1px solid var(--forge-line);
+    color: var(--forge-fg);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .splice-chip:hover { background: var(--forge); color: var(--text-on-forge); font-weight: 600; }
+  .splice-chip.cyan { border-color: var(--cyan-line); color: var(--cyan-fg); }
+  .splice-chip.cyan:hover { background: var(--cyan); color: #fff; }
+
+  .frame { position: relative; padding-left: 20px; }
+  .frame::before { content: ""; position: absolute; left: 5px; top: 0; bottom: -15px; width: 1.5px; background: var(--line-hair); }
+  .frame:last-child::before { bottom: 0; }
+  .frame-node {
+    position: absolute;
+    left: 1.5px;
+    top: 13px;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--bg-void);
+    border: 1.5px solid var(--text-low);
+    z-index: 2;
+  }
+  .frame.role-user .frame-node { border-color: var(--cyan); background: var(--cyan-dim); }
+  .frame.is-forged .frame-node { border-color: var(--forge); background: var(--forge); }
+  .frame.is-spike .frame-node { border-color: var(--crimson); background: var(--crimson); }
+
+  .frame-box {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-hair);
+    border-left: 2.5px solid var(--asst-bar);
+    border-radius: var(--r-sm);
+    padding: var(--frame-pad-y) var(--frame-pad-x);
+    transition: border-color 0.14s, box-shadow 0.2s;
+  }
+  .frame.role-user .frame-box {
+    border-left-color: var(--cyan);
+    background: linear-gradient(90deg, var(--cyan-dim), var(--bg-panel) 24%);
+  }
+  .frame.is-forged .frame-box {
+    border-color: var(--forge-line);
+    border-left-color: var(--forge);
+    background: linear-gradient(90deg, var(--forge-dim), var(--bg-panel) 28%);
+  }
+  .frame.is-spike .frame-box {
+    border-color: var(--crimson-line);
+    border-left-color: var(--crimson);
+  }
+  .frame.editing .frame-box {
+    border-color: var(--forge);
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-elev);
+  }
+  .frame.flash-highlight .frame-box {
+    box-shadow: 0 0 0 1.5px var(--cyan), 0 0 18px var(--cyan-dim);
+  }
+
+  .f-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+  .f-seq { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--text-low); }
+  .f-role {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 1px 5px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+  .role-user .f-role { color: var(--cyan-fg); background: var(--cyan-dim); }
+  .role-assistant .f-role { color: var(--text-hi); background: var(--bg-elevated); border: 1px solid var(--line-hair); }
+
+  .f-stamp { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 2px; display: inline-flex; align-items: center; gap: 3px; }
+  .f-stamp.forged { color: var(--forge-fg); background: var(--forge-dim); border: 1px solid var(--forge-line); }
+  .f-stamp.spike { color: var(--crimson-fg); background: var(--crimson-dim); border: 1px solid var(--crimson-line); }
+
+  .f-meta-right { margin-left: auto; display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-low); }
+  .f-acts { display: flex; align-items: center; gap: 4px; opacity: 0; transition: opacity 0.14s; }
+  .frame-box:hover .f-acts, .frame.editing .f-acts, .frame.is-forged .f-acts { opacity: 1; }
+  .f-act-btn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1.5px 6px;
+    border-radius: var(--r-xs);
+    border: 1px solid var(--line-hair);
+    background: var(--bg-elevated);
+    color: var(--text-mid);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .f-act-btn:hover { color: var(--forge-fg); border-color: var(--forge-line); background: var(--forge-dim); }
+  .f-act-btn.del:hover { color: var(--crimson-fg); border-color: var(--crimson-line); background: var(--crimson-dim); }
+
+  .pipeline-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; padding-bottom: 6px; border-bottom: 1px solid var(--line-subtle); }
+  .pipe-chip {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    padding: 2px 7px;
+    border-radius: var(--r-xs);
+    background: var(--bg-code);
+    border: 1px solid var(--line-hair);
+    color: var(--text-mid);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+  }
+  .pipe-chip:hover { border-color: var(--line-strong); color: var(--text-hi); }
+  .pipe-chip.thinking { color: var(--violet-fg); border-color: var(--violet-line); background: var(--violet-dim); }
+  .pipe-chip.tool-ok .dot { color: var(--emerald-fg); }
+  .pipe-chip.tool-heavy { color: var(--crimson-fg); border-color: var(--crimson-line); background: var(--crimson-dim); }
+  .pipe-chip.tool-pruned { color: var(--text-low); border-style: dashed; text-decoration: line-through; opacity: 0.7; }
+  .pipe-prune-x { margin-left: 2px; padding: 0 3px; border-radius: 2px; color: var(--text-mid); font-weight: 700; }
+  .pipe-prune-x:hover { background: var(--crimson); color: #fff; }
+
+  .drawer-box {
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border-radius: var(--r-xs);
+    background: var(--bg-code);
+    border: 1px solid var(--line-hair);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--text-mid);
+    white-space: pre-wrap;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+  .drawer-box.thinking-box { border-left: 2.5px solid var(--violet); color: var(--violet-fg); }
+
+  .f-body { font-size: 13.5px; line-height: 1.62; color: var(--text-hi); white-space: pre-wrap; word-break: break-word; }
+  .f-body code.inline {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 0.5px 5px;
+    border-radius: 3px;
+    background: var(--cyan-dim);
+    border: 1px solid var(--cyan-line);
+    color: var(--cyan-fg);
+  }
+  .codeblock-wrap { margin: 7px 0 3px; border-radius: var(--r-sm); background: var(--bg-code); border: 1px solid var(--line-hair); overflow: hidden; }
+  .codeblock-head { display: flex; justify-content: space-between; align-items: center; padding: 3px 10px; background: var(--line-subtle); border-bottom: 1px solid var(--line-hair); font-family: var(--font-mono); font-size: 9.5px; color: var(--text-low); text-transform: uppercase; }
+  .codeblock-pre { padding: 8px 11px; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.55; color: var(--text-hi); overflow-x: auto; }
+
+  .surgery-zone { margin-top: 5px; display: flex; flex-direction: column; gap: 7px; }
+  .ghost-diff { padding: 7px 9px; border-radius: var(--r-xs); background: var(--crimson-dim); border: 1px dashed var(--crimson-line); font-family: var(--font-mono); font-size: 11px; line-height: 1.5; color: var(--crimson-fg); }
+  .ghost-diff-head { font-size: 9.5px; letter-spacing: 0.08em; margin-bottom: 3px; display: flex; justify-content: space-between; font-weight: 700; }
+  .surgery-textarea { width: 100%; min-height: 108px; padding: 9px 11px; border-radius: var(--r-sm); background: var(--bg-code); border: 1.5px solid var(--forge); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.58; color: var(--text-hi); resize: vertical; }
+  .surgery-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+  #minimap-rail { background: var(--bg-rack); border-left: 1px solid var(--line-hair); padding: 10px 3px; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .mm-tick { width: 12px; height: 4px; border-radius: 1px; background: var(--line-strong); cursor: pointer; }
+  .mm-tick.user { background: var(--cyan); }
+  .mm-tick.forged { background: var(--forge); height: 6px; }
+  .mm-tick.spike { background: var(--crimson); height: 6px; }
+
+  /* ==================== BOTTOM LIVE PTY BAY (ALWAYS DARK HARDWARE CONSOLE) ==================== */
+  #pty-bay {
+    flex-shrink: 0;
+    background: var(--bg-pty);
+    color: #e2e8f0;
+    border-top: 1px solid var(--line-strong);
+    display: flex;
+    flex-direction: column;
+    height: clamp(134px, 22vh, 190px);
+    min-height: 0;
+    transition: height 0.2s ease;
+  }
+  #pty-bay.collapsed { height: 30px; }
+  #pty-bay.maximized { height: 55vh; }
+  .pty-bar {
+    height: 30px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    background: #0b0f17;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    color: #94a3b8;
+  }
+  .pty-tab { height: 22px; padding: 0 8px; border-radius: var(--r-xs); font-family: var(--font-mono); font-size: 10.5px; color: #94a3b8; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px; }
+  .pty-tab.active { color: #34d399; background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.35); }
+  .pty-controls { margin-left: auto; display: flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10px; }
+  .pty-ctrl-btn { height: 21px; padding: 0 7px; border-radius: 3px; border: 1px solid rgba(148,163,184,0.22); color: #cbd5e1; font-family: var(--font-mono); font-size: 10px; }
+  .pty-ctrl-btn:hover { background: rgba(255,255,255,0.08); }
+  .pty-screen { flex: 1; min-height: 0; overflow-y: auto; padding: 7px 14px; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.52; color: #cbd5e1; }
+  #pty-bay.collapsed .pty-screen, #pty-bay.collapsed .pty-input-row { display: none; }
+  .pty-cmd { color: #34d399; font-weight: 600; }
+  .pty-forge-hit { color: #fbbf24; background: rgba(245, 158, 11, 0.14); border-left: 2px solid #f59e0b; padding: 2px 8px; margin: 3px 0; display: inline-block; }
+  .pty-input-row { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 4px 14px 6px; border-top: 1px solid rgba(148,163,184,0.12); font-family: var(--font-mono); font-size: 11.5px; }
+  .pty-input-row input { flex: 1; color: #f8fafc; }
+
+  /* ==================== VIEW 2: GLOBAL RADAR ==================== */
+  #view-radar.active,
+  #view-arsenal.active,
+  #view-system.active {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+    padding: 16px 22px 32px;
+    align-content: start;
+    gap: 14px;
+  }
+  .page-container { max-width: 1120px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .radar-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .kpi-card { background: var(--bg-panel); border: 1px solid var(--line-hair); border-radius: var(--r-sm); padding: 12px 14px; }
+  .kpi-k { font-family: var(--font-mono); font-size: 10px; color: var(--text-low); letter-spacing: 0.08em; }
+  .kpi-v { font-family: var(--font-mono); font-size: 22px; font-weight: 700; margin: 4px 0 2px; }
+  .kpi-sub { font-size: 11.5px; color: var(--text-mid); }
+
+  .radar-cols { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
+  .radar-panel { background: var(--bg-panel); border: 1px solid var(--line-hair); border-radius: var(--r-sm); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .rp-head { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; color: var(--text-mid); padding-bottom: 8px; border-bottom: 1px solid var(--line-subtle); }
+  .adapter-matrix { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .adapter-cell { padding: 7px 9px; border-radius: var(--r-xs); background: var(--bg-elevated); border: 1px solid var(--line-hair); display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 11px; cursor: pointer; }
+  .adapter-cell:hover { border-color: var(--line-strong); }
+  .adapter-cell.hot { border-color: var(--cyan-line); background: var(--cyan-dim); }
+
+  /* ==================== VIEW 3: FULL PROMPT ARSENAL ==================== */
+  .arsenal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 10px; }
+  .prompt-tile {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-hair);
+    border-radius: var(--r-sm);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color 0.14s;
+  }
+  .prompt-tile:hover { border-color: var(--cyan-line); }
+
+  /* ==================== VIEW 4: SYSTEM & 5-THEME CONFIG ==================== */
+  .theme-cards-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; }
+  .theme-card {
+    padding: 10px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--line-hair);
+    background: var(--bg-elevated);
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    transition: all 0.14s;
+  }
+  .theme-card:hover { border-color: var(--line-strong); }
+  .theme-card.active { border-color: var(--forge); box-shadow: 0 0 0 1px var(--forge); }
+  .tc-swatches { display: flex; gap: 4px; }
+  .tc-swatches i { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(128,128,128,0.25); }
+
+  .path-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .path-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--r-xs);
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-hair);
+    font-size: 12px;
+  }
+  .path-input {
+    width: 185px;
+    padding: 4px 7px;
+    border-radius: var(--r-xs);
+    background: var(--bg-void);
+    border: 1px solid var(--line-hair);
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  /* ==================== SLIDE-OVER DRAWERS & MODALS ==================== */
+  .side-drawer {
+    position: fixed;
+    top: 42px;
+    right: 0;
+    bottom: 0;
+    width: 350px;
+    background: var(--bg-rack);
+    border-left: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-elev);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(102%);
+    transition: transform 0.2s ease;
+  }
+  .side-drawer.open { transform: translateX(0); }
+  .drawer-header { height: 42px; padding: 0 14px; border-bottom: 1px solid var(--line-hair); display: flex; align-items: center; justify-content: space-between; }
+  .drawer-header h3 { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.08em; }
+  .drawer-content { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 9px; }
+  .audit-card { padding: 9px 10px; border-radius: var(--r-sm); background: var(--bg-panel); border: 1px solid var(--line-hair); border-left: 2.5px solid var(--forge); font-size: 12px; }
+  .audit-diff-del { font-family: var(--font-mono); font-size: 10.5px; color: var(--crimson-fg); background: var(--crimson-dim); padding: 4px 6px; border-radius: 3px; margin-top: 5px; }
+  .audit-diff-add { font-family: var(--font-mono); font-size: 10.5px; color: var(--emerald-fg); background: var(--emerald-dim); padding: 4px 6px; border-radius: 3px; margin-top: 4px; }
+
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--backdrop);
+    backdrop-filter: blur(3px);
+    z-index: 90;
+    padding-top: 10vh;
+  }
+  .modal-backdrop.open { display: block; }
+  .cmd-modal { width: min(580px, 92vw); margin: 0 auto; background: var(--bg-panel); border: 1px solid var(--cyan-line); border-radius: var(--r-md); box-shadow: var(--shadow-elev); overflow: hidden; }
+  .cmd-input-row { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--line-hair); }
+  .cmd-input-row input { flex: 1; font-size: 13.5px; }
+  .cmd-list { max-height: 320px; overflow-y: auto; padding: 6px; }
+  .cmd-item { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: var(--r-sm); font-size: 12px; text-align: left; }
+  .cmd-item:hover, .cmd-item.selected { background: var(--cyan-dim); color: var(--cyan-fg); }
+
+  #hud-toast { position: fixed; bottom: 38px; right: 32px; z-index: 95; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+  .toast-item { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: var(--r-sm); background: var(--bg-panel); border: 1px solid var(--forge-line); font-family: var(--font-mono); font-size: 11px; color: var(--text-hi); box-shadow: var(--shadow-elev); }
+
+  #dna-tip { display: none; position: fixed; z-index: 85; pointer-events: none; padding: 5px 8px; border-radius: var(--r-xs); background: var(--bg-panel); border: 1px solid var(--line-strong); font-family: var(--font-mono); font-size: 10px; color: var(--text-hi); box-shadow: var(--shadow-elev); }
+
+  @media (max-width: 1220px) {
+    #hud-top { gap: 5px; padding: 0 8px; }
+    .mode-btn { padding: 0 6px; font-size: 10.5px; }
+    .ws-trigger .ws-name { max-width: 108px; }
+    .omnibar { min-width: 82px; padding: 0 7px; }
+    .theme-dots { gap: 3px; padding: 0 5px; }
+    .t-dot { width: 11px; height: 11px; }
+    .tele-pill { padding: 0 6px; gap: 4px; font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ic-forge" viewBox="0 0 24 24"><path d="M12 2L4 7v10l8 5 8-5V7l-8-5z"/><path d="M12 22V12M20 7l-8 5-8-5"/><circle cx="12" cy="12" r="2.2"/></symbol>
+    <symbol id="ic-folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/></symbol>
+    <symbol id="ic-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+    <symbol id="ic-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="ic-sidebar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+    <symbol id="ic-zap" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></symbol>
+    <symbol id="ic-terminal" viewBox="0 0 24 24"><path d="M4 17l6-5-6-5M12 19h8"/></symbol>
+    <symbol id="ic-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12"/></symbol>
+    <symbol id="ic-fork" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 8.5v7M8.5 6c4 0 4 6 7 6"/></symbol>
+    <symbol id="ic-edit" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></symbol>
+    <symbol id="ic-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></symbol>
+    <symbol id="ic-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="ic-play" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></symbol>
+    <symbol id="ic-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+    <symbol id="ic-radar" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="ic-sliders" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+    <symbol id="ic-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+    <symbol id="ic-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+    <symbol id="ic-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="ic-checksq" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></symbol>
+    <symbol id="ic-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+    <symbol id="ic-alert" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></symbol>
+  </defs>
+</svg>
+
+<div id="rack">
+  <!-- ==================== TOP TACTICAL HUD BAR ==================== -->
+  <header id="hud-top">
+    <div class="brand-cluster">
+      <div class="brand-glyph"><svg class="ic"><use href="#ic-forge"/></svg></div>
+      <div>
+        <div class="brand-title">MEMORY FORGE</div>
+        <div class="brand-sub">CHRONO-SPLICE v4.0</div>
+      </div>
+    </div>
+
+    <!-- 4-Mode Primary Navigation -->
+    <nav class="mode-seg" aria-label="主模式切换">
+      <button class="mode-btn active" data-mode="workbench"><svg class="ic ic-sm"><use href="#ic-scissors"/></svg><span>手术台</span></button>
+      <button class="mode-btn" data-mode="radar"><svg class="ic ic-sm"><use href="#ic-radar"/></svg><span>态势</span></button>
+      <button class="mode-btn" data-mode="arsenal"><svg class="ic ic-sm"><use href="#ic-book"/></svg><span>弹药库</span></button>
+      <button class="mode-btn" data-mode="system"><svg class="ic ic-sm"><use href="#ic-sliders"/></svg><span>配置</span></button>
+    </nav>
+
+    <!-- Workspace Switcher -->
+    <div class="pop-wrap">
+      <button class="ws-trigger" id="wsBtn" title="按项目目录聚合所有 AI 平台会话">
+        <svg class="ic ic-sm" style="color:var(--cyan-fg)"><use href="#ic-folder"/></svg>
+        <span class="ws-name" id="wsCurrentLabel">vk-products/memory-forge-rs</span>
+        <span class="ws-count" id="wsCurrentCount">3</span>
+        <svg class="ic ic-sm" style="color:var(--text-low)"><use href="#ic-chev"/></svg>
+      </button>
+      <div class="pop-menu" id="wsMenu">
+        <div class="pop-head">PROJECT WORKSPACES · 按 CWD 跨平台聚合</div>
+        <div id="wsOptions"></div>
+      </div>
+    </div>
+
+    <!-- Omnibar -->
+    <button class="omnibar" id="openCmdBtn">
+      <svg class="ic ic-sm"><use href="#ic-search"/></svg>
+      <span>搜索全平台对话、切出噪音、切换主题...</span>
+      <kbd class="kbd">Ctrl K</kbd>
+    </button>
+
+    <!-- Instant 5-Theme Swatches + Telemetry -->
+    <div class="telemetry-cluster">
+      <div class="theme-dots" title="即时切换 5 套精密仪器主题（含浅色工程主题）">
+        <button class="t-dot active" data-set-theme="chrono" style="background:linear-gradient(135deg,#0a0d13 50%,#f59e0b 50%)" title="曜石熔金 (默认旗舰暗色)"></button>
+        <button class="t-dot" data-set-theme="sonar" style="background:linear-gradient(135deg,#07141f 50%,#2dd4bf 50%)" title="深海声呐 (海湾暗色)"></button>
+        <button class="t-dot" data-set-theme="twilight" style="background:linear-gradient(135deg,#151026 50%,#a78bfa 50%)" title="暮光神经 (暗紫)"></button>
+        <button class="t-dot" data-set-theme="braun" style="background:linear-gradient(135deg,#f3f5f8 50%,#0284c7 50%)" title="钛白工程 (Braun 精密浅色)"></button>
+        <button class="t-dot" data-set-theme="linen" style="background:linear-gradient(135deg,#f5efe4 50%,#c2410c 50%)" title="手稿亚麻 (档案暖白)"></button>
+      </div>
+
+      <div class="tele-pill" title="当前会话上下文 Token 预算负载">
+        <span style="color:var(--text-low)">CTX</span>
+        <div class="ctx-meter" id="ctxSegments"></div>
+        <strong id="ctxValue">37.7k</strong>
+      </div>
+
+      <button class="tele-pill active-amber" id="auditToggleBtn" title="打开右侧安全写回 Diff 审计抽屉">
+        <svg class="ic ic-sm"><use href="#ic-zap"/></svg>
+        <span id="forgedCountLabel">1 FORGED</span>
+      </button>
+
+      <button class="tele-pill active-emerald" id="ptyToggleTopBtn" title="展开/折叠底部内嵌 PTY 终端舱">
+        <span class="pulse-dot"></span>
+        <span>2 PTY</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== VIEW 1: CHRONO-SPLICE WORKBENCH ==================== -->
+  <div class="main-view active" id="view-workbench">
+    <aside id="session-rail">
+      <div class="rail-head">
+        <div class="rail-toolbar">
+          <span class="rail-kicker">SIGNALS · 活跃会话流</span>
+          <div class="rail-mini-btns">
+            <button class="icon-btn" id="favFilterBtn" title="仅显示星标收藏会话"><svg class="ic ic-sm"><use href="#ic-star"/></svg></button>
+            <button class="icon-btn" id="batchModeBtn" title="批量多选归档/星标模式"><svg class="ic ic-sm"><use href="#ic-checksq"/></svg></button>
+            <button class="icon-btn" id="importJsonlBtn" title="导入外部原始 JSONL 会话（带冲突检测）"><svg class="ic ic-sm"><use href="#ic-upload"/></svg></button>
+          </div>
+        </div>
+        <div class="agent-pills" id="agentFilterBar"></div>
+        <div class="rail-search">
+          <svg class="ic ic-sm" style="color:var(--text-low)"><use href="#ic-search"/></svg>
+          <input type="text" id="sessionSearchInput" placeholder="过滤标题 / 分支 / 子代理..." autocomplete="off" />
+        </div>
+      </div>
+
+      <div id="batchBar">
+        <span id="batchCountLabel">已选 0 项</span>
+        <div style="display:flex;gap:4px">
+          <button class="f-act-btn" id="batchSelectAllBtn">全选</button>
+          <button class="f-act-btn" id="batchArchiveBtn">批量归档</button>
+        </div>
+      </div>
+
+      <div class="session-scroll" id="sessionListContainer"></div>
+
+      <div class="rail-engine-pod">
+        <div class="pod-row">
+          <span>MOUNTED ADAPTERS</span>
+          <strong style="color:var(--text-hi)">5 活跃 · 16 静默收纳</strong>
+        </div>
+        <div class="pod-row">
+          <span>WRITE-BACK SAFETY</span>
+          <strong style="color:var(--emerald-fg)">BYTE-EXACT (.bak)</strong>
+        </div>
+      </div>
+    </aside>
+
+    <section id="center-column">
+      <!-- 1-Row Session Stage Header -->
+      <div id="stage-header">
+        <button class="icon-btn" id="collapseRailBtn" title="收起/展开左侧会话栏"><svg class="ic ic-sm"><use href="#ic-sidebar"/></svg></button>
+
+        <div class="stage-title-group">
+          <span class="src-badge src-claude" id="activeAgentBadge">CLAUDE</span>
+          <h1 class="stage-title" id="activeSessionTitle" title="点击原地修改会话别名">索引层迁移评估：JSON → SQLite WAL</h1>
+          <button class="star-btn starred" id="starActiveBtn" title="收藏/取消星标"><svg class="ic ic-sm"><use href="#ic-star"/></svg></button>
+        </div>
+
+        <div class="stage-actions">
+          <!-- Open in IDE Popover -->
+          <div class="pop-wrap">
+            <button class="hud-btn" id="ideBtn">
+              <svg class="ic ic-sm" style="color:var(--cyan-fg)"><use href="#ic-folder"/></svg>
+              <span>打开工程 ▾</span>
+            </button>
+            <div class="pop-menu right" id="ideMenu" style="min-width:200px">
+              <div class="pop-head">在本地编辑器打开 CWD</div>
+              <button class="pop-item" data-open-ide="Cursor"><span>Cursor</span><span class="kbd">首选</span></button>
+              <button class="pop-item" data-open-ide="VS Code"><span>VS Code</span></button>
+              <button class="pop-item" data-open-ide="Zed"><span>Zed</span></button>
+              <button class="pop-item" data-open-ide="Explorer"><span>资源管理器</span></button>
+            </div>
+          </div>
+
+          <!-- Export Popover -->
+          <div class="pop-wrap">
+            <button class="hud-btn" id="exportBtn">
+              <svg class="ic ic-sm"><use href="#ic-download"/></svg>
+              <span>导出 ▾</span>
+            </button>
+            <div class="pop-menu right" id="exportMenu" style="min-width:240px">
+              <div class="pop-head">导出对话或原始 JSONL</div>
+              <button class="pop-item" data-do-export="md-clean"><span>Markdown (不含冗余工具输出)</span><span class="kbd">.md</span></button>
+              <button class="pop-item" data-do-export="md-full"><span>Markdown (含完整工具调用栈)</span><span class="kbd">.md</span></button>
+              <button class="pop-item" data-do-export="jsonl"><span>导出原始会话文件</span><span class="kbd">.jsonl</span></button>
+            </div>
+          </div>
+
+          <button class="hud-btn" id="selectNoisePresetBtn" title="自动在 DNA 轨框选最高 Token 噪音区间">
+            <svg class="ic ic-sm" style="color:var(--crimson-fg)"><use href="#ic-scissors"/></svg>
+            <span>定位噪音峰</span>
+          </button>
+
+          <button class="hud-btn primary-emerald" id="resumeVerifyBtn">
+            <svg class="ic ic-sm"><use href="#ic-play"/></svg>
+            <span>同屏唤醒验证 (--resume)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- CONTEXT DNA SPECTRUM + INLINE FIND -->
+      <div id="dna-strip">
+        <div class="dna-top-row">
+          <span class="dna-label">CONTEXT DNA // 时序频谱</span>
+          <div class="inline-find">
+            <svg class="ic ic-sm" style="color:var(--text-low)"><use href="#ic-search"/></svg>
+            <input type="text" id="inlineFindInput" placeholder="页内搜索定位关键词..." autocomplete="off" />
+            <span id="inlineFindCount" style="color:var(--forge-fg);font-size:9.5px"></span>
+          </div>
+          <div class="signal-filters" id="roleFilterTabs">
+            <button class="sig-tab active" data-filter="all">ALL</button>
+            <button class="sig-tab" data-filter="user">USER</button>
+            <button class="sig-tab" data-filter="assistant">ASST</button>
+            <button class="sig-tab" data-filter="forged">⚡FORGED</button>
+            <button class="sig-tab" data-filter="spike">⚠SPIKE</button>
+          </div>
+        </div>
+
+        <div class="dna-track-wrap" id="dnaTrack"></div>
+
+        <div id="range-bar">
+          <div>
+            <strong style="color:var(--crimson-fg)" id="rangeSummaryText"></strong>
+            <span style="color:var(--text-mid);margin-left:8px" id="rangeTokenText"></span>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="hud-btn danger" id="spliceOutRangeBtn" style="height:22px;font-size:10.5px"><svg class="ic ic-sm"><use href="#ic-scissors"/></svg><span>切除选中噪音帧</span></button>
+            <button class="hud-btn" id="forkBeforeRangeBtn" style="height:22px;font-size:10.5px"><svg class="ic ic-sm"><use href="#ic-fork"/></svg><span>从选中前 Fork</span></button>
+            <button class="hud-btn" id="clearRangeBtn" style="height:22px;padding:0 7px;font-size:10.5px">取消</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CAUSAL TAPE + MINIMAP -->
+      <div id="tape-stage">
+        <div id="tape-scroll">
+          <div class="tape-inner" id="tapeContainer"></div>
+        </div>
+        <div id="minimap-rail"></div>
+      </div>
+
+      <!-- BOTTOM LIVE PTY TERMINAL BAY -->
+      <footer id="pty-bay">
+        <div class="pty-bar">
+          <svg class="ic ic-sm" style="color:#34d399"><use href="#ic-terminal"/></svg>
+          <span class="mono" style="font-size:10px;font-weight:700;letter-spacing:0.08em">LIVE PTY BAY</span>
+          <button class="pty-tab active"><span class="pulse-dot"></span><span id="ptyActiveCmdTab">claude --resume fbb3802a</span></button>
+          <button class="pty-tab"><span style="width:6px;height:6px;border-radius:50%;background:#38bdf8"></span><span>devin -r 91c4e2</span></button>
+          <button class="pty-ctrl-btn" id="newPtyBtn" title="新建内嵌终端会话">+ 新终端</button>
+
+          <div class="pty-controls">
+            <button class="pty-ctrl-btn" id="ptyMaxBtn">放大</button>
+            <button class="pty-ctrl-btn" id="ptyCollapseBtn">收起</button>
+          </div>
+        </div>
+        <div class="pty-screen" id="ptyScreen"></div>
+        <form class="pty-input-row" id="ptyForm">
+          <span style="color:#34d399">❯</span>
+          <input type="text" id="ptyInput" placeholder="改完上方记忆后，在此直接发指令验证 AI 是否顺着新记忆继续回答..." autocomplete="off" />
+          <span class="kbd" style="background:#151d2a;color:#94a3b8;border-color:#2d3a4f">Enter</span>
+        </form>
+      </footer>
+    </section>
+  </div>
+
+  <!-- ==================== VIEW 2: GLOBAL TELEMETRY RADAR ==================== -->
+  <div class="main-view" id="view-radar">
+    <div class="page-container">
+      <div class="radar-kpi-grid">
+        <div class="kpi-card reticle reticle-cyan">
+          <div class="kpi-k">MOUNTED PLATFORMS // 接入源</div>
+          <div class="kpi-v" style="color:var(--cyan-fg)">8 <span style="font-size:12px;color:var(--text-low)">有数据 / 21 支持</span></div>
+          <div class="kpi-sub">零会话平台自动静默收纳，告别 21 栏滚动条</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-k">FORGED MEMORIES // 记忆手术</div>
+          <div class="kpi-v" style="color:var(--forge-fg)" id="kpiForgedCount">1</div>
+          <div class="kpi-sub">全部保留逐字节 .bak 原件与一键回滚记录</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-k">DETECTED NOISE // 待清理噪音峰</div>
+          <div class="kpi-v" style="color:var(--crimson-fg)">22.4k</div>
+          <div class="kpi-sub">剥离冗余工具 stdout，立省上下文窗口</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-k">LIVE PTY // 保活内嵌终端</div>
+          <div class="kpi-v" style="color:var(--emerald-fg)">2 LIVE</div>
+          <div class="kpi-sub">跨视图后台保活，随时切回验证</div>
+        </div>
+      </div>
+
+      <div class="radar-cols">
+        <div class="radar-panel">
+          <div class="rp-head"><span>21-PLATFORM LOCAL MATRIX // 全平台本地探测矩阵（点击直达）</span><span>100% LOCAL</span></div>
+          <div class="adapter-matrix" id="adapterMatrix"></div>
+        </div>
+        <div class="radar-panel">
+          <div class="rp-head"><span>SURGERY PRIORITY QUEUE // 建议优先处理的会话</span><span>按噪音/活跃排序</span></div>
+          <div id="radarQueueList" style="display:flex;flex-direction:column;gap:7px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== VIEW 3: PROMPT ARSENAL ==================== -->
+  <div class="main-view" id="view-arsenal">
+    <div class="page-container">
+      <div class="radar-panel">
+        <div class="rp-head">
+          <span>PROMPT ARSENAL // 提示词战术弹药库（可一键复制或直接注入手术台）</span>
+          <button class="hud-btn primary-forge" id="addPromptBtn"><svg class="ic ic-sm"><use href="#ic-plus"/></svg><span>新建提示词</span></button>
+        </div>
+        <div class="arsenal-grid" id="fullArsenalGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== VIEW 4: SYSTEM & 5-THEME CONFIG ==================== -->
+  <div class="main-view" id="view-system">
+    <div class="page-container">
+      <div class="radar-panel">
+        <div class="rp-head">
+          <span>PRECISION INSTRUMENT THEMES // 5 套精密仪器主题（Chrono 默认 + 浅色工程兼容）</span>
+          <span>实时生效</span>
+        </div>
+        <div class="theme-cards-grid" id="themeCardsContainer"></div>
+      </div>
+
+      <div class="radar-cols">
+        <div class="radar-panel">
+          <div class="rp-head"><span>ERGONOMICS & DENSITY // 界面密度与桌面行为</span><span>HUD ERGONOMICS</span></div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div class="path-row">
+              <span>消息流排版密度 (Density)</span>
+              <div style="display:flex;gap:4px" id="densityBtns">
+                <button class="f-act-btn" data-set-density="compact">紧凑 Compact</button>
+                <button class="f-act-btn" data-set-density="standard" style="border-color:var(--cyan-line);color:var(--cyan-fg)">标准 Standard</button>
+                <button class="f-act-btn" data-set-density="comfortable">宽松 Comfortable</button>
+              </div>
+            </div>
+            <div class="path-row">
+              <span>首选外部终端 (External Terminal)</span>
+              <select class="path-input" style="width:170px">
+                <option>Windows Terminal (wt)</option>
+                <option>PowerShell 7</option>
+                <option>Ghostty / WezTerm</option>
+              </select>
+            </div>
+            <div class="path-row">
+              <span>关闭窗口时最小化至系统托盘 (System Tray)</span>
+              <span class="src-badge src-codex">ENABLED</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="radar-panel">
+          <div class="rp-head"><span>ADAPTER DATA PATHS // 本地适配器数据目录覆盖</span><span>21 PLATFORMS</span></div>
+          <div class="path-grid">
+            <div class="path-row"><span>Claude Code</span><input class="path-input" value="~/.claude" readonly /></div>
+            <div class="path-row"><span>Codex CLI</span><input class="path-input" value="~/.codex" readonly /></div>
+            <div class="path-row"><span>Devin CLI</span><input class="path-input" value="%APPDATA%\devin\cli" readonly /></div>
+            <div class="path-row"><span>Cursor IDE</span><input class="path-input" value="%APPDATA%\Cursor\User" readonly /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AUDIT DRAWER -->
+<aside class="side-drawer" id="auditDrawer">
+  <div class="drawer-header">
+    <h3 style="color:var(--forge-fg)">⚡ 修改追溯审计 // SAFE-WRITE LOG</h3>
+    <button class="icon-btn" data-close-drawer="auditDrawer"><svg class="ic ic-sm"><use href="#ic-x"/></svg></button>
+  </div>
+  <div class="drawer-content" id="auditList"></div>
+</aside>
+
+<!-- COMMAND PALETTE & JSONL IMPORT PREVIEW MODAL -->
+<div class="modal-backdrop" id="cmdBackdrop">
+  <div class="cmd-modal reticle reticle-cyan">
+    <div class="cmd-input-row">
+      <svg class="ic" style="color:var(--cyan-fg)"><use href="#ic-search"/></svg>
+      <input type="text" id="cmdInput" placeholder="输入动作、跳转会话或切换主题（如：钛白浅色、切除噪音、恢复终端）..." autocomplete="off" />
+      <kbd class="kbd">ESC</kbd>
+    </div>
+    <div class="cmd-list" id="cmdList"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="importModal">
+  <div class="cmd-modal reticle" style="padding:16px">
+    <div class="rp-head">
+      <span style="color:var(--forge-fg)">↑ RAW JSONL IMPORT PROBE // 会话导入预检与冲突扫描</span>
+      <button class="icon-btn" id="closeImportBtn"><svg class="ic ic-sm"><use href="#ic-x"/></svg></button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;font-size:12px">
+      <div class="path-row"><span>探测平台</span><span class="src-badge src-claude">Claude Code (.jsonl)</span></div>
+      <div class="path-row"><span>提取会话标题</span><strong>重构 Tauri 多窗口托盘状态机</strong></div>
+      <div class="path-row"><span>冲突检测结果</span><span style="color:var(--emerald-fg);font-family:var(--font-mono)">✓ 无同 ID 冲突，可安全落盘</span></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+        <button class="hud-btn" id="cancelImportBtn">取消</button>
+        <button class="hud-btn primary-forge" id="confirmImportBtn">确认安全导入</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="dna-tip"></div>
+<div id="hud-toast"></div>
+
+<script>
+(() => {
+  const THEMES = [
+    { id: "chrono", name: "曜石熔金 · Chrono", sub: "默认暗色旗舰 · 高反差冷黑", colors: ["#06080c", "#0e131b", "#f59e0b", "#22d3ee"] },
+    { id: "sonar", name: "深海声呐 · Sonar", sub: "低蓝光海湾暗色 · 青绿荧光", colors: ["#040d14", "#0a1b29", "#2dd4bf", "#f59e0b"] },
+    { id: "twilight", name: "暮光神经 · Twilight", sub: "深邃暗紫机架 · 神经脉冲", colors: ["#090712", "#151026", "#a78bfa", "#f59e0b"] },
+    { id: "braun", name: "钛白工程 · Braun", sub: "Dieter Rams 精密浅色仪器", colors: ["#eaedf2", "#ffffff", "#0284c7", "#d97706"] },
+    { id: "linen", name: "手稿亚麻 · Linen", sub: "纸本工程档案 · 护眼暖浅色", colors: ["#ebe3d5", "#fbf7f0", "#c2410c", "#0f766e"] }
+  ];
+
+  const WORKSPACES = [
+    { id: "all", name: "ALL WORKSPACES", path: "*" },
+    { id: "mf", name: "vk-products/memory-forge-rs", path: "F:\\workspace2026\\vk-products\\memory-forge-rs" },
+    { id: "vec", name: "infra/hindsight-index", path: "F:\\workspace2026\\infra\\hindsight-index" },
+  ];
+
+  const ALL_21_ADAPTERS = [
+    ["Claude Code", 142, true], ["Codex CLI", 68, true], ["Devin CLI", 31, true],
+    ["OpenCode", 49, true], ["Cursor", 84, true], ["Gemini CLI", 12, true],
+    ["Zed", 7, true], ["Pi", 4, true], ["Kiro CLI", 0, false],
+    ["Kiro IDE", 0, false], ["Cline", 0, false], ["Qwen Code", 0, false],
+    ["Grok Build", 0, false], ["WorkBuddy", 0, false], ["CodeBuddy", 0, false],
+    ["DeepSeek DSH", 0, false], ["ZCode", 0, false], ["Qoder CN", 0, false],
+    ["Cindy", 0, false], ["Cindy Global", 0, false], ["Antigravity", 0, false]
+  ];
+
+  const PROMPTS = [
+    {
+      title: "架构约束注入 · 强制保持零外部服务依赖",
+      tag: "架构纠正",
+      uses: 38,
+      body: "[重要上下文约束] 本项目为 100% 纯本地 Tauri v2 + Rust 桌面端，严禁引入外部服务端或整文件重写；修改 JSONL 时必须保持其余行逐字节一致。"
+    },
+    {
+      title: "跑偏拉回 · 废弃前序错误存储假设",
+      tag: "记忆手术",
+      uses: 24,
+      body: "忽略前面关于引入外部 KV 库的假设。请直接基于现有 rusqlite (bundled + WAL + FTS5) 给出最小改动实现。"
+    },
+    {
+      title: "代码精简 · 拒绝防御性冗余包装",
+      tag: "代码风格",
+      uses: 51,
+      body: "保持最小改动面：直接复用现有 PlatformAdapter trait 与 safe_write 模块，不加多余抽象层与无意义注释。"
+    },
+    {
+      title: "上下文瘦身 · 仅输出关键结构与差异",
+      tag: "降噪优化",
+      uses: 19,
+      body: "后续回复请直接给出核心函数签名与改动片段，不要打印整份未修改文件，以节省上下文窗口预算。"
+    }
+  ];
+
+  const SESSIONS = [
+    {
+      id: "fbb3802a",
+      ws: "mf",
+      agent: "claude",
+      agentLabel: "Claude",
+      group: "ACTIVE // TODAY",
+      updated: "4m ago",
+      favorite: true,
+      title: "索引层迁移评估：JSON → SQLite WAL",
+      cwd: "F:\\workspace2026\\vk-products\\memory-forge-rs",
+      resumeCmd: "claude --resume fbb3802a-395e-47ff",
+      subagents: [
+        { name: "explore: scan-21-adapters", tok: "4.1k" },
+        { name: "verify: safe-write-bytecheck", tok: "2.3k" }
+      ],
+      turns: [
+        {
+          id: "t1", role: "user", time: "14:12", tokens: 620,
+          content: "现在跨 21 个平台加载会话列表时，每次搜索都要扫一遍本地 JSONL。帮我设计一套索引与缓存方案，注意不能破坏现有的原文件安全写回机制。"
+        },
+        {
+          id: "t2", role: "assistant", time: "14:13", tokens: 3400,
+          thinking: "先核对现有 database.rs 表结构与 safe_write.rs 的逐行字节级写回机制。",
+          tools: [
+            { id: "tc1", name: "Read src-tauri/src/database.rs", tok: 1100, status: "ok", output: "pub struct Database { conn: Connection }\n// 已存在 aliases, edit_logs, prompts, search_index 表..." },
+            { id: "tc2", name: "Read src-tauri/src/platforms/safe_write.rs", tok: 950, status: "ok", output: "// 原子替换目标行并生成 .bak 备份，其余字节逐字节保留..." }
+          ],
+          content: "我已经看完了 `database.rs` 和 `safe_write.rs`。我们可以做两层结构：\n1. **原始真源不动**：各平台自己的 `.jsonl` 依然是唯一真源；\n2. **旁路增量索引**：按文件 `(path, mtime, size)` 做指纹增量同步。"
+        },
+        {
+          id: "t3", role: "user", time: "14:16", tokens: 480,
+          content: "那索引存储引擎具体选什么？有人建议直接引一个 sled 或者再起个本地向量库进程，你觉得呢？"
+        },
+        {
+          id: "t4", role: "assistant", time: "14:17", tokens: 4200,
+          forged: true, forgedRev: 2,
+          originalContent: "结论：建议引入独立的 sled 嵌入式 KV 引擎，并搭配后台本地 Qdrant 轻量进程做语义检索。",
+          content: "结论：**直接复用项目已有的 `rusqlite`（开启 WAL + FTS5 全文索引）**，绝不引入 sled 或任何外部常驻进程。\n\n```rust\nconn.pragma_update(None, \"journal_mode\", \"WAL\")?;\n// 直接基于现有 SQLite 建 FTS5 虚表，零新增二进制体积\n```",
+          thinking: "如果引入新引擎，Cargo 编译产物与跨平台打包复杂度都会上升。"
+        },
+        {
+          id: "t5", role: "assistant", time: "14:20", tokens: 24600, spike: true,
+          thinking: "拉取全量 cargo tree 核对 bundled 特性。",
+          tools: [
+            {
+              id: "tc3", name: "Bash cargo tree --all-features --verbose", tok: 22400, status: "heavy",
+              output: "[冗长依赖树输出 · 共 1,840 行 / 22.4k tokens]\nmemory-forge v3.9.0\n├── rusqlite v0.32.1 (bundled, fts5)\n└── tauri v2.9.5 ... (点胶囊右侧 × 可单独剥离此段冗余输出！)"
+            }
+          ],
+          content: "刚拉取了全量编译依赖树（见上方工具胶囊），`rusqlite` 已开启 `bundled` 特性，可直接启用 FTS5。"
+        },
+        {
+          id: "t6", role: "user", time: "14:24", tokens: 540,
+          content: "很好！那如果我刚通过记忆锻造改写了某条历史消息，FTS5 索引怎么保证不读到旧脏数据？"
+        },
+        {
+          id: "t7", role: "assistant", time: "14:25", tokens: 3900,
+          tools: [{ id: "tc4", name: "Grep edit_message in src-tauri/src", tok: 820, status: "ok", output: "src-tauri/src/session_service.rs:412: pub fn edit_message(...)" }],
+          content: "在 `session_service::edit_message` 完成 `safe_write` 落盘后，同事务写入 `edit_logs` 审计表并刷新 FTS5 对应行即可。"
+        }
+      ]
+    },
+    {
+      id: "c8190d12", ws: "mf", agent: "codex", agentLabel: "Codex", group: "ACTIVE // TODAY", updated: "38m ago", favorite: false,
+      title: "HUD 界面重构：兼容精密浅色与曜石暗色",
+      cwd: "F:\\workspace2026\\vk-products\\memory-forge-rs",
+      resumeCmd: "codex resume c8190d12",
+      turns: [
+        { id: "c1", role: "user", time: "13:30", tokens: 710, content: "如果默认用冷曜石暗色 HUD，同时还要兼容浅色主题，怎么避免浅色变成难看的粉彩网页卡片？" },
+        { id: "c2", role: "assistant", time: "13:32", tokens: 5100, content: "参考 **Braun / Teenage Engineering** 的工业说明书美学：\n1. 浅色走冷钛白 (`#F3F5F8`) + `1px` 深灰墨水发丝线，绝不用大面积彩色填充；\n2. 把信号色拆为 `--signal`（边框导轨）和 `--signal-fg`（高对比深琥珀/深钴蓝文字），保证 WCAG 对比度 > 5.5:1。" }
+      ]
+    },
+    {
+      id: "91c4e20b", ws: "mf", agent: "devin", agentLabel: "Devin", group: "ACTIVE // TODAY", updated: "2h ago", favorite: true,
+      title: "内嵌 xterm 终端与会话编辑同屏联动验证",
+      cwd: "F:\\workspace2026\\vk-products\\memory-forge-rs",
+      resumeCmd: "devin -r 91c4e20b",
+      turns: [
+        { id: "d1", role: "user", time: "11:40", tokens: 520, content: "以前点在内置终端恢复会直接路由跳转到 /terminal-sessions，看不见刚改完的对话上下文。" },
+        { id: "d2", role: "assistant", time: "11:42", tokens: 4600, content: "`TerminalProvider` 已经在全局顶层持有 xterm 实例，解放为底部常驻停靠舱（Live PTY Bay）即可实现 3 秒同屏闭环。" }
+      ]
+    },
+    {
+      id: "77a1b09f", ws: "vec", agent: "opencode", agentLabel: "OpenCode", group: "EARLIER // YESTERDAY", updated: "1d ago", favorite: false,
+      title: "工具调用历史导出截断阈值与噪音清理",
+      cwd: "F:\\workspace2026\\infra\\hindsight-index",
+      resumeCmd: "opencode -s 77a1b09f",
+      turns: [
+        { id: "o1", role: "user", time: "昨天", tokens: 610, content: "导出 Markdown 时把几万行的工具 stdout 全导出来了，怎么支持单独擦除某次工具调用？" },
+        { id: "o2", role: "assistant", time: "昨天", tokens: 3800, content: "把工具调用渲染成紧凑流水线芯片，悬停高 Token 芯片即可点 `×` 单独抹除输出并写入审计栈。" }
+      ]
+    }
+  ];
+
+  const state = {
+    theme: "chrono",
+    density: "standard",
+    mode: "workbench",
+    workspaceId: "mf",
+    agentFilter: "all",
+    favOnly: false,
+    batchMode: false,
+    selectedBatchIds: new Set(),
+    sessionSearch: "",
+    inlineFind: "",
+    activeSessionId: "fbb3802a",
+    roleFilter: "all",
+    editingTurnId: null,
+    expandedDrawers: new Set(),
+    rangeStartIdx: null,
+    rangeEndIdx: null,
+    isDraggingDna: false,
+    auditLogs: [
+      {
+        seqLabel: "#04", time: "14:18:09",
+        oldText: "结论：建议引入独立的 sled 嵌入式 KV 引擎...",
+        newText: "结论：直接复用项目已有的 rusqlite（开启 WAL + FTS5 全文索引）..."
+      }
+    ],
+    ptyLogs: [
+      { cls: "pty-cmd", text: "$ claude --resume fbb3802a-395e-47ff" },
+      { cls: "pty-forge-hit", text: "⚡ [Memory Forge] 已注入修正后的历史记忆（#04 已修正为 rusqlite WAL + FTS5）" },
+      { cls: "", text: "Claude > 明白，完全复用现有 rusqlite (bundled + FTS5)，零新增依赖。我现在为您生成迁移代码吗？" }
+    ]
+  };
+
+  const $ = (sel) => document.querySelector(sel);
+  const esc = (str) => String(str).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  const activeSession = () => SESSIONS.find((s) => s.id === state.activeSessionId) || SESSIONS[0];
+  const calcSessionTokens = (sess) => sess.turns.reduce((sum, t) => sum + t.tokens, 0);
+  const formatTok = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
+
+  function showToast(msg, actionLabel, onAction) {
+    const wrap = $("#hud-toast");
+    const el = document.createElement("div");
+    el.className = "toast-item";
+    el.innerHTML = `<span style="color:var(--forge-fg)">⚡</span><span>${esc(msg)}</span>`;
+    if (actionLabel && onAction) {
+      const btn = document.createElement("button");
+      btn.className = "f-act-btn";
+      btn.style.color = "var(--cyan-fg)";
+      btn.textContent = actionLabel;
+      btn.onclick = () => { onAction(); el.remove(); };
+      el.appendChild(btn);
+    }
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 3800);
+  }
+
+  function applyTheme(themeId) {
+    state.theme = themeId;
+    document.documentElement.setAttribute("data-theme", themeId);
+    document.querySelectorAll("[data-set-theme]").forEach((b) => b.classList.toggle("active", b.dataset.setTheme === themeId));
+    if (state.mode === "system") renderSystemView();
+  }
+
+  function highlightInline(escapedHtml) {
+    const q = state.inlineFind.trim();
+    if (!q) return escapedHtml;
+    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+    return escapedHtml.replace(re, '<mark class="hl">$1</mark>');
+  }
+
+  function formatRichText(raw) {
+    const parts = raw.split(/(```[\w-]*\n[\s\S]*?```)/g);
+    return parts.map((chunk) => {
+      if (chunk.startsWith("```")) {
+        const lines = chunk.slice(3, -3).split("\n");
+        const lang = lines.shift() || "code";
+        return `<div class="codeblock-wrap"><div class="codeblock-head"><span>${esc(lang)}</span><span>COPY</span></div><pre class="codeblock-pre">${highlightInline(esc(lines.join("\n")))}</pre></div>`;
+      }
+      return highlightInline(esc(chunk))
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/`([^`\n]+)`/g, '<code class="inline">$1</code>');
+    }).join("");
+  }
+
+  function switchMode(mode) {
+    state.mode = mode;
+    document.querySelectorAll(".mode-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
+    ["workbench", "radar", "arsenal", "system"].forEach((m) => {
+      document.getElementById(`view-${m}`).classList.toggle("active", m === mode);
+    });
+    if (mode === "radar") renderRadar();
+    if (mode === "arsenal") renderArsenalView();
+    if (mode === "system") renderSystemView();
+  }
+
+  function closeAllPopovers() {
+    document.querySelectorAll(".pop-menu").forEach((m) => m.classList.remove("open"));
+  }
+
+  function renderTopBar() {
+    const ws = WORKSPACES.find((w) => w.id === state.workspaceId) || WORKSPACES[0];
+    const wsSessions = SESSIONS.filter((s) => state.workspaceId === "all" || s.ws === state.workspaceId);
+    $("#wsCurrentLabel").textContent = ws.name;
+    $("#wsCurrentCount").textContent = wsSessions.length;
+
+    $("#wsOptions").innerHTML = WORKSPACES.map((w) => {
+      const cnt = SESSIONS.filter((s) => w.id === "all" || s.ws === w.id).length;
+      return `
+        <button class="pop-item ${w.id === state.workspaceId ? "active" : ""}" data-ws="${w.id}">
+          <div><div class="mono" style="font-size:11px;font-weight:600">${esc(w.name)}</div><div class="mono" style="font-size:9.5px;color:var(--text-low)">${esc(w.path)}</div></div>
+          <span class="kbd">${cnt}</span>
+        </button>
+      `;
+    }).join("");
+
+    document.querySelectorAll("[data-ws]").forEach((btn) => {
+      btn.onclick = () => {
+        state.workspaceId = btn.dataset.ws;
+        state.agentFilter = "all";
+        const avail = getFilteredSessions();
+        if (avail.length && !avail.some((s) => s.id === state.activeSessionId)) state.activeSessionId = avail[0].id;
+        closeAllPopovers();
+        renderAll();
+      };
+    });
+
+    const sess = activeSession();
+    const totalTok = calcSessionTokens(sess);
+    const segCount = 8;
+    const lit = Math.max(1, Math.round(Math.min(1, totalTok / 70000) * segCount));
+    let segHtml = "";
+    for (let i = 0; i < segCount; i++) {
+      let cls = "ctx-seg";
+      if (i < lit) cls += totalTok > 45000 ? " crit" : totalTok > 25000 ? " warn" : " on";
+      segHtml += `<span class="${cls}"></span>`;
+    }
+    $("#ctxSegments").innerHTML = segHtml;
+    $("#ctxValue").textContent = formatTok(totalTok);
+    $("#ctxValue").style.color = totalTok > 45000 ? "var(--crimson-fg)" : totalTok > 25000 ? "var(--forge-fg)" : "var(--cyan-fg)";
+    $("#forgedCountLabel").textContent = `${sess.turns.filter((t) => t.forged).length} FORGED`;
+  }
+
+  function getFilteredSessions() {
+    return SESSIONS.filter((s) => {
+      if (state.workspaceId !== "all" && s.ws !== state.workspaceId) return false;
+      if (state.agentFilter !== "all" && s.agent !== state.agentFilter) return false;
+      if (state.favOnly && !s.favorite) return false;
+      if (state.sessionSearch.trim()) {
+        const q = state.sessionSearch.toLowerCase();
+        if (!s.title.toLowerCase().includes(q) && !s.agentLabel.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderSessionRail() {
+    $("#favFilterBtn").classList.toggle("on", state.favOnly);
+    $("#batchModeBtn").classList.toggle("on", state.batchMode);
+    $("#batchBar").classList.toggle("open", state.batchMode);
+    $("#batchCountLabel").textContent = `已选 ${state.selectedBatchIds.size} 项`;
+
+    const wsSessions = SESSIONS.filter((s) => state.workspaceId === "all" || s.ws === state.workspaceId);
+    const counts = {};
+    wsSessions.forEach((s) => { counts[s.agent] = (counts[s.agent] || 0) + 1; });
+
+    const agents = [
+      { id: "all", label: "ALL", cnt: wsSessions.length },
+      ...Object.keys(counts).map((id) => ({ id, label: id.toUpperCase(), cnt: counts[id] }))
+    ];
+    $("#agentFilterBar").innerHTML = agents.map((a) => `
+      <button class="agent-pill ${state.agentFilter === a.id ? "active" : ""}" data-agent="${a.id}">
+        <span>${a.label}</span><span style="opacity:0.7">${a.cnt}</span>
+      </button>
+    `).join("");
+
+    document.querySelectorAll("[data-agent]").forEach((btn) => {
+      btn.onclick = () => { state.agentFilter = btn.dataset.agent; renderSessionRail(); };
+    });
+
+    const list = getFilteredSessions();
+    const groups = {};
+    list.forEach((s) => { (groups[s.group] = groups[s.group] || []).push(s); });
+
+    $("#sessionListContainer").innerHTML = Object.entries(groups).map(([grp, items]) => `
+      <div class="s-group-label"><span>${esc(grp)}</span><span>${items.length}</span></div>
+      ${items.map((s) => {
+        const tok = calcSessionTokens(s);
+        const pct = Math.min(100, Math.round((tok / 55000) * 100));
+        const forgedN = s.turns.filter((t) => t.forged).length;
+        const hasSpike = s.turns.some((t) => t.spike);
+        const barColor = hasSpike ? "var(--crimson)" : forgedN ? "var(--forge)" : "var(--cyan)";
+        const active = state.batchMode ? state.selectedBatchIds.has(s.id) : s.id === state.activeSessionId;
+        return `
+          <div class="s-card ${active ? "active reticle reticle-cyan" : ""}" data-sid="${s.id}">
+            <div class="s-top">
+              ${state.batchMode ? `<span class="mono" style="color:var(--cyan-fg)">[${state.selectedBatchIds.has(s.id) ? "✓" : " "}]</span>` : ""}
+              <span class="src-badge src-${s.agent}">${esc(s.agentLabel)}</span>
+              ${s.favorite ? `<span style="color:var(--forge-fg);font-size:10px">★</span>` : ""}
+              ${forgedN ? `<span class="pill-tag pill-forged">⚡${forgedN}</span>` : ""}
+              ${hasSpike ? `<span class="pill-tag pill-spike">⚠噪音</span>` : ""}
+              <span class="s-time">${esc(s.updated)}</span>
+            </div>
+            <div class="s-title">${esc(s.title)}</div>
+            <div class="s-cwd">${esc(s.cwd)}</div>
+            <div class="s-foot">
+              <span>${s.turns.length}F</span>
+              <div class="s-loadbar"><i style="width:${pct}%;background:${barColor}"></i></div>
+              <span>${formatTok(tok)}</span>
+            </div>
+            ${s.subagents ? `
+              <div class="subagent-tree">
+                ${s.subagents.map((sub) => `
+                  <div class="subagent-item">
+                    <span style="color:var(--cyan-fg)">↳</span>
+                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(sub.name)}</span>
+                    <span style="color:var(--text-low)">${sub.tok}</span>
+                  </div>
+                `).join("")}
+              </div>
+            ` : ""}
+          </div>
+        `;
+      }).join("")}
+    `).join("") || `<div style="padding:24px;text-align:center;color:var(--text-low);font-size:12px">暂无符合过滤条件的会话</div>`;
+
+    document.querySelectorAll("[data-sid]").forEach((card) => {
+      card.onclick = () => {
+        const sid = card.dataset.sid;
+        if (state.batchMode) {
+          if (state.selectedBatchIds.has(sid)) state.selectedBatchIds.delete(sid);
+          else state.selectedBatchIds.add(sid);
+          renderSessionRail();
+          return;
+        }
+        state.activeSessionId = sid;
+        state.editingTurnId = null;
+        clearRange();
+        renderAll();
+      };
+    });
+  }
+
+  function renderDnaAndHeader() {
+    const sess = activeSession();
+    const badge = $("#activeAgentBadge");
+    badge.className = `src-badge src-${sess.agent}`;
+    badge.textContent = sess.agentLabel.toUpperCase();
+    $("#activeSessionTitle").textContent = sess.title;
+    $("#starActiveBtn").classList.toggle("starred", Boolean(sess.favorite));
+    $("#ptyActiveCmdTab").textContent = sess.resumeCmd;
+
+    // Inline search hit count
+    if (state.inlineFind.trim()) {
+      const q = state.inlineFind.toLowerCase();
+      const hits = sess.turns.filter((t) => t.content.toLowerCase().includes(q));
+      $("#inlineFindCount").textContent = `${hits.length} 命中`;
+    } else {
+      $("#inlineFindCount").textContent = "";
+    }
+
+    const maxTok = Math.max(4500, ...sess.turns.map((t) => t.tokens));
+    const lo = state.rangeStartIdx !== null && state.rangeEndIdx !== null ? Math.min(state.rangeStartIdx, state.rangeEndIdx) : null;
+    const hi = state.rangeStartIdx !== null && state.rangeEndIdx !== null ? Math.max(state.rangeStartIdx, state.rangeEndIdx) : null;
+
+    const cellsHtml = sess.turns.map((t, idx) => {
+      const ratio = Math.max(0.2, Math.min(1, t.tokens / maxTok));
+      const color = t.forged ? "var(--forge)" : t.spike ? "var(--crimson)" : t.role === "user" ? "var(--cyan)" : "var(--asst-bar)";
+      const inRange = lo !== null && idx >= lo && idx <= hi;
+      const weights = [0.55, 0.85, 1.0, 0.75, 0.48];
+      const waveBars = weights.map((w) => `<i style="height:${Math.max(18, Math.round(ratio * w * 100))}%;background:${color}"></i>`).join("");
+      const tag = t.forged ? `<span style="color:var(--forge-fg)">⚡</span>` : t.spike ? `<span style="color:var(--crimson-fg)">${formatTok(t.tokens)}</span>` : `<span>${formatTok(t.tokens)}</span>`;
+      return `
+        <div class="dna-cell ${inRange ? "in-range" : ""}" data-dna-idx="${idx}" data-tid="${t.id}">
+          <div class="dna-cell-head"><span>${String(idx + 1).padStart(2, "0")}</span>${tag}</div>
+          <div class="dna-wave">${waveBars}</div>
+        </div>
+      `;
+    }).join("");
+
+    const freeTok = Math.max(0, 200000 - calcSessionTokens(sess));
+    $("#dnaTrack").innerHTML = cellsHtml + `<div class="dna-tail-budget">FREE ${formatTok(freeTok)} / 200k</div>`;
+
+    const tip = $("#dna-tip");
+    document.querySelectorAll(".dna-cell").forEach((slot) => {
+      const idx = Number(slot.dataset.dnaIdx);
+      const turn = sess.turns[idx];
+      slot.onmouseenter = (e) => {
+        const share = Math.round((turn.tokens / Math.max(1, calcSessionTokens(sess))) * 100);
+        tip.style.display = "block";
+        tip.innerHTML = `<strong>#${String(idx + 1).padStart(2, "0")} · ${turn.role.toUpperCase()}</strong> · ${formatTok(turn.tokens)} tok (${share}%)${turn.forged ? ' · <span style="color:var(--forge-fg)">⚡已改写</span>' : ""}${turn.spike ? ' · <span style="color:var(--crimson-fg)">⚠噪音峰</span>' : ""}`;
+        tip.style.left = Math.min(window.innerWidth - 250, e.clientX - 30) + "px";
+        tip.style.top = (slot.getBoundingClientRect().bottom + 5) + "px";
+        if (state.isDraggingDna) { state.rangeEndIdx = idx; renderDnaAndHeader(); }
+      };
+      slot.onmouseleave = () => { tip.style.display = "none"; };
+      slot.onmousedown = (e) => { e.preventDefault(); state.isDraggingDna = true; state.rangeStartIdx = idx; state.rangeEndIdx = idx; };
+      slot.onclick = () => { if (state.rangeStartIdx === state.rangeEndIdx) { clearRange(); jumpToTurn(turn.id); } };
+    });
+
+    if (lo !== null && hi !== null && lo !== hi) {
+      const selectedTurns = sess.turns.slice(lo, hi + 1);
+      const rangeTok = selectedTurns.reduce((s, t) => s + t.tokens, 0);
+      $("#rangeSummaryText").textContent = `已框选 #${String(lo + 1).padStart(2, "0")} ~ #${String(hi + 1).padStart(2, "0")}（${selectedTurns.length} 帧）`;
+      $("#rangeTokenText").textContent = `共占 ${formatTok(rangeTok)} tokens`;
+      $("#range-bar").classList.add("open");
+    } else {
+      $("#range-bar").classList.remove("open");
+    }
+  }
+
+  window.addEventListener("mouseup", () => {
+    if (state.isDraggingDna) { state.isDraggingDna = false; renderDnaAndHeader(); }
+  });
+
+  function clearRange() { state.rangeStartIdx = null; state.rangeEndIdx = null; $("#range-bar").classList.remove("open"); }
+
+  function jumpToTurn(turnId) {
+    const el = document.getElementById(`frame-${turnId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("flash-highlight");
+    setTimeout(() => el.classList.remove("flash-highlight"), 1000);
+  }
+
+  function renderTape() {
+    const sess = activeSession();
+    const visibleTurns = sess.turns.filter((t) => {
+      if (state.roleFilter === "user") return t.role === "user";
+      if (state.roleFilter === "assistant") return t.role === "assistant";
+      if (state.roleFilter === "forged") return Boolean(t.forged);
+      if (state.roleFilter === "spike") return Boolean(t.spike);
+      return true;
+    });
+
+    $("#tapeContainer").innerHTML = visibleTurns.map((t) => {
+      const realIdx = sess.turns.indexOf(t);
+      const seq = `#${String(realIdx + 1).padStart(2, "0")}`;
+      const isEditing = state.editingTurnId === t.id;
+      const thinkKey = `think-${t.id}`;
+      const hasPipeline = Boolean(t.thinking || (t.tools && t.tools.length));
+
+      let openDrawerHtml = "";
+      if (t.thinking && state.expandedDrawers.has(thinkKey)) {
+        openDrawerHtml += `<div class="drawer-box thinking-box">[THINKING TRACE]\n${esc(t.thinking)}</div>`;
+      }
+      (t.tools || []).forEach((tc) => {
+        if (state.expandedDrawers.has(tc.id) && !tc.pruned) {
+          openDrawerHtml += `<div class="drawer-box"><div style="color:var(--cyan-fg);margin-bottom:3px">$ ${esc(tc.name)}</div>${esc(tc.output)}</div>`;
+        }
+      });
+
+      return `
+        <div class="frame role-${t.role} ${t.forged ? "is-forged" : ""} ${t.spike ? "is-spike" : ""} ${isEditing ? "editing" : ""}" id="frame-${t.id}">
+          <span class="frame-node"></span>
+          <div class="frame-box ${isEditing || t.forged ? "reticle" : ""}">
+            <div class="f-head">
+              <span class="f-seq">${seq}</span>
+              <span class="f-role">${esc(t.role)}</span>
+              ${t.forged ? `<span class="f-stamp forged"><svg class="ic ic-sm"><use href="#ic-zap"/></svg>FORGED · rev.${t.forgedRev || 1}</span>` : ""}
+              ${t.spike ? `<span class="f-stamp spike"><svg class="ic ic-sm"><use href="#ic-alert"/></svg>噪音峰值 ${formatTok(t.tokens)}</span>` : ""}
+
+              <div class="f-meta-right">
+                <div class="f-acts">
+                  ${!isEditing ? `<button class="f-act-btn" data-edit="${t.id}"><svg class="ic ic-sm"><use href="#ic-edit"/></svg><span>改写记忆</span></button>` : ""}
+                  ${t.forged && t.originalContent && !isEditing ? `<button class="f-act-btn" data-revert="${t.id}"><svg class="ic ic-sm"><use href="#ic-undo"/></svg><span>回滚原版</span></button>` : ""}
+                  <button class="f-act-btn del" data-erase="${t.id}"><svg class="ic ic-sm"><use href="#ic-scissors"/></svg><span>擦除</span></button>
+                </div>
+                <span>${esc(t.time)}</span>
+                <strong style="color:${t.spike ? "var(--crimson-fg)" : "var(--text-mid)"}">${formatTok(t.tokens)} tok</strong>
+              </div>
+            </div>
+
+            ${hasPipeline ? `
+              <div class="pipeline-strip">
+                ${t.thinking ? `<button class="pipe-chip thinking" data-toggle-drawer="${thinkKey}">◈ 思考链 (${t.thinking.length}字)</button>` : ""}
+                ${t.thinking && t.tools && t.tools.length ? `<span style="color:var(--text-faint);font-size:10px" class="mono">──▶</span>` : ""}
+                ${(t.tools || []).map((tc) => `
+                  <span class="pipe-chip ${tc.pruned ? "tool-pruned" : tc.status === "heavy" ? "tool-heavy" : "tool-ok"}" data-toggle-drawer="${tc.id}">
+                    <span class="dot">${tc.pruned ? "✂" : tc.status === "heavy" ? "⚠" : "✓"}</span>
+                    <span>${esc(tc.name)}</span>
+                    <span style="opacity:0.75">· ${tc.pruned ? "已剥离" : formatTok(tc.tok)}</span>
+                    ${!tc.pruned ? `<button class="pipe-prune-x" data-prune-tool="${t.id}::${tc.id}" title="单独剥离该工具输出">×</button>` : ""}
+                  </span>
+                `).join("")}
+              </div>
+            ` : ""}
+
+            ${openDrawerHtml}
+
+            ${isEditing ? `
+              <div class="surgery-zone">
+                <div class="ghost-diff">
+                  <div class="ghost-diff-head"><span>── GHOST ORIGINAL // 修改前原文参照</span><span>BYTE-SAFE (.bak)</span></div>
+                  <div>- ${esc(t.originalContent || t.content)}</div>
+                </div>
+                <textarea class="surgery-textarea" id="surgeryInput-${t.id}">${esc(t.content)}</textarea>
+                <div class="surgery-foot">
+                  <span class="mono" style="font-size:10.5px;color:var(--text-mid)"><kbd class="kbd">Ctrl+S</kbd> 落盘 · <kbd class="kbd">Esc</kbd> 取消</span>
+                  <div style="display:flex;gap:6px">
+                    <button class="hud-btn" data-cancel-edit="${t.id}">取消</button>
+                    <button class="hud-btn primary-forge" data-save-edit="${t.id}"><svg class="ic ic-sm"><use href="#ic-zap"/></svg><span>落盘锻造记忆</span></button>
+                  </div>
+                </div>
+              </div>
+            ` : `
+              <div class="f-body" data-dbl-edit="${t.id}" title="双击正文可原地进入记忆手术模式">${formatRichText(t.content)}</div>
+            `}
+          </div>
+        </div>
+
+        <div class="splice-slot">
+          <div class="splice-line"></div>
+          <div class="splice-actions">
+            <button class="splice-chip" data-inject-after="${realIdx}"><svg class="ic ic-sm"><use href="#ic-plus"/></svg><span>在此切口注入上下文</span></button>
+            <button class="splice-chip cyan" data-fork-after="${realIdx}"><svg class="ic ic-sm"><use href="#ic-fork"/></svg><span>从 ${seq} 分叉终端</span></button>
+          </div>
+          <div class="splice-line"></div>
+        </div>
+      `;
+    }).join("");
+
+    $("#minimap-rail").innerHTML = sess.turns.map((t, i) => {
+      const cls = t.forged ? "forged" : t.spike ? "spike" : t.role === "user" ? "user" : "";
+      return `<div class="mm-tick ${cls}" data-mm-tid="${t.id}" title="#${String(i + 1).padStart(2, "0")}"></div>`;
+    }).join("");
+
+    bindTapeEvents();
+  }
+
+  function bindTapeEvents() {
+    const sess = activeSession();
+    document.querySelectorAll("[data-mm-tid]").forEach((el) => { el.onclick = () => jumpToTurn(el.dataset.mmTid); });
+    document.querySelectorAll("[data-toggle-drawer]").forEach((el) => {
+      el.onclick = (e) => {
+        if (e.target.closest("[data-prune-tool]")) return;
+        const key = el.dataset.toggleDrawer;
+        if (state.expandedDrawers.has(key)) state.expandedDrawers.delete(key);
+        else state.expandedDrawers.add(key);
+        renderTape();
+      };
+    });
+
+    document.querySelectorAll("[data-prune-tool]").forEach((btn) => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const [tid, tcid] = btn.dataset.pruneTool.split("::");
+        const turn = sess.turns.find((x) => x.id === tid);
+        const tool = turn?.tools?.find((x) => x.id === tcid);
+        if (!turn || !tool || tool.pruned) return;
+        const saved = tool.tok;
+        tool.pruned = true;
+        turn.tokens = Math.max(300, turn.tokens - saved);
+        turn.spike = false;
+        turn.forged = true;
+        turn.forgedRev = (turn.forgedRev || 0) + 1;
+        state.auditLogs.unshift({
+          seqLabel: `#${String(sess.turns.indexOf(turn) + 1).padStart(2, "0")}`,
+          time: new Date().toTimeString().slice(0, 8),
+          oldText: `[Tool Output] ${tool.name} (${formatTok(saved)})`,
+          newText: `[Pruned] 释放 ${formatTok(saved)} 上下文`
+        });
+        renderAll();
+        showToast(`已剥离冗余输出，立省 ${formatTok(saved)} tokens！`, "撤销", () => {
+          tool.pruned = false;
+          turn.tokens += saved;
+          turn.spike = saved > 10000;
+          renderAll();
+        });
+      };
+    });
+
+    document.querySelectorAll("[data-edit]").forEach((btn) => { btn.onclick = () => startEditing(btn.dataset.edit); });
+    document.querySelectorAll("[data-dbl-edit]").forEach((body) => { body.ondblclick = () => startEditing(body.dataset.dblEdit); });
+    document.querySelectorAll("[data-cancel-edit]").forEach((btn) => { btn.onclick = () => { state.editingTurnId = null; renderTape(); }; });
+    document.querySelectorAll("[data-save-edit]").forEach((btn) => { btn.onclick = () => commitEdit(btn.dataset.saveEdit); });
+
+    document.querySelectorAll("[data-revert]").forEach((btn) => {
+      btn.onclick = () => {
+        const turn = sess.turns.find((x) => x.id === btn.dataset.revert);
+        if (!turn || !turn.originalContent) return;
+        turn.content = turn.originalContent;
+        turn.forged = false;
+        renderAll();
+        showToast("已回滚至原始未修改记忆 (.bak 对齐)");
+      };
+    });
+
+    document.querySelectorAll("[data-erase]").forEach((btn) => {
+      btn.onclick = () => {
+        const idx = sess.turns.findIndex((x) => x.id === btn.dataset.erase);
+        if (idx < 0) return;
+        const [removed] = sess.turns.splice(idx, 1);
+        renderAll();
+        showToast(`已擦除 #${String(idx + 1).padStart(2, "0")} 帧`, "撤销", () => { sess.turns.splice(idx, 0, removed); renderAll(); });
+      };
+    });
+
+    document.querySelectorAll("[data-inject-after]").forEach((btn) => {
+      btn.onclick = () => {
+        const idx = Number(btn.dataset.injectAfter);
+        const newTurn = {
+          id: "inj-" + Date.now(), role: "user", time: "INJECTED", tokens: 320, forged: true, forgedRev: 1,
+          originalContent: "(新注入上下文)",
+          content: "[补充上下文约束] 所有写回操作必须只替换目标 JSONL 行，严禁格式化其余行。"
+        };
+        sess.turns.splice(idx + 1, 0, newTurn);
+        state.editingTurnId = newTurn.id;
+        renderAll();
+        jumpToTurn(newTurn.id);
+      };
+    });
+
+    document.querySelectorAll("[data-fork-after]").forEach((btn) => {
+      btn.onclick = () => triggerPtyResume(`--fork-from-turn ${Number(btn.dataset.forkAfter) + 1}`);
+    });
+  }
+
+  function startEditing(turnId) {
+    state.editingTurnId = turnId;
+    renderTape();
+    const ta = document.getElementById(`surgeryInput-${turnId}`);
+    if (ta) {
+      ta.focus();
+      ta.onkeydown = (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); commitEdit(turnId); }
+        else if (e.key === "Escape") { state.editingTurnId = null; renderTape(); }
+      };
+    }
+  }
+
+  function commitEdit(turnId) {
+    const sess = activeSession();
+    const turn = sess.turns.find((x) => x.id === turnId);
+    const ta = document.getElementById(`surgeryInput-${turnId}`);
+    if (!turn || !ta) return;
+    const nextVal = ta.value.trim();
+    if (!turn.originalContent) turn.originalContent = turn.content;
+    const prevVal = turn.content;
+    turn.content = nextVal;
+    turn.tokens = Math.max(120, Math.round(nextVal.length * 3.2));
+    turn.forged = true;
+    turn.forgedRev = (turn.forgedRev || 0) + 1;
+    state.editingTurnId = null;
+    state.auditLogs.unshift({
+      seqLabel: `#${String(sess.turns.indexOf(turn) + 1).padStart(2, "0")}`,
+      time: new Date().toTimeString().slice(0, 8),
+      oldText: prevVal.slice(0, 100),
+      newText: nextVal.slice(0, 100)
+    });
+    renderAll();
+    showToast("SAFE WRITE-BACK 完成 · 点击右侧可立即唤醒终端验证", "唤醒验证", () => triggerPtyResume());
+  }
+
+  function renderPty() {
+    const screen = $("#ptyScreen");
+    screen.innerHTML = state.ptyLogs.map((l) => `<div class="pty-line ${l.cls}">${esc(l.text)}</div>`).join("");
+    screen.scrollTop = screen.scrollHeight;
+  }
+
+  function triggerPtyResume(extraFlag = "") {
+    switchMode("workbench");
+    const sess = activeSession();
+    $("#pty-bay").classList.remove("collapsed");
+    state.ptyLogs.push(
+      { cls: "pty-cmd", text: `$ ${sess.resumeCmd}${extraFlag ? " " + extraFlag : ""}` },
+      { cls: "pty-forge-hit", text: `⚡ [Memory Forge Sync] 已加载修正后上下文（共 ${formatTok(calcSessionTokens(sess))} tok）` },
+      { cls: "", text: `${sess.agentLabel} > 已无缝接续修正后的记忆，随时继续编码。` }
+    );
+    renderPty();
+  }
+
+  function renderRadar() {
+    $("#kpiForgedCount").textContent = state.auditLogs.length;
+    $("#adapterMatrix").innerHTML = ALL_21_ADAPTERS.map(([name, cnt, hot]) => `
+      <div class="adapter-cell ${hot ? "hot" : ""}" style="${!hot ? "opacity:0.48" : ""}">
+        <span>${esc(name)}</span>
+        <strong style="color:${hot ? "var(--cyan-fg)" : "var(--text-low)"}">${cnt}</strong>
+      </div>
+    `).join("");
+
+    $("#radarQueueList").innerHTML = SESSIONS.map((s) => {
+      const tok = calcSessionTokens(s);
+      const hasSpike = s.turns.some((t) => t.spike);
+      return `
+        <div class="s-card" data-jump-sid="${s.id}" style="margin:0">
+          <div class="s-top">
+            <span class="src-badge src-${s.agent}">${esc(s.agentLabel)}</span>
+            ${hasSpike ? `<span class="pill-tag pill-spike">⚠ 待清理 22.4k 噪音</span>` : `<span class="pill-tag pill-forged">健康</span>`}
+            <span class="s-time">${formatTok(tok)} tok</span>
+          </div>
+          <div class="s-title">${esc(s.title)}</div>
+        </div>
+      `;
+    }).join("");
+
+    document.querySelectorAll("[data-jump-sid]").forEach((el) => {
+      el.onclick = () => {
+        state.workspaceId = "all";
+        state.activeSessionId = el.dataset.jumpSid;
+        switchMode("workbench");
+        renderAll();
+      };
+    });
+  }
+
+  function renderArsenalView() {
+    $("#fullArsenalGrid").innerHTML = PROMPTS.map((p, idx) => `
+      <div class="prompt-tile">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong style="font-size:13px">${esc(p.title)}</strong>
+          <span class="src-badge src-devin">${esc(p.tag)}</span>
+        </div>
+        <p style="font-size:12px;color:var(--text-mid);line-height:1.58;flex:1">${esc(p.body)}</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:6px;border-top:1px solid var(--line-subtle)">
+          <span class="mono" style="font-size:10px;color:var(--text-low)">USED ${p.uses}x</span>
+          <div style="display:flex;gap:6px">
+            <button class="f-act-btn" data-copy-prompt="${idx}">复制</button>
+            <button class="f-act-btn" data-inject-prompt="${idx}" style="color:var(--cyan-fg);border-color:var(--cyan-line)">↳ 注入手术台</button>
+          </div>
+        </div>
+      </div>
+    `).join("");
+
+    document.querySelectorAll("[data-copy-prompt]").forEach((b) => {
+      b.onclick = () => {
+        const p = PROMPTS[Number(b.dataset.copyPrompt)];
+        p.uses++;
+        renderArsenalView();
+        showToast(`已复制到剪贴板：「${p.title}」`);
+      };
+    });
+    document.querySelectorAll("[data-inject-prompt]").forEach((b) => {
+      b.onclick = () => {
+        const p = PROMPTS[Number(b.dataset.injectPrompt)];
+        p.uses++;
+        activeSession().turns.push({ id: "ars-" + Date.now(), role: "user", time: "ARSENAL", tokens: 290, forged: true, forgedRev: 1, originalContent: "(弹药库注入)", content: p.body });
+        switchMode("workbench");
+        renderAll();
+        showToast(`已注入到当前会话末尾：「${p.title}」`);
+      };
+    });
+  }
+
+  function renderSystemView() {
+    $("#themeCardsContainer").innerHTML = THEMES.map((th) => `
+      <button class="theme-card ${state.theme === th.id ? "active" : ""}" data-card-theme="${th.id}">
+        <div class="tc-swatches">${th.colors.map((c) => `<i style="background:${c}"></i>`).join("")}</div>
+        <strong style="font-size:12px">${esc(th.name)}</strong>
+        <span style="font-size:10.5px;color:var(--text-low);white-space:normal">${esc(th.sub)}</span>
+      </button>
+    `).join("");
+
+    document.querySelectorAll("[data-card-theme]").forEach((b) => {
+      b.onclick = () => applyTheme(b.dataset.cardTheme);
+    });
+  }
+
+  function renderDrawers() {
+    $("#auditList").innerHTML = state.auditLogs.map((a) => `
+      <div class="audit-card">
+        <div class="mono" style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-low)">
+          <strong style="color:var(--forge-fg)">帧 ${esc(a.seqLabel)} · 字节级安全写回</strong>
+          <span>${esc(a.time)}</span>
+        </div>
+        <div class="audit-diff-del">- ${esc(a.oldText)}</div>
+        <div class="audit-diff-add">+ ${esc(a.newText)}</div>
+      </div>
+    `).join("");
+  }
+
+  // Global Listeners
+  document.querySelectorAll(".mode-btn").forEach((b) => { b.onclick = () => switchMode(b.dataset.mode); });
+  document.querySelectorAll("[data-set-theme]").forEach((b) => { b.onclick = () => applyTheme(b.dataset.setTheme); });
+
+  document.querySelectorAll("[data-set-density]").forEach((b) => {
+    b.onclick = () => {
+      state.density = b.dataset.setDensity;
+      document.documentElement.setAttribute("data-density", state.density);
+      document.querySelectorAll("[data-set-density]").forEach((x) => {
+        x.style.borderColor = x === b ? "var(--cyan-line)" : "";
+        x.style.color = x === b ? "var(--cyan-fg)" : "";
+      });
+      showToast(`已切换界面排版密度：${state.density}`);
+    };
+  });
+
+  $("#wsBtn").onclick = (e) => { e.stopPropagation(); closeAllPopovers(); $("#wsMenu").classList.toggle("open"); };
+  $("#ideBtn").onclick = (e) => { e.stopPropagation(); closeAllPopovers(); $("#ideMenu").classList.toggle("open"); };
+  $("#exportBtn").onclick = (e) => { e.stopPropagation(); closeAllPopovers(); $("#exportMenu").classList.toggle("open"); };
+  document.addEventListener("click", closeAllPopovers);
+
+  document.querySelectorAll("[data-open-ide]").forEach((b) => {
+    b.onclick = () => showToast(`已在 ${b.dataset.openIde} 中打开工程：${activeSession().cwd}`);
+  });
+  document.querySelectorAll("[data-do-export]").forEach((b) => {
+    b.onclick = () => showToast(`已导出当前会话 (${b.dataset.doExport})`);
+  });
+
+  $("#favFilterBtn").onclick = () => { state.favOnly = !state.favOnly; renderSessionRail(); };
+  $("#batchModeBtn").onclick = () => { state.batchMode = !state.batchMode; state.selectedBatchIds.clear(); renderSessionRail(); };
+  $("#batchSelectAllBtn").onclick = () => { getFilteredSessions().forEach((s) => state.selectedBatchIds.add(s.id)); renderSessionRail(); };
+  $("#batchArchiveBtn").onclick = () => {
+    const cnt = state.selectedBatchIds.size;
+    state.batchMode = false;
+    state.selectedBatchIds.clear();
+    renderSessionRail();
+    showToast(`已批量归档 ${cnt} 条会话`);
+  };
+
+  $("#importJsonlBtn").onclick = () => $("#importModal").classList.add("open");
+  $("#closeImportBtn").onclick = () => $("#importModal").classList.remove("open");
+  $("#cancelImportBtn").onclick = () => $("#importModal").classList.remove("open");
+  $("#confirmImportBtn").onclick = () => {
+    $("#importModal").classList.remove("open");
+    SESSIONS.unshift({
+      id: "imp-" + Date.now(), ws: "mf", agent: "claude", agentLabel: "Claude", group: "ACTIVE // TODAY", updated: "刚刚导入", favorite: false,
+      title: "重构 Tauri 多窗口托盘状态机 (JSONL 导入)", cwd: "F:\\workspace2026\\vk-products\\memory-forge-rs", resumeCmd: "claude --resume imp-tray",
+      turns: [{ id: "it1", role: "user", time: "导入", tokens: 480, content: "帮我梳理系统托盘单击唤醒与关闭最小化的事件竞争问题。" }]
+    });
+    state.activeSessionId = SESSIONS[0].id;
+    renderAll();
+    showToast("已安全导入外部 JSONL 会话！");
+  };
+
+  $("#starActiveBtn").onclick = () => { activeSession().favorite = !activeSession().favorite; renderAll(); };
+  $("#sessionSearchInput").oninput = (e) => { state.sessionSearch = e.target.value; renderSessionRail(); };
+  $("#inlineFindInput").oninput = (e) => { state.inlineFind = e.target.value; renderDnaAndHeader(); renderTape(); };
+  $("#collapseRailBtn").onclick = () => $("#view-workbench").classList.toggle("rail-collapsed");
+
+  $("#roleFilterTabs").querySelectorAll(".sig-tab").forEach((tab) => {
+    tab.onclick = () => {
+      $("#roleFilterTabs").querySelectorAll(".sig-tab").forEach((x) => x.classList.remove("active"));
+      tab.classList.add("active");
+      state.roleFilter = tab.dataset.filter;
+      renderTape();
+    };
+  });
+
+  $("#selectNoisePresetBtn").onclick = () => {
+    const sess = activeSession();
+    const spikeIdx = sess.turns.findIndex((t) => t.spike);
+    if (spikeIdx >= 0) {
+      state.rangeStartIdx = Math.max(0, spikeIdx - 1);
+      state.rangeEndIdx = spikeIdx;
+      renderDnaAndHeader();
+      jumpToTurn(sess.turns[spikeIdx].id);
+    } else showToast("当前上下文非常干净，无异常噪音峰");
+  };
+
+  $("#spliceOutRangeBtn").onclick = () => {
+    const sess = activeSession();
+    const lo = Math.min(state.rangeStartIdx, state.rangeEndIdx);
+    const hi = Math.max(state.rangeStartIdx, state.rangeEndIdx);
+    const removed = sess.turns.splice(lo, hi - lo + 1);
+    clearRange();
+    renderAll();
+    showToast(`已切除 ${removed.length} 帧噪音区间`, "撤销", () => { sess.turns.splice(lo, 0, ...removed); renderAll(); });
+  };
+  $("#forkBeforeRangeBtn").onclick = () => {
+    const lo = Math.min(state.rangeStartIdx, state.rangeEndIdx);
+    clearRange();
+    renderDnaAndHeader();
+    triggerPtyResume(`--fork-at-turn ${lo}`);
+  };
+  $("#clearRangeBtn").onclick = () => { clearRange(); renderDnaAndHeader(); };
+  $("#resumeVerifyBtn").onclick = () => triggerPtyResume();
+  $("#newPtyBtn").onclick = () => triggerPtyResume("--new-shell");
+
+  $("#addPromptBtn").onclick = () => {
+    const title = prompt("新建战术提示词标题：", "调试约束 · 禁止吞掉错误堆栈");
+    if (!title) return;
+    PROMPTS.unshift({ title, tag: "自定义", uses: 1, body: "排查问题时请保留完整 Result 错误上下文，严禁使用 unwrap_or_default 静默吞掉异常。" });
+    renderArsenalView();
+    showToast("已保存新提示词至弹药库");
+  };
+
+  $("#ptyCollapseBtn").onclick = () => {
+    const bay = $("#pty-bay");
+    bay.classList.remove("maximized");
+    bay.classList.toggle("collapsed");
+    $("#ptyCollapseBtn").textContent = bay.classList.contains("collapsed") ? "展开" : "收起";
+  };
+  $("#ptyMaxBtn").onclick = () => {
+    const bay = $("#pty-bay");
+    bay.classList.remove("collapsed");
+    bay.classList.toggle("maximized");
+    $("#ptyMaxBtn").textContent = bay.classList.contains("maximized") ? "还原" : "放大";
+  };
+  $("#ptyToggleTopBtn").onclick = () => $("#ptyCollapseBtn").click();
+
+  $("#ptyForm").onsubmit = (e) => {
+    e.preventDefault();
+    const inp = $("#ptyInput");
+    const val = inp.value.trim();
+    if (!val) return;
+    inp.value = "";
+    state.ptyLogs.push(
+      { cls: "pty-cmd", text: `❯ ${val}` },
+      { cls: "", text: `${activeSession().agentLabel} > 收到指令「${val}」，已结合修正后的记忆继续执行...` }
+    );
+    renderPty();
+  };
+
+  $("#auditToggleBtn").onclick = () => $("#auditDrawer").classList.toggle("open");
+  document.querySelectorAll("[data-close-drawer]").forEach((btn) => {
+    btn.onclick = () => document.getElementById(btn.dataset.closeDrawer).classList.remove("open");
+  });
+
+  function openCmdPalette() {
+    $("#cmdBackdrop").classList.add("open");
+    const inp = $("#cmdInput");
+    inp.value = "";
+    renderCmdItems("");
+    setTimeout(() => inp.focus(), 20);
+  }
+  function closeCmdPalette() { $("#cmdBackdrop").classList.remove("open"); }
+  function renderCmdItems(q) {
+    const actions = [
+      { label: "✂ 定位当前会话 Token 噪音峰", hint: "DNA", run: () => { switchMode("workbench"); $("#selectNoisePresetBtn").click(); } },
+      { label: "▶ 在底部同屏终端唤醒恢复 (--resume)", hint: "PTY", run: () => triggerPtyResume() },
+      { label: "◐ 切换主题：钛白工程 (Braun 精密浅色)", hint: "Theme", run: () => applyTheme("braun") },
+      { label: "◐ 切换主题：手稿亚麻 (Linen 档案暖浅色)", hint: "Theme", run: () => applyTheme("linen") },
+      { label: "◐ 切换主题：曜石熔金 (Chrono 默认暗色)", hint: "Theme", run: () => applyTheme("chrono") },
+      { label: "◫ 打开「全局态势雷达 (21 平台矩阵)」", hint: "View", run: () => switchMode("radar") },
+      { label: "◈ 打开「提示词战术弹药库」", hint: "View", run: () => switchMode("arsenal") },
+      { label: "⚙ 打开「系统与适配器目录配置」", hint: "Config", run: () => switchMode("system") },
+      ...SESSIONS.map((s) => ({
+        label: `跳转会话：[${s.agentLabel}] ${s.title}`,
+        hint: s.updated,
+        run: () => { state.workspaceId = "all"; state.activeSessionId = s.id; switchMode("workbench"); renderAll(); }
+      }))
+    ].filter((item) => !q || item.label.toLowerCase().includes(q.toLowerCase()));
+
+    $("#cmdList").innerHTML = actions.map((a, i) => `
+      <button class="cmd-item ${i === 0 ? "selected" : ""}" data-cmd-idx="${i}">
+        <span>${esc(a.label)}</span><span class="kbd">${esc(a.hint)}</span>
+      </button>
+    `).join("");
+    $("#cmdList").querySelectorAll("[data-cmd-idx]").forEach((btn, i) => {
+      btn.onclick = () => { closeCmdPalette(); actions[i].run(); };
+    });
+  }
+  $("#openCmdBtn").onclick = openCmdPalette;
+  $("#cmdBackdrop").onclick = (e) => { if (e.target.id === "cmdBackdrop") closeCmdPalette(); };
+  $("#cmdInput").oninput = (e) => renderCmdItems(e.target.value);
+
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openCmdPalette(); }
+    else if (e.key === "Escape") { closeCmdPalette(); $("#auditDrawer").classList.remove("open"); $("#importModal").classList.remove("open"); }
+  });
+
+  function renderAll() {
+    renderTopBar();
+    renderSessionRail();
+    renderDnaAndHeader();
+    renderTape();
+    renderPty();
+    renderDrawers();
+  }
+  renderAll();
+})();
+</script>
+</body>
+</html>

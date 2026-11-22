@@ -1,6 +1,14 @@
 // ─── Desktop ───
 
-export type ThemeId = "graphite" | "linen" | "porcelain" | "ocean" | "ember" | "twilight";
+export type ThemeId =
+  | "chrono"
+  | "braun"
+  | "graphite"
+  | "linen"
+  | "porcelain"
+  | "ocean"
+  | "ember"
+  | "twilight";
 export type LocaleId = "zh-CN" | "en";
 
 export type DesktopSettings = {
@@ -232,11 +240,13 @@ export type PromptUpdateInput = {
 
 export type AppState = {
   currentPlatform: string;
+  selectedSessionPlatform: string | null;
+  workspaceFilter: string;
   sessions: Session[];
   selectedSessionKey: string | null;
   sessionDetail: SessionDetail | null;
   dashboard: DashboardSummary | null;
-  roleFilter: "all" | "user" | "assistant" | "thinking";
+  roleFilter: "all" | "user" | "assistant" | "thinking" | "spike";
   searchQuery: string;
   editingBlock: { id: string; content: string; role: string; originalContent: string } | null;
   editLog: EditLogEntry[];
@@ -244,20 +254,31 @@ export type AppState = {
   sessionStatus: SessionStatus | null;
   mobileSidebarOpen: boolean;
   showArchived: boolean;
+  ptyBayOpen: boolean;
+  ptyBayMaximized: boolean;
+  commandPaletteOpen: boolean;
+  railCollapsed: boolean;
 };
 
 export type AppAction =
   | { type: "setCurrentPlatform"; payload: string }
+  | { type: "setSelectedSessionPlatform"; payload: string | null }
+  | { type: "setWorkspaceFilter"; payload: string }
   | { type: "setSessions"; payload: Session[] }
   | { type: "updateSession"; payload: { sessionKey: string; updates: Partial<Session> } }
   | { type: "setSelectedSessionKey"; payload: string | null }
+  | { type: "selectSession"; payload: { platform: string; sessionKey: string } }
   | { type: "setSessionDetail"; payload: SessionDetail | null }
   | { type: "setDashboard"; payload: DashboardSummary | null }
-  | { type: "setRoleFilter"; payload: "all" | "user" | "assistant" | "thinking" }
+  | { type: "setRoleFilter"; payload: "all" | "user" | "assistant" | "thinking" | "spike" }
   | { type: "setSearchQuery"; payload: string }
   | { type: "setEditingBlock"; payload: { id: string; content: string; role: string; originalContent: string } | null }
   | { type: "setEditLog"; payload: EditLogEntry[] }
   | { type: "setShowEditLog"; payload: boolean }
   | { type: "setSessionStatus"; payload: SessionStatus | null }
   | { type: "setMobileSidebarOpen"; payload: boolean }
-  | { type: "setShowArchived"; payload: boolean };
+  | { type: "setShowArchived"; payload: boolean }
+  | { type: "setPtyBayOpen"; payload: boolean }
+  | { type: "setPtyBayMaximized"; payload: boolean }
+  | { type: "setCommandPaletteOpen"; payload: boolean }
+  | { type: "setRailCollapsed"; payload: boolean };

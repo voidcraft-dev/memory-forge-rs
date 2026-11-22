@@ -3,7 +3,7 @@ import type { LocaleId, ThemeId } from "@/features/desktop/types";
 type LocalizedText = Record<LocaleId, string>;
 
 export type ThemeSpec = {
-  id: ThemeId;
+  id: "chrono" | "braun";
   label: LocalizedText;
   description: LocalizedText;
   preview: [string, string, string];
@@ -12,64 +12,24 @@ export type ThemeSpec = {
 
 export const themeCatalog: ThemeSpec[] = [
   {
-    id: "graphite",
-    label: { "zh-CN": "石墨夜色", en: "Graphite" },
+    id: "chrono",
+    label: { "zh-CN": "曜石熔金 (暗色 HUD)", en: "Chrono Obsidian (Dark)" },
     description: {
-      "zh-CN": "偏产品化的深色控制台，适合工具型桌面应用。",
-      en: "A product-minded dark control deck for serious desktop tooling.",
+      "zh-CN": "高反差冷曜石机架与熔金手术烙印，专为长时代码阅读与上下文操控调校。",
+      en: "High-contrast cold obsidian rack with molten amber surgical accents.",
     },
-    preview: ["#101319", "#6f89ff", "#edf1f7"],
+    preview: ["#06080c", "#f59e0b", "#22d3ee"],
     mode: "dark",
   },
   {
-    id: "linen",
-    label: { "zh-CN": "亚麻纸感", en: "Linen" },
+    id: "braun",
+    label: { "zh-CN": "钛白工程 (浅色 HUD)", en: "Braun Titanium (Light)" },
     description: {
-      "zh-CN": "温暖浅色主题，适合办公和长时间阅读。",
-      en: "A warm editorial light theme for long-form work and office use.",
+      "zh-CN": "精密仪器说明书风格的冷钛白浅色模式，1px 墨水发丝线与高对比信号色。",
+      en: "Precision engineering manual light mode with crisp hairline borders.",
     },
-    preview: ["#f6efe4", "#8a5a2f", "#261d16"],
+    preview: ["#f3f5f8", "#0284c7", "#d97706"],
     mode: "light",
-  },
-  {
-    id: "porcelain",
-    label: { "zh-CN": "素白云雾", en: "Porcelain" },
-    description: {
-      "zh-CN": "更干净的浅色白系主题，适合长期阅读与内容编辑。",
-      en: "A cleaner white light theme for long-form reading and focused editing.",
-    },
-    preview: ["#fcfcfd", "#7a8cff", "#20263a"],
-    mode: "light",
-  },
-  {
-    id: "ocean",
-    label: { "zh-CN": "海湾青蓝", en: "Ocean" },
-    description: {
-      "zh-CN": "偏工程感的冷色主题，适合监控和运维面板。",
-      en: "A cool engineering palette for dashboards, logs, and operations.",
-    },
-    preview: ["#081f2e", "#43c7d7", "#e8f6fb"],
-    mode: "dark",
-  },
-  {
-    id: "ember",
-    label: { "zh-CN": "余烬铜红", en: "Ember" },
-    description: {
-      "zh-CN": "更有情绪的暖色深色主题，适合品牌化外壳。",
-      en: "A warm cinematic dark theme for branded desktop shells.",
-    },
-    preview: ["#1c1113", "#f1895d", "#fff1ea"],
-    mode: "dark",
-  },
-  {
-    id: "twilight",
-    label: { "zh-CN": "暮光星紫", en: "Twilight" },
-    description: {
-      "zh-CN": "赛博朋克风格的深紫色主题，适合夜间编码。",
-      en: "A cyberpunk-inspired deep purple theme for late-night coding.",
-    },
-    preview: ["#110d1a", "#b48eff", "#ede6f7"],
-    mode: "dark",
   },
 ];
 
@@ -96,6 +56,14 @@ export const localeCatalog: Array<{
   },
 ];
 
-export function getThemeSpec(themeId: ThemeId) {
-  return themeCatalog.find((theme) => theme.id === themeId) ?? themeCatalog[0];
+export function resolveHudTheme(themeId?: string | null): "chrono" | "braun" {
+  if (themeId === "braun" || themeId === "porcelain" || themeId === "linen") {
+    return "braun";
+  }
+  return "chrono";
+}
+
+export function getThemeSpec(themeId?: ThemeId | string | null): ThemeSpec {
+  const resolved = resolveHudTheme(themeId);
+  return themeCatalog.find((theme) => theme.id === resolved) ?? themeCatalog[0];
 }

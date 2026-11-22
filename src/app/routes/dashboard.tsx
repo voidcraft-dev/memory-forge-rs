@@ -1,405 +1,389 @@
-import { useEffect, useState } from "react";
-import { ArrowRight, Bot, Boxes, Brain, Code, Hexagon, Cpu, Flame, Rocket, Terminal, Sparkles, MousePointer2, Gem, Orbit, Pi, Zap, MessageSquare, Globe, SquarePen } from "lucide-react";
-import { Link } from "react-router";
-import { Button } from "@/components/ui/button";
-import { AppLogo } from "@/components/logo";
-import { useDesktop } from "@/features/desktop/provider";
+import {
+  ArrowUpRight,
+  Folder,
+  RefreshCw,
+  Scissors,
+  Terminal,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
+import { formatWorkspaceShortName } from "@/components/layout/shell-layout";
 import { api } from "@/features/desktop/api";
+import { useDesktop } from "@/features/desktop/provider";
+import {
+  getPlatformBadgeStyle,
+  PLATFORM_LABELS,
+} from "@/features/session/session-list";
+import { useTerminal } from "@/features/terminal/terminal-context";
 import { cn } from "@/lib/utils";
 
-const platformMeta = [
-  {
-    key: "claude",
-    label: "Claude Code",
-    icon: Bot,
-    to: "/claude",
-    gradient: "from-violet-500/10 to-violet-600/5",
-    border: "border-violet-500/20 hover:border-violet-500/40",
-    iconBg: "bg-violet-500/15 text-violet-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(139,92,246,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "codex",
-    label: "Codex CLI",
-    icon: Terminal,
-    to: "/codex",
-    gradient: "from-emerald-500/10 to-emerald-600/5",
-    border: "border-emerald-500/20 hover:border-emerald-500/40",
-    iconBg: "bg-emerald-500/15 text-emerald-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(16,185,129,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "cursor",
-    label: "Cursor",
-    icon: MousePointer2,
-    to: "/cursor",
-    gradient: "from-sky-500/10 to-sky-600/5",
-    border: "border-sky-500/20 hover:border-sky-500/40",
-    iconBg: "bg-sky-500/15 text-sky-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(14,165,233,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "opencode",
-    label: "OpenCode",
-    icon: Code,
-    to: "/opencode",
-    gradient: "from-sky-500/10 to-sky-600/5",
-    border: "border-sky-500/20 hover:border-sky-500/40",
-    iconBg: "bg-sky-500/15 text-sky-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(14,165,233,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "kiro",
-    label: "Kiro CLI",
-    icon: Sparkles,
-    to: "/kiro",
-    gradient: "from-purple-500/10 to-purple-600/5",
-    border: "border-purple-500/20 hover:border-purple-500/40",
-    iconBg: "bg-purple-500/15 text-purple-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(168,85,247,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "kiro-ide",
-    label: "Kiro IDE",
-    icon: Sparkles,
-    to: "/kiro-ide",
-    gradient: "from-fuchsia-500/10 to-fuchsia-600/5",
-    border: "border-fuchsia-500/20 hover:border-fuchsia-500/40",
-    iconBg: "bg-fuchsia-500/15 text-fuchsia-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(217,70,239,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "gemini",
-    label: "Gemini CLI",
-    icon: Gem,
-    to: "/gemini",
-    gradient: "from-blue-500/10 to-indigo-600/5",
-    border: "border-blue-500/20 hover:border-indigo-500/40",
-    iconBg: "bg-blue-500/15 text-blue-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "pi",
-    label: "Pi",
-    icon: Pi,
-    to: "/pi",
-    gradient: "from-rose-500/10 to-cyan-600/5",
-    border: "border-rose-500/20 hover:border-cyan-500/40",
-    iconBg: "bg-rose-500/15 text-rose-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(244,63,94,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "grok",
-    label: "Grok Build",
-    icon: Orbit,
-    to: "/grok",
-    gradient: "from-zinc-400/10 to-orange-500/5",
-    border: "border-zinc-400/20 hover:border-orange-400/40",
-    iconBg: "bg-zinc-400/15 text-zinc-300 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(249,115,22,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "zcode",
-    label: "ZCode",
-    icon: Zap,
-    to: "/zcode",
-    gradient: "from-cyan-500/10 to-teal-600/5",
-    border: "border-cyan-500/20 hover:border-cyan-500/40",
-    iconBg: "bg-cyan-500/15 text-cyan-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(6,182,212,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "workbuddy",
-    label: "WorkBuddy",
-    icon: MessageSquare,
-    to: "/workbuddy",
-    gradient: "from-indigo-500/10 to-sky-600/5",
-    border: "border-indigo-500/20 hover:border-indigo-500/40",
-    iconBg: "bg-indigo-500/15 text-indigo-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(99,102,241,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "cindy",
-    label: "Cindy",
-    icon: Bot,
-    to: "/cindy",
-    gradient: "from-rose-500/10 to-pink-600/5",
-    border: "border-rose-500/20 hover:border-pink-500/40",
-    iconBg: "bg-rose-500/15 text-rose-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(244,63,94,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "cindy-global",
-    label: "Cindy Global",
-    icon: Globe,
-    to: "/cindy-global",
-    gradient: "from-sky-500/10 to-blue-600/5",
-    border: "border-sky-500/20 hover:border-blue-500/40",
-    iconBg: "bg-sky-500/15 text-sky-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(14,165,233,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "zed",
-    label: "Zed",
-    icon: SquarePen,
-    to: "/zed",
-    gradient: "from-slate-500/10 to-blue-600/5",
-    border: "border-slate-500/20 hover:border-blue-500/40",
-    iconBg: "bg-slate-500/15 text-slate-300 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "dsh",
-    label: "DeepSeek Harness",
-    icon: Brain,
-    to: "/dsh",
-    gradient: "from-teal-500/10 to-cyan-600/5",
-    border: "border-teal-500/20 hover:border-cyan-500/40",
-    iconBg: "bg-teal-500/15 text-teal-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "qoder-cn",
-    label: "Qoder CN",
-    icon: Bot,
-    to: "/qoder-cn",
-    gradient: "from-orange-500/10 to-amber-600/5",
-    border: "border-orange-500/20 hover:border-amber-500/40",
-    iconBg: "bg-orange-500/15 text-orange-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(249,115,22,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "qwen",
-    label: "Qwen Code",
-    icon: Cpu,
-    to: "/qwen",
-    gradient: "from-cyan-500/10 to-sky-600/5",
-    border: "border-cyan-500/20 hover:border-sky-500/40",
-    iconBg: "bg-cyan-500/15 text-cyan-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(6,182,212,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "cline",
-    label: "Cline",
-    icon: Boxes,
-    to: "/cline",
-    gradient: "from-fuchsia-500/10 to-purple-600/5",
-    border: "border-fuchsia-500/20 hover:border-purple-500/40",
-    iconBg: "bg-fuchsia-500/15 text-fuchsia-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(217,70,239,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "antigravity",
-    label: "Antigravity",
-    icon: Rocket,
-    to: "/antigravity",
-    gradient: "from-blue-500/10 to-indigo-600/5",
-    border: "border-blue-500/20 hover:border-indigo-500/40",
-    iconBg: "bg-blue-500/15 text-blue-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "codebuddy",
-    label: "CodeBuddy",
-    icon: Bot,
-    to: "/codebuddy",
-    gradient: "from-emerald-500/10 to-teal-600/5",
-    border: "border-emerald-500/20 hover:border-teal-500/40",
-    iconBg: "bg-emerald-500/15 text-emerald-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(16,185,129,0.12)] hover:-translate-y-1"
-  },
-  {
-    key: "devin",
-    label: "Devin",
-    icon: Hexagon,
-    to: "/devin",
-    gradient: "from-sky-500/10 to-blue-600/5",
-    border: "border-sky-500/20 hover:border-blue-500/40",
-    iconBg: "bg-sky-500/15 text-sky-400 group-hover:scale-110",
-    hoverGlow: "hover:shadow-[0_8px_30px_rgba(14,165,233,0.12)] hover:-translate-y-1"
-  },
+const ALL_21_PLATFORMS = [
+  "claude",
+  "codex",
+  "opencode",
+  "cursor",
+  "devin",
+  "gemini",
+  "kiro",
+  "kiro-ide",
+  "zed",
+  "cline",
+  "qwen",
+  "grok",
+  "pi",
+  "zcode",
+  "workbuddy",
+  "codebuddy",
+  "dsh",
+  "qoder-cn",
+  "cindy",
+  "cindy-global",
+  "antigravity",
 ] as const;
 
 export default function DashboardPage() {
-  const { snapshot, loading, t, state, dispatch } = useDesktop();
-  const [dashboardLoading, setDashboardLoading] = useState(false);
-  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { snapshot, t, state, dispatch } = useDesktop();
+  const { terminals } = useTerminal();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const visiblePlatforms = snapshot?.settings?.visiblePlatforms ?? [
-    "claude", "codex", "opencode", "grok", "pi", "cursor", "kiro", "kiro-ide",
-    "gemini", "zcode", "workbuddy", "cindy", "cindy-global", "zed", "dsh", "qoder-cn", "qwen", "cline", "antigravity", "codebuddy", "devin",
+    ...ALL_21_PLATFORMS,
   ];
-  const visiblePlatformsKey = visiblePlatforms.join("|");
+  const visibleKey = visiblePlatforms.join("|");
   const snapshotReady = Boolean(snapshot);
+
+  const loadDashboard = () => {
+    setLoading(true);
+    setError(null);
+    api
+      .getDashboard()
+      .then((data) => dispatch({ type: "setDashboard", payload: data }))
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : String(err))
+      )
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     if (!snapshotReady) return;
-
-    let cancelled = false;
-    const label = `[perf] dashboard load (${visiblePlatformsKey || "none"})`;
-    setDashboardLoading(true);
-    setDashboardError(null);
-    console.time(label);
-
-    api.getDashboard()
-      .then((data) => {
-        if (!cancelled) {
-          dispatch({ type: "setDashboard", payload: data });
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to load dashboard:", error);
-        if (!cancelled) {
-          const message = error instanceof Error ? error.message : String(error);
-          setDashboardError(message);
-        }
-      })
-      .finally(() => {
-        console.timeEnd(label);
-        if (!cancelled) {
-          setDashboardLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [dispatch, snapshotReady, visiblePlatformsKey]);
+    loadDashboard();
+  }, [snapshotReady, visibleKey]);
 
   const platforms = state.dashboard?.platforms ?? [];
-  const displayPlatforms = visiblePlatforms.flatMap((platformId) => {
-    const platform = platformMeta.find((item) => item.key === platformId);
-    return platform ? [platform] : [];
-  });
+  const recentSessions = state.dashboard?.recentSessions ?? [];
+  const trend = state.dashboard?.trend ?? [];
+
+  const totalSessions = useMemo(
+    () => platforms.reduce((sum, p) => sum + p.count, 0),
+    [platforms]
+  );
+  const activePlatformsCount = useMemo(
+    () => platforms.filter((p) => p.count > 0).length,
+    [platforms]
+  );
+  const sevenDaySum = useMemo(
+    () => trend.reduce((sum, pt) => sum + pt.count, 0),
+    [trend]
+  );
+  const maxTrend = useMemo(
+    () => Math.max(1, ...trend.map((pt) => pt.count)),
+    [trend]
+  );
+
+  const allPtyList = useMemo(
+    () => Object.values(terminals).flat(),
+    [terminals]
+  );
+
+  const topWorkspaces = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of platforms) {
+      for (const item of p.items ?? []) {
+        const cwd = item.cwd?.trim();
+        if (!cwd) continue;
+        map.set(cwd, (map.get(cwd) ?? 0) + 1);
+      }
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+  }, [platforms]);
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto pr-2 pb-6">
-      {/* Hero with dynamic glowing abstract background */}
-      <section className="relative shrink-0 overflow-hidden rounded-[28px] border border-border/80 bg-gradient-to-br from-card/85 via-card/75 to-card/40 px-6 py-7 md:px-8 md:py-8 backdrop-blur-md shadow-xl shadow-black/10">
-        {/* Glow Spheres */}
-        <div className="absolute -top-12 -left-12 size-48 bg-primary/8 blur-[90px] rounded-full pointer-events-none" />
-        <div className="absolute -bottom-16 -right-16 size-56 bg-violet-500/6 blur-[110px] rounded-full pointer-events-none" />
-        <div className="absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.04),transparent_72%)] lg:block pointer-events-none" />
-
-        <div className="relative flex flex-col gap-6">
-          <div className="flex flex-col md:flex-row md:items-center gap-5">
-            <div className="inline-flex size-16 shrink-0 items-center justify-center rounded-2xl overflow-hidden shadow-lg shadow-black/25 ring-soft bg-stone-900 border border-white/5 transition-transform duration-300 hover:scale-105 select-none">
-              <AppLogo className="size-16" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-fine uppercase tracking-[0.28em] text-primary font-bold">Memory Forge</p>
-              <h2 className="mt-1 max-w-3xl text-3xl font-extrabold leading-tight md:text-4xl bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
-                {t("welcomeTitle")}
-              </h2>
-            </div>
+    <div className="h-full overflow-y-auto px-4 py-4 md:px-6">
+      <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-3.5">
+        {/* Top Radar Action Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span className="hud-mono text-[10px] font-bold tracking-[0.08em] text-[var(--cyan-fg)]">
+              {t("hud.radarSubtitle")}
+            </span>
+            <h1 className="text-base font-bold text-[var(--text-hi)]">
+              {t("welcomeTitle")}
+            </h1>
           </div>
-          <p className="max-w-3xl text-sm md:text-base leading-7 text-quiet">{t("welcomeDesc")}</p>
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <Button asChild size="lg" className="rounded-xl shadow-md shadow-primary/14 hover:shadow-lg hover:shadow-primary/22 cursor-pointer transition-all duration-200">
-              <Link to="/prompts">
-                {t("prompts")}
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <div className="rounded-xl border border-border/80 bg-white/5 px-4 py-2.5 text-xs md:text-sm text-quiet backdrop-blur-md select-none font-medium">
-              {loading
-                ? t("loading")
-                : `${snapshot?.appName ?? "Memory Forge"} · v${snapshot?.version ?? "3.3.1"}`}
-            </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={loadDashboard}
+              className="hud-btn"
+            >
+              <RefreshCw className={cn("size-3", loading && "animate-spin")} />
+              <span>{t("session.refresh")}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="hud-btn hud-btn-forge"
+            >
+              <Scissors className="size-3" />
+              <span>{t("hud.enterWorkbench")}</span>
+            </button>
           </div>
         </div>
-      </section>
 
-      {/* Platform Session Cards */}
-      <section className={cn(
-        "mt-5 grid gap-4 grid-cols-2",
-        displayPlatforms.length === 1 && "xl:grid-cols-1 max-w-sm",
-        displayPlatforms.length === 2 && "xl:grid-cols-2 max-w-2xl",
-        displayPlatforms.length === 3 && "xl:grid-cols-3 max-w-4xl",
-        displayPlatforms.length === 4 && "xl:grid-cols-4",
-        displayPlatforms.length >= 5 && "xl:grid-cols-5"
-      )}>
-        {displayPlatforms.map((pm) => {
-          const Icon = pm.icon;
-          const summary = platforms.find((p) => p.platform === pm.key);
-          const count = summary?.count ?? 0;
-          const latest = summary?.latest || "—";
-          const isPlatformLoading = dashboardLoading && !summary;
-          return (
-            <Link
-              key={pm.key}
-              to={pm.to}
-              className={cn(
-                "group setting-card rounded-[24px] border bg-gradient-to-b p-5 h-[120px] flex flex-col justify-between transition-all duration-300",
-                pm.gradient,
-                pm.border,
-                pm.hoverGlow
-              )}
+        {error && (
+          <div className="hud-mono rounded-[5px] border border-[var(--crimson-line)] bg-[var(--crimson-dim)] px-3 py-2 text-xs text-[var(--crimson-fg)]">
+            {error}
+          </div>
+        )}
+
+        {/* 4 Precision Telemetry KPI Cards */}
+        <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          <div className="reticle reticle-cyan hud-panel p-3.5">
+            <div className="hud-mono text-[10.5px] font-semibold text-[var(--text-low)]">
+              {t("hud.kpiPlatformsTitle")}
+            </div>
+            <div className="hud-mono mt-1 text-2xl font-bold text-[var(--cyan-fg)]">
+              {activePlatformsCount}{" "}
+              <span className="text-xs font-normal text-[var(--text-low)]">
+                {t("hud.kpiPlatformsSub", { total: visiblePlatforms.length })}
+              </span>
+            </div>
+            <p className="mt-1 text-[11.5px] text-[var(--text-mid)]">
+              {t("hud.kpiPlatformsDesc")}
+            </p>
+          </div>
+
+          <div className="hud-panel p-3.5">
+            <div className="hud-mono text-[10.5px] font-semibold text-[var(--text-low)]">
+              {t("hud.kpiSessionsTitle")}
+            </div>
+            <div className="hud-mono mt-1 text-2xl font-bold text-[var(--forge-fg)]">
+              {loading && totalSessions === 0 ? "…" : totalSessions}
+            </div>
+            <p className="mt-1 text-[11.5px] text-[var(--text-mid)]">
+              {t("hud.kpiSessionsDesc")}
+            </p>
+          </div>
+
+          <div className="hud-panel p-3.5">
+            <div className="hud-mono flex items-center justify-between text-[10.5px] font-semibold text-[var(--text-low)]">
+              <span>{t("hud.kpiTrendTitle")}</span>
+              <strong className="text-[var(--text-hi)]">{sevenDaySum}</strong>
+            </div>
+            <div className="mt-2 flex h-7 items-end gap-1.5">
+              {(trend.length > 0
+                ? trend
+                : Array.from({ length: 7 }, (_, i) => ({
+                    day: String(i),
+                    count: 0,
+                  }))
+              ).map((pt) => {
+                const h = Math.max(16, Math.round((pt.count / maxTrend) * 100));
+                return (
+                  <div
+                    key={pt.day}
+                    className="flex h-full flex-1 flex-col justify-end"
+                    title={`${pt.day}: ${pt.count}`}
+                  >
+                    <span
+                      className={cn(
+                        "w-full rounded-t-[2px]",
+                        pt.count > 0
+                          ? "bg-[var(--cyan)]"
+                          : "bg-[var(--line-hair)]"
+                      )}
+                      style={{ height: `${h}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[11px] text-[var(--text-low)]">
+              {t("hud.kpiTrendDesc")}
+            </p>
+          </div>
+
+          <div className="hud-panel p-3.5">
+            <div className="hud-mono text-[10.5px] font-semibold text-[var(--text-low)]">
+              {t("hud.kpiPtyTitle")}
+            </div>
+            <div className="hud-mono mt-1 flex items-center gap-2 text-2xl font-bold text-[var(--emerald-fg)]">
+              <span>{allPtyList.length}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                dispatch({ type: "setPtyBayOpen", payload: !state.ptyBayOpen })
+              }
+              className="hud-mono mt-1 inline-flex items-center gap-1 text-[11px] text-[var(--emerald-fg)] hover:underline"
             >
-              <div className="flex items-center gap-3">
-                <div className={cn("inline-flex size-11 items-center justify-center rounded-2xl transition-all duration-300", pm.iconBg)}>
-                  <Icon className="size-5" />
+              <Terminal className="size-3" />
+              <span>{t("hud.kpiPtyBtn")}</span>
+            </button>
+          </div>
+        </section>
+
+        {/* Main 2-Column Telemetry Matrix */}
+        <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.25fr_1fr]">
+          {/* Left: 21-Platform Local Signal Matrix */}
+          <section className="hud-panel flex flex-col gap-3 p-3.5">
+            <div className="hud-mono flex items-center justify-between border-b border-[var(--line-subtle)] pb-2 text-[11px] font-bold text-[var(--text-mid)]">
+              <span>{t("hud.matrixTitle")}</span>
+              <span className="text-[var(--text-low)]">
+                {t("hud.matrixBadge")}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {visiblePlatforms.map((platKey) => {
+                const summary = platforms.find((p) => p.platform === platKey);
+                const count = summary?.count ?? 0;
+                const latest = summary?.latest || "—";
+                const hot = count > 0;
+                const label = PLATFORM_LABELS[platKey] ?? platKey;
+
+                return (
+                  <button
+                    key={platKey}
+                    type="button"
+                    onClick={() => navigate(`/${platKey}`)}
+                    className={cn(
+                      "group flex flex-col justify-between rounded-[4px] border px-2.5 py-2 text-left transition-all",
+                      hot
+                        ? "border-[var(--cyan-line)] bg-[var(--cyan-dim)] hover:brightness-110"
+                        : "border-[var(--line-hair)] bg-[var(--bg-elevated)] opacity-55 hover:opacity-95"
+                    )}
+                  >
+                    <div className="flex w-full items-center justify-between gap-1">
+                      <span className="hud-mono truncate text-[11px] font-semibold text-[var(--text-hi)]">
+                        {label}
+                      </span>
+                      <strong
+                        className={cn(
+                          "hud-mono text-xs",
+                          hot
+                            ? "text-[var(--cyan-fg)]"
+                            : "text-[var(--text-low)]"
+                        )}
+                      >
+                        {loading && !summary ? "…" : count}
+                      </strong>
+                    </div>
+                    <div className="hud-mono mt-1 flex items-center justify-between text-[9.5px] text-[var(--text-low)]">
+                      <span className="truncate">{latest}</span>
+                      <ArrowUpRight className="size-2.5 opacity-0 group-hover:opacity-100" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active Workspaces Strip */}
+            {topWorkspaces.length > 0 && (
+              <div className="mt-1 border-t border-[var(--line-subtle)] pt-2.5">
+                <div className="hud-mono mb-2 text-[10.5px] font-bold text-[var(--text-low)]">
+                  {t("hud.workspacesTitle")}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-quiet group-hover:text-foreground transition-colors">{pm.label}</p>
-                  <p className="text-2xl font-bold tracking-tight">{isPlatformLoading ? "…" : count}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {topWorkspaces.map(([cwd, cnt]) => (
+                    <button
+                      key={cwd}
+                      type="button"
+                      onClick={() => {
+                        dispatch({ type: "setWorkspaceFilter", payload: cwd });
+                        navigate("/");
+                      }}
+                      className="hud-mono inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10.5px] text-[var(--text-hi)] hover:border-[var(--cyan-line)] hover:text-[var(--cyan-fg)]"
+                      title={cwd}
+                    >
+                      <Folder className="size-3 text-[var(--cyan-fg)]" />
+                      <span>{formatWorkspaceShortName(cwd)}</span>
+                      <span className="text-[var(--text-low)]">({cnt})</span>
+                    </button>
+                  ))}
                 </div>
               </div>
-              <p className="truncate text-xs text-quiet border-t border-border/30 pt-2 mt-1">
-                最近活跃: {isPlatformLoading ? t("loading") : latest}
-              </p>
-            </Link>
-          );
-        })}
-      </section>
-      {dashboardError && (
-        <div className="mt-3 rounded-xl border border-red-500/25 bg-red-500/8 px-4 py-2 text-xs text-red-300">
-          Dashboard 加载失败: {dashboardError}
-        </div>
-      )}
+            )}
+          </section>
 
-      {/* Feature Cards */}
-      <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <FeatureCard icon={<Brain className="size-5" />} title={t("memoryManipulation")} description={t("memoryManipulationDesc")} />
-        <FeatureCard icon={<Flame className="size-5" />} title={t("localFirst")} description="100% 本地运行，零云端依赖。你的数据不会离开你的电脑。" />
-        <FeatureCard icon={<ArrowRight className="size-5" />} title={t("multiPlatform")} description="Claude Code / Codex CLI / OpenCode 统一管理，一个界面搞定。" />
-      </section>
+          {/* Right: Recent Active Sessions Queue */}
+          <section className="hud-panel flex flex-col gap-2.5 p-3.5">
+            <div className="hud-mono flex items-center justify-between border-b border-[var(--line-subtle)] pb-2 text-[11px] font-bold text-[var(--text-mid)]">
+              <span>{t("hud.recentSessionsTitle")}</span>
+              <span className="text-[var(--text-low)]">
+                {t("hud.recentCount", { count: recentSessions.length })}
+              </span>
+            </div>
 
-      {/* Quick Links */}
-      <section className="mt-5 setting-card rounded-[24px] p-6 bg-gradient-to-r from-card/50 via-card/30 to-transparent border border-border/40">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="select-none">
-            <p className="text-fine uppercase tracking-[0.24em] text-primary font-bold">快捷导航</p>
-            <p className="text-xs text-quiet mt-1.5">快速跳转提示词库、全局参数配置或了解本项目</p>
-          </div>
-          <div className="flex flex-wrap gap-2.5">
-            <Link to="/prompts" className="rounded-xl border border-border/80 bg-white/4 px-4 py-2.5 text-xs font-semibold text-foreground/86 hover:bg-primary/12 hover:text-primary hover:border-primary/30 transition-all duration-300">
-              {t("promptLibrary")}
-            </Link>
-            <Link to="/settings" className="rounded-xl border border-border/80 bg-white/4 px-4 py-2.5 text-xs font-semibold text-foreground/86 hover:bg-primary/12 hover:text-primary hover:border-primary/30 transition-all duration-300">
-              {t("settings")}
-            </Link>
-            <Link to="/about" className="rounded-xl border border-border/80 bg-white/4 px-4 py-2.5 text-xs font-semibold text-foreground/86 hover:bg-primary/12 hover:text-primary hover:border-primary/30 transition-all duration-300">
-              {t("about")}
-            </Link>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <article className="setting-card rounded-[24px] p-5 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-      <div className="space-y-3">
-        <div className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-sm shadow-primary/5 transition-transform duration-300 hover:rotate-6">
-          {icon}
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <p className="mt-2 text-sm leading-6 text-quiet">{description}</p>
+            {recentSessions.length === 0 ? (
+              <div className="py-12 text-center text-xs text-[var(--text-low)]">
+                {loading ? t("loading") : t("session.noSessions")}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {recentSessions.map((sess) => {
+                  const platLabel =
+                    PLATFORM_LABELS[sess.platform] ??
+                    sess.platform.toUpperCase();
+                  return (
+                    <button
+                      key={`${sess.platform}::${sess.sessionKey}`}
+                      type="button"
+                      onClick={() => {
+                        navigate(`/${sess.platform}`);
+                        setTimeout(() => {
+                          dispatch({
+                            type: "selectSession",
+                            payload: {
+                              platform: sess.platform,
+                              sessionKey: sess.sessionKey,
+                            },
+                          });
+                        }, 0);
+                      }}
+                      className="w-full rounded-[4px] border border-[var(--line-hair)] bg-[var(--bg-elevated)] px-3 py-2 text-left transition-colors hover:border-[var(--cyan-line)] hover:bg-[var(--bg-hover)]"
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span
+                          className={cn(
+                            "hud-mono rounded-[2px] border px-1.5 py-[0.5px] text-[9px] font-bold uppercase",
+                            getPlatformBadgeStyle(sess.platform)
+                          )}
+                        >
+                          {platLabel}
+                        </span>
+                        {sess.cwd && (
+                          <span className="hud-mono truncate text-[9.5px] text-[var(--text-low)]">
+                            {formatWorkspaceShortName(sess.cwd)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="truncate text-xs font-semibold text-[var(--text-hi)]">
+                        {sess.aliasTitle || sess.displayTitle || sess.sessionId}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
       </div>
-    </article>
+    </div>
   );
 }

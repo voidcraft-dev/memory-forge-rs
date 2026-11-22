@@ -50,7 +50,15 @@ interface TerminalContextType {
   renameTerminal: (terminalId: string, newTitle: string) => void;
 }
 
-const TerminalContext = createContext<TerminalContextType | null>(null);
+const GLOBAL_TERMINAL_CTX_KEY = "__MEMORY_FORGE_TERMINAL_CTX__";
+const globalTermStore = globalThis as unknown as Record<
+  string,
+  React.Context<TerminalContextType | null> | undefined
+>;
+const TerminalContext =
+  globalTermStore[GLOBAL_TERMINAL_CTX_KEY] ??
+  (globalTermStore[GLOBAL_TERMINAL_CTX_KEY] =
+    createContext<TerminalContextType | null>(null));
 
 function createTerminalId() {
   const uuid = globalThis.crypto?.randomUUID?.();

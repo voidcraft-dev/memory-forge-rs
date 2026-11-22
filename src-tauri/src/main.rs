@@ -471,7 +471,14 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             shell::show_main_window(app);
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        & !tauri_plugin_window_state::StateFlags::DECORATIONS,
+                )
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(
@@ -479,6 +486,10 @@ fn main() {
             None::<Vec<&'static str>>,
         ))
         .setup(|app| {
+            if let Some(main_window) = app.get_webview_window("main") {
+                let _ = main_window.set_decorations(false);
+            }
+
             // Settings
             let state = app.state::<SharedSettingsState>();
             settings::initialize(app.handle(), state.inner())?;

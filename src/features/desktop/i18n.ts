@@ -359,7 +359,128 @@ export type MessageKey =
   | "terminal.new.start"
   | "terminal.new.starting"
   | "terminal.new.cancel"
-  | "terminal.new.limit";
+  | "terminal.new.limit"
+  // HUD & Bilingual UI
+  | "hud.nav.workbench"
+  | "hud.nav.radar"
+  | "hud.nav.arsenal"
+  | "hud.cmdPaletteHint"
+  | "hud.toggleLight"
+  | "hud.toggleDark"
+  | "hud.toggleTerminal"
+  | "hud.winMinimize"
+  | "hud.winMaximize"
+  | "hud.winRestore"
+  | "hud.winClose"
+  | "hud.safeWriteBadge"
+  | "hud.activeAdapters"
+  | "hud.copyCwdHint"
+  | "hud.contextLoad"
+  | "hud.ptyCount"
+  | "hud.ptyTitle"
+  | "hud.newTerminal"
+  | "hud.collapse"
+  | "hud.ptyEmptyHint"
+  | "hud.cmdPlaceholder"
+  | "hud.cmdNoMatch"
+  | "hud.cmdResume"
+  | "hud.cmdNewPty"
+  | "hud.cmdSwitchLight"
+  | "hud.cmdSwitchDark"
+  | "hud.cmdGoWorkbench"
+  | "hud.cmdGoRadar"
+  | "hud.cmdGoPrompts"
+  | "hud.cmdGoSettings"
+  | "hud.allWorkspaces"
+  | "hud.idlePlatforms"
+  | "hud.idlePlatformsHint"
+  | "hud.groupToday"
+  | "hud.groupEarlier"
+  | "hud.readOnly"
+  | "hud.subagentsCount"
+  | "hud.importTargetPlatform"
+  | "hud.doubleClickEditHint"
+  | "hud.loadOutputs"
+  | "hud.locateSpike"
+  | "hud.liveVerify"
+  | "hud.moreTerminalOpts"
+  | "hud.resumeGroup"
+  | "hud.forkGroup"
+  | "hud.dnaTitle"
+  | "hud.dnaHint"
+  | "hud.emptyTape"
+  | "hud.filterSpike"
+  | "hud.rangeSelected"
+  | "hud.rangeTokens"
+  | "hud.rangeEraseBtn"
+  | "hud.rangeErasing"
+  | "hud.rangeExportBtn"
+  | "hud.forgedStamp"
+  | "hud.spikeStamp"
+  | "hud.editMemory"
+  | "hud.revertOriginal"
+  | "hud.eraseShort"
+  | "hud.toolArgs"
+  | "hud.toolOutput"
+  | "hud.toolError"
+  | "hud.ghostOriginalTitle"
+  | "hud.safeBackupTag"
+  | "hud.insertFromPrompts"
+  | "hud.noSavedPrompts"
+  | "hud.collapseThinking"
+  | "hud.expandThinking"
+  | "hud.collapseLong"
+  | "hud.expandLong"
+  | "hud.emptyFrame"
+  | "hud.noFramesInSession"
+  | "hud.noMatchingFilter"
+  | "hud.showAllFrames"
+  | "hud.previewTools"
+  | "hud.previewEmpty"
+  | "hud.cleanSessionToast"
+  | "hud.batchEraseTitle"
+  | "hud.batchEraseDesc"
+  | "hud.batchErasedToast"
+  | "hud.revertedToast"
+  | "hud.safeWriteGuarantee"
+  | "hud.radarSubtitle"
+  | "hud.enterWorkbench"
+  | "hud.kpiPlatformsTitle"
+  | "hud.kpiPlatformsSub"
+  | "hud.kpiPlatformsDesc"
+  | "hud.kpiSessionsTitle"
+  | "hud.kpiSessionsDesc"
+  | "hud.kpiTrendTitle"
+  | "hud.kpiTrendDesc"
+  | "hud.kpiPtyTitle"
+  | "hud.kpiPtyBtn"
+  | "hud.matrixTitle"
+  | "hud.matrixBadge"
+  | "hud.workspacesTitle"
+  | "hud.recentSessionsTitle"
+  | "hud.recentCount"
+  | "hud.promptsSummary"
+  | "hud.deletePromptTitle"
+  | "hud.deletePromptDesc"
+  | "hud.viewPrompt"
+  | "hud.vaultKeyTitle"
+  | "hud.unlock"
+  | "hud.settingsSubtitle"
+  | "hud.aboutAndUpdate"
+  | "hud.themeDualDesc"
+  | "hud.adapterEnableDesc"
+  | "hud.backToSettings"
+  | "hud.diagnosticsTitle"
+  | "hud.sealedReadOnly"
+  | "hud.sealedReadOnlyHint"
+  | "hud.systemTagCollapsed"
+  | "hud.systemTagCollapse"
+  | "hud.ctxCopyCwd"
+  | "hud.ctxCopySessionId"
+  | "hud.ctxNoResumeCmd"
+  | "hud.ctxCopyMessage"
+  | "hud.ctxSaveAsPrompt"
+  | "hud.ctxSavedAsPrompt";
 
 const messages: Record<LocaleId, Record<MessageKey, string>> = {
   "zh-CN": {
@@ -712,6 +833,126 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.new.starting": "正在启动…",
     "terminal.new.cancel": "取消",
     "terminal.new.limit": "无法创建更多终端，请先关闭一些会话。",
+    "hud.nav.workbench": "工作台",
+    "hud.nav.radar": "总览",
+    "hud.nav.arsenal": "提示词库",
+    "hud.cmdPaletteHint": "搜索与快捷指令 (Ctrl+K)",
+    "hud.toggleLight": "切换为浅色模式",
+    "hud.toggleDark": "切换为深色模式",
+    "hud.toggleTerminal": "展开/收起底部终端 (Ctrl+`)",
+    "hud.winMinimize": "最小化",
+    "hud.winMaximize": "最大化",
+    "hud.winRestore": "向下还原",
+    "hud.winClose": "关闭",
+    "hud.safeWriteBadge": "安全写回 (.bak)",
+    "hud.activeAdapters": "{count} 个活跃平台",
+    "hud.copyCwdHint": "点击复制工作目录: {cwd}",
+    "hud.contextLoad": "上下文",
+    "hud.ptyCount": "{count} 终端",
+    "hud.ptyTitle": "内嵌终端",
+    "hud.newTerminal": "新建终端",
+    "hud.collapse": "收起",
+    "hud.ptyEmptyHint": "在上方改写历史消息后点击「同屏唤醒验证」，或直接新建交互式 CLI 会话。",
+    "hud.cmdPlaceholder": "输入指令、跳转会话或切换主题...",
+    "hud.cmdNoMatch": "无匹配指令或会话",
+    "hud.cmdResume": "同屏恢复当前会话 ({cmd})",
+    "hud.cmdNewPty": "新建内嵌终端会话",
+    "hud.cmdSwitchLight": "切换为「钛白工程（浅色）」主题",
+    "hud.cmdSwitchDark": "切换为「曜石熔金（深色）」主题",
+    "hud.cmdGoWorkbench": "前往：会话工作台",
+    "hud.cmdGoRadar": "前往：全局总览",
+    "hud.cmdGoPrompts": "前往：提示词库",
+    "hud.cmdGoSettings": "前往：系统设置",
+    "hud.allWorkspaces": "全部项目工程",
+    "hud.idlePlatforms": "+{count} 静默",
+    "hud.idlePlatformsHint": "其余 {count} 个已启用平台暂无会话，已自动收纳",
+    "hud.groupToday": "今日活跃",
+    "hud.groupEarlier": "更早记录",
+    "hud.readOnly": "只读",
+    "hud.subagentsCount": "↳ {count} 个子代理",
+    "hud.importTargetPlatform": "导入目标平台",
+    "hud.doubleClickEditHint": "双击任意对话内容可原地无弹窗改写记忆",
+    "hud.loadOutputs": "加载输出 ({count})",
+    "hud.locateSpike": "定位噪音峰",
+    "hud.liveVerify": "同屏唤醒验证",
+    "hud.moreTerminalOpts": "更多终端恢复与分支选项",
+    "hud.resumeGroup": "恢复会话",
+    "hud.forkGroup": "分支会话",
+    "hud.dnaTitle": "时序频谱",
+    "hud.dnaHint": "#01 ──▶ #{count} · 点击跳转 / 拖拽框选",
+    "hud.emptyTape": "空会话",
+    "hud.filterSpike": "噪音峰",
+    "hud.rangeSelected": "已框选 #{start} ~ #{end}",
+    "hud.rangeTokens": "共约 {tokens} tokens",
+    "hud.rangeEraseBtn": "批量擦除选中内容",
+    "hud.rangeErasing": "清理中...",
+    "hud.rangeExportBtn": "仅导出选中区间",
+    "hud.forgedStamp": "已改写 · v{count}",
+    "hud.spikeStamp": "噪音峰 {tokens}",
+    "hud.editMemory": "改写",
+    "hud.revertOriginal": "回滚原版",
+    "hud.eraseShort": "擦除",
+    "hud.toolArgs": "调用参数",
+    "hud.toolOutput": "执行输出",
+    "hud.toolError": "错误信息",
+    "hud.ghostOriginalTitle": "修改前原文参照（上下游对话不遮挡）",
+    "hud.safeBackupTag": "自动备份 (.bak)",
+    "hud.insertFromPrompts": "+ 插入提示词",
+    "hud.noSavedPrompts": "提示词库暂无内容",
+    "hud.collapseThinking": "▴ 收起思考过程",
+    "hud.expandThinking": "◈ 已折叠思考过程 ({count} 字符) · 点击展开",
+    "hud.collapseLong": "收起长内容",
+    "hud.expandLong": "展开完整内容 ({count}k 字符)",
+    "hud.emptyFrame": "（此条消息内容已擦除为空）",
+    "hud.noFramesInSession": "此会话暂无对话消息记录",
+    "hud.noMatchingFilter": "当前筛选条件下无匹配消息",
+    "hud.showAllFrames": "显示全部 ({count})",
+    "hud.previewTools": "执行工具: {tools}",
+    "hud.previewEmpty": "（空内容）",
+    "hud.cleanSessionToast": "当前会话上下文干净，无高噪峰值",
+    "hud.batchEraseTitle": "批量擦除 #{start} ~ #{end}",
+    "hud.batchEraseDesc": "将清空选中的 {count} 条可编辑消息内容（自动保留修改记录与 .bak 备份），确认执行吗？",
+    "hud.batchErasedToast": "已批量清理 {count} 条消息噪音",
+    "hud.revertedToast": "已从审计记录回滚为原始消息",
+    "hud.safeWriteGuarantee": "安全写回保障：仅原地替换被编辑消息行，其余行逐字节保留并自动生成 .bak 备份。",
+    "hud.radarSubtitle": "跨平台本地会话态势总览",
+    "hud.enterWorkbench": "进入会话工作台",
+    "hud.kpiPlatformsTitle": "接入平台源",
+    "hud.kpiPlatformsSub": "有数据 / {total} 启用",
+    "hud.kpiPlatformsDesc": "零数据平台自动收纳，保持工作台清爽",
+    "hud.kpiSessionsTitle": "本地总会话",
+    "hud.kpiSessionsDesc": "100% 本地原文件直读 · 逐字节安全写回",
+    "hud.kpiTrendTitle": "近 7 日活跃",
+    "hud.kpiTrendDesc": "跨平台最近活跃会话分布",
+    "hud.kpiPtyTitle": "常驻内嵌终端",
+    "hud.kpiPtyBtn": "打开底部同屏终端舱",
+    "hud.matrixTitle": "全平台本地探测矩阵（点击直达）",
+    "hud.matrixBadge": "纯本地零云端",
+    "hud.workspacesTitle": "高频项目工程直达",
+    "hud.recentSessionsTitle": "最近活跃会话直达",
+    "hud.recentCount": "{count} 条",
+    "hud.promptsSummary": "共 {count} 条提示词 · 累计调用 {uses} 次",
+    "hud.deletePromptTitle": "删除提示词",
+    "hud.deletePromptDesc": "确定要从提示词库删除此条目吗？",
+    "hud.viewPrompt": "查看",
+    "hud.vaultKeyTitle": "输入解锁口令",
+    "hud.unlock": "解锁",
+    "hud.settingsSubtitle": "系统与本地平台适配器设置",
+    "hud.aboutAndUpdate": "关于与检查更新",
+    "hud.themeDualDesc": "提供深色与浅色两套高对比精密配色。",
+    "hud.adapterEnableDesc": "启用或禁用需要扫描的 AI 平台适配器（拖拽可调整排序）。",
+    "hud.backToSettings": "返回设置",
+    "hud.diagnosticsTitle": "本地运行环境与路径诊断",
+    "hud.sealedReadOnly": "签名只读",
+    "hud.sealedReadOnlyHint": "该平台对此消息/思考块带有签名校验保护，修改会导致恢复会话报错，因此保持只读",
+    "hud.systemTagCollapsed": "⚙ 系统注入块 <{tag}> ({count} 字符) · 点击展开",
+    "hud.systemTagCollapse": "▴ 收起 <{tag}>",
+    "hud.ctxCopyCwd": "复制工作目录路径",
+    "hud.ctxCopySessionId": "复制会话 ID",
+    "hud.ctxNoResumeCmd": "该平台暂不支持命令行恢复",
+    "hud.ctxCopyMessage": "复制整条消息内容",
+    "hud.ctxSaveAsPrompt": "存入本地提示词库",
+    "hud.ctxSavedAsPrompt": "已存入提示词库",
   },
   en: {
     appName: "Memory Forge",
@@ -1063,6 +1304,126 @@ const messages: Record<LocaleId, Record<MessageKey, string>> = {
     "terminal.new.starting": "Starting…",
     "terminal.new.cancel": "Cancel",
     "terminal.new.limit": "Could not create another terminal. Close some sessions first.",
+    "hud.nav.workbench": "Workbench",
+    "hud.nav.radar": "Overview",
+    "hud.nav.arsenal": "Prompts",
+    "hud.cmdPaletteHint": "Search & Commands (Ctrl+K)",
+    "hud.toggleLight": "Switch to Light Mode",
+    "hud.toggleDark": "Switch to Dark Mode",
+    "hud.toggleTerminal": "Toggle Terminal Panel (Ctrl+`)",
+    "hud.winMinimize": "Minimize",
+    "hud.winMaximize": "Maximize",
+    "hud.winRestore": "Restore",
+    "hud.winClose": "Close",
+    "hud.safeWriteBadge": "Safe Write (.bak)",
+    "hud.activeAdapters": "{count} active",
+    "hud.copyCwdHint": "Click to copy working directory: {cwd}",
+    "hud.contextLoad": "Context",
+    "hud.ptyCount": "{count} PTY",
+    "hud.ptyTitle": "Terminal",
+    "hud.newTerminal": "New Terminal",
+    "hud.collapse": "Collapse",
+    "hud.ptyEmptyHint": "Edit messages above and click Resume & Verify, or launch a new interactive CLI session.",
+    "hud.cmdPlaceholder": "Type a command, jump to session, or switch theme...",
+    "hud.cmdNoMatch": "No matching commands or sessions",
+    "hud.cmdResume": "Resume active session in panel ({cmd})",
+    "hud.cmdNewPty": "New embedded terminal session",
+    "hud.cmdSwitchLight": "Switch to Braun Titanium (Light) theme",
+    "hud.cmdSwitchDark": "Switch to Chrono Obsidian (Dark) theme",
+    "hud.cmdGoWorkbench": "Go to: Session Workbench",
+    "hud.cmdGoRadar": "Go to: Overview",
+    "hud.cmdGoPrompts": "Go to: Prompt Library",
+    "hud.cmdGoSettings": "Go to: Settings",
+    "hud.allWorkspaces": "All Projects",
+    "hud.idlePlatforms": "+{count} idle",
+    "hud.idlePlatformsHint": "{count} enabled platforms with 0 sessions are hidden",
+    "hud.groupToday": "Today",
+    "hud.groupEarlier": "Earlier",
+    "hud.readOnly": "RO",
+    "hud.subagentsCount": "↳ {count} subagents",
+    "hud.importTargetPlatform": "Target platform",
+    "hud.doubleClickEditHint": "Double-click any message to edit in place without modals",
+    "hud.loadOutputs": "Load outputs ({count})",
+    "hud.locateSpike": "Locate Spike",
+    "hud.liveVerify": "Resume & Verify",
+    "hud.moreTerminalOpts": "More resume & fork options",
+    "hud.resumeGroup": "Resume Session",
+    "hud.forkGroup": "Fork Session",
+    "hud.dnaTitle": "Timeline",
+    "hud.dnaHint": "#01 ──▶ #{count} · Click to jump / Drag to select",
+    "hud.emptyTape": "Empty session",
+    "hud.filterSpike": "Spikes",
+    "hud.rangeSelected": "Selected #{start} ~ #{end}",
+    "hud.rangeTokens": "~{tokens} tokens",
+    "hud.rangeEraseBtn": "Erase Selected",
+    "hud.rangeErasing": "Erasing...",
+    "hud.rangeExportBtn": "Export Range",
+    "hud.forgedStamp": "Edited · v{count}",
+    "hud.spikeStamp": "Spike {tokens}",
+    "hud.editMemory": "Edit",
+    "hud.revertOriginal": "Revert",
+    "hud.eraseShort": "Erase",
+    "hud.toolArgs": "Arguments",
+    "hud.toolOutput": "Output",
+    "hud.toolError": "Error",
+    "hud.ghostOriginalTitle": "Original Reference (surrounding context stays visible)",
+    "hud.safeBackupTag": "Auto Backup (.bak)",
+    "hud.insertFromPrompts": "+ Insert Prompt",
+    "hud.noSavedPrompts": "No saved prompts yet",
+    "hud.collapseThinking": "▴ Collapse thinking",
+    "hud.expandThinking": "◈ Thinking collapsed ({count} chars) · Click to expand",
+    "hud.collapseLong": "Show less",
+    "hud.expandLong": "Show full ({count}k chars)",
+    "hud.emptyFrame": "(Message content erased)",
+    "hud.noFramesInSession": "No messages in this session",
+    "hud.noMatchingFilter": "No messages match the current filter",
+    "hud.showAllFrames": "Show all ({count})",
+    "hud.previewTools": "Tools: {tools}",
+    "hud.previewEmpty": "(Empty)",
+    "hud.cleanSessionToast": "Session context is clean — no token spikes detected",
+    "hud.batchEraseTitle": "Batch Erase #{start} ~ #{end}",
+    "hud.batchEraseDesc": "Clear content of {count} editable messages in the selected range? (Audit logs and .bak backups are preserved.)",
+    "hud.batchErasedToast": "Cleared noise from {count} messages",
+    "hud.revertedToast": "Reverted message from audit log",
+    "hud.safeWriteGuarantee": "Safe Write Guarantee: Only the edited message line is replaced; every other line is preserved byte-for-byte with automatic .bak backups.",
+    "hud.radarSubtitle": "Cross-Platform Local Session Overview",
+    "hud.enterWorkbench": "Open Workbench",
+    "hud.kpiPlatformsTitle": "Mounted Platforms",
+    "hud.kpiPlatformsSub": "active / {total} enabled",
+    "hud.kpiPlatformsDesc": "Zero-session platforms are tucked away automatically",
+    "hud.kpiSessionsTitle": "Total Sessions",
+    "hud.kpiSessionsDesc": "100% local file access · byte-exact write-back",
+    "hud.kpiTrendTitle": "7-Day Activity",
+    "hud.kpiTrendDesc": "Recent active session distribution",
+    "hud.kpiPtyTitle": "Embedded Terminals",
+    "hud.kpiPtyBtn": "Open bottom terminal panel",
+    "hud.matrixTitle": "Local Platform Matrix (click to open)",
+    "hud.matrixBadge": "100% Local",
+    "hud.workspacesTitle": "Active Project Workspaces",
+    "hud.recentSessionsTitle": "Recent Active Sessions",
+    "hud.recentCount": "{count} items",
+    "hud.promptsSummary": "{count} prompts · {uses} total uses",
+    "hud.deletePromptTitle": "Delete Prompt",
+    "hud.deletePromptDesc": "Delete this prompt from your local library?",
+    "hud.viewPrompt": "View",
+    "hud.vaultKeyTitle": "Enter Vault Passphrase",
+    "hud.unlock": "Unlock",
+    "hud.settingsSubtitle": "System & Local Adapter Configuration",
+    "hud.aboutAndUpdate": "About & Updates",
+    "hud.themeDualDesc": "Clean dark and light high-contrast precision themes.",
+    "hud.adapterEnableDesc": "Enable or disable AI platform adapters (drag to reorder priority).",
+    "hud.backToSettings": "Back to Settings",
+    "hud.diagnosticsTitle": "Local Runtime Diagnostics",
+    "hud.sealedReadOnly": "Signed · RO",
+    "hud.sealedReadOnlyHint": "This platform attaches a cryptographic signature to this block; modifying it would break session resume.",
+    "hud.systemTagCollapsed": "⚙ System Injected <{tag}> ({count} chars) · Click to expand",
+    "hud.systemTagCollapse": "▴ Collapse <{tag}>",
+    "hud.ctxCopyCwd": "Copy Working Directory",
+    "hud.ctxCopySessionId": "Copy Session ID",
+    "hud.ctxNoResumeCmd": "CLI resume is not supported for this platform",
+    "hud.ctxCopyMessage": "Copy Full Message",
+    "hud.ctxSaveAsPrompt": "Save to Prompt Library",
+    "hud.ctxSavedAsPrompt": "Saved to Prompt Library",
   },
 };
 

@@ -145,7 +145,7 @@ export function TerminalViewport({ terminalId, isActive }: TerminalViewportProps
   }, [isActive]);
 
   return (
-    <div className="h-full min-h-0 w-full bg-[#0d1117] p-2">
+    <div className="h-full min-h-0 w-full bg-[#06080c] px-2.5 py-1.5">
       <div
         ref={hostRef}
         className="h-full min-h-0 w-full overflow-hidden"

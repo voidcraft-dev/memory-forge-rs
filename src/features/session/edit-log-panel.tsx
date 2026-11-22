@@ -1,220 +1,351 @@
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { useDesktop } from '@/features/desktop/provider'
-import { cn } from '@/lib/utils'
-import { FileText, ArrowRight, Clock, Eye, EyeOff, RefreshCw, CheckCircle, Undo2, Trash2 } from 'lucide-react'
-import { useState } from 'react'
-import type { MessageKey } from '@/features/desktop/i18n'
-import type { EditLogEntry } from '@/features/desktop/types'
-import { api } from '@/features/desktop/api'
+import {
+  CheckCircle,
+  Clock,
+  Eye,
+  EyeOff,
+  FileText,
+  RefreshCw,
+  Trash2,
+  Undo2,
+  X,
+  Zap,
+} from "lucide-react";
+import { useState } from "react";
+import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { api } from "@/features/desktop/api";
+import type { MessageKey } from "@/features/desktop/i18n";
+import { useDesktop } from "@/features/desktop/provider";
+import type { EditLogEntry } from "@/features/desktop/types";
+import { cn } from "@/lib/utils";
 
-function DiffView({ oldText, newText, t }: { oldText: string; newText: string; t: (key: MessageKey) => string }) {
-  const [expanded, setExpanded] = useState(false)
-  const maxLen = 120
-  const oldPreview = oldText.length > maxLen && !expanded ? oldText.slice(0, maxLen) + '...' : oldText
-  const newPreview = newText.length > maxLen && !expanded ? newText.slice(0, maxLen) + '...' : newText
+function DiffBlock({
+  oldText,
+  newText,
+  t,
+}: {
+  oldText: string;
+  newText: string;
+  t: (key: MessageKey) => string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const maxLen = 160;
+  const oldPreview =
+    oldText.length > maxLen && !expanded
+      ? `${oldText.slice(0, maxLen)}...`
+      : oldText;
+  const newPreview =
+    newText.length > maxLen && !expanded
+      ? `${newText.slice(0, maxLen)}...`
+      : newText;
 
   return (
-    <div className="space-y-2">
-      <div className="rounded-lg bg-red-500/5 border border-red-500/20 p-3">
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <span className="text-[10px] font-medium text-red-400/80 uppercase tracking-wider">{t('editLog.before')}</span>
+    <div className="mt-2 space-y-1.5">
+      <div className="rounded-[3px] border border-[var(--crimson-line)] bg-[var(--crimson-dim)] p-2">
+        <div className="hud-mono mb-1 flex items-center justify-between text-[9.5px] font-bold tracking-wider text-[var(--crimson-fg)] uppercase">
+          <span>- {t("editLog.before")}</span>
           {!expanded && oldText.length > maxLen && (
-            <button onClick={() => setExpanded(true)} className="text-[10px] text-muted-foreground/50 hover:text-foreground">{t('editLog.expand')}</button>
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="underline opacity-80 hover:opacity-100"
+            >
+              {t("editLog.expand")}
+            </button>
           )}
         </div>
-        <pre className="text-xs text-red-300/80 whitespace-pre-wrap font-mono leading-relaxed">{oldPreview}</pre>
+        <pre className="hud-mono max-h-44 overflow-y-auto text-[11px] leading-relaxed whitespace-pre-wrap text-[var(--crimson-fg)]">
+          {oldPreview || t("hud.previewEmpty")}
+        </pre>
       </div>
-      <div className="flex justify-center"><ArrowRight className="w-3.5 h-3.5 text-muted-foreground/30" /></div>
-      <div className="rounded-lg bg-green-500/5 border border-green-500/20 p-3">
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <span className="text-[10px] font-medium text-green-400/80 uppercase tracking-wider">{t('editLog.after')}</span>
+
+      <div className="rounded-[3px] border border-[var(--emerald-line)] bg-[var(--emerald-dim)] p-2">
+        <div className="hud-mono mb-1 flex items-center justify-between text-[9.5px] font-bold tracking-wider text-[var(--emerald-fg)] uppercase">
+          <span>+ {t("editLog.after")}</span>
           {!expanded && newText.length > maxLen && (
-            <button onClick={() => setExpanded(true)} className="text-[10px] text-muted-foreground/50 hover:text-foreground">{t('editLog.expand')}</button>
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="underline opacity-80 hover:opacity-100"
+            >
+              {t("editLog.expand")}
+            </button>
           )}
         </div>
-        <pre className="text-xs text-green-300/80 whitespace-pre-wrap font-mono leading-relaxed">{newPreview}</pre>
+        <pre className="hud-mono max-h-44 overflow-y-auto text-[11px] leading-relaxed whitespace-pre-wrap text-[var(--emerald-fg)]">
+          {newPreview || t("hud.emptyFrame")}
+        </pre>
       </div>
     </div>
-  )
+  );
 }
 
 export function EditLogPanel() {
-  const { t, state, dispatch } = useDesktop()
-  const currentPlatform = state.currentPlatform
-  const editLog = state.editLog
-  const selectedSessionKey = state.selectedSessionKey
-  const showEditLog = state.showEditLog
-  const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const [refreshDone, setRefreshDone] = useState(false)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const { t, state, dispatch } = useDesktop();
+  const { confirm, dialogProps } = useConfirmDialog();
+  const editLog = state.editLog;
+  const selectedSessionKey = state.selectedSessionKey;
+  const showEditLog = state.showEditLog;
+  const activePlatform =
+    state.sessionDetail?.platform ||
+    state.selectedSessionPlatform ||
+    (state.currentPlatform !== "all" ? state.currentPlatform : "claude");
+
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshDone, setRefreshDone] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  if (!selectedSessionKey || !showEditLog) return null;
 
   const handleRefreshLog = async () => {
-    if (!selectedSessionKey) return
-    setRefreshing(true)
-    setRefreshDone(false)
+    setRefreshing(true);
+    setRefreshDone(false);
     try {
-      const logs = await api.getEditLog(currentPlatform, selectedSessionKey)
-      dispatch({ type: 'setEditLog', payload: logs })
-      setRefreshDone(true)
-      setTimeout(() => setRefreshDone(false), 1500)
+      const logs = await api.getEditLog(activePlatform, selectedSessionKey);
+      dispatch({ type: "setEditLog", payload: logs });
+      setRefreshDone(true);
+      setTimeout(() => setRefreshDone(false), 1400);
     } catch (err) {
-      console.error('Failed to refresh edit log:', err)
+      console.error("Failed to refresh edit log:", err);
     }
-    setRefreshing(false)
-  }
+    setRefreshing(false);
+  };
 
   const handleRestore = async (entry: EditLogEntry) => {
-    if (!window.confirm(t('session.restoreConfirm'))) return
-    if (!selectedSessionKey) return
-    try {
-      await api.restoreMessage(currentPlatform, entry.id, selectedSessionKey)
-      // Refresh both edit log and session detail
-      const [logs, detail] = await Promise.all([
-        api.getEditLog(currentPlatform, selectedSessionKey),
-        api.getSessionDetail(currentPlatform, selectedSessionKey),
-      ])
-      dispatch({ type: 'setEditLog', payload: logs })
-      dispatch({ type: 'setSessionDetail', payload: detail })
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('session.messageSaved') } })
-    } catch (err) {
-      console.error('Failed to restore message:', err)
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
+    if (
+      !(await confirm({
+        title: t("session.restore"),
+        description: t("session.restoreConfirm"),
+      }))
+    ) {
+      return;
     }
-  }
+    try {
+      await api.restoreMessage(activePlatform, entry.id, selectedSessionKey);
+      const [logs, detail] = await Promise.all([
+        api.getEditLog(activePlatform, selectedSessionKey),
+        api.getSessionDetail(activePlatform, selectedSessionKey),
+      ]);
+      dispatch({ type: "setEditLog", payload: logs });
+      dispatch({ type: "setSessionDetail", payload: detail });
+      dispatch({
+        type: "setSessionStatus",
+        payload: { tone: "success", message: t("session.messageSaved") },
+      });
+    } catch (err) {
+      console.error("Failed to restore message:", err);
+      dispatch({
+        type: "setSessionStatus",
+        payload: { tone: "error", message: t("session.saveFailed") },
+      });
+    }
+  };
 
   const handleDelete = async (entry: EditLogEntry) => {
-    if (!selectedSessionKey || !window.confirm(t('editLog.deleteConfirm'))) return
-    setDeletingId(entry.id)
-    try {
-      const deleted = await api.deleteEditLog(currentPlatform, entry.id, selectedSessionKey)
-      if (!deleted) throw new Error('Edit log does not belong to this session')
-      dispatch({ type: 'setEditLog', payload: editLog.filter((item) => item.id !== entry.id) })
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('editLog.deleted') } })
-    } catch (err) {
-      console.error('Failed to delete edit log:', err)
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
-    } finally {
-      setDeletingId(null)
+    if (
+      !(await confirm({
+        title: t("editLog.delete"),
+        description: t("editLog.deleteConfirm"),
+        variant: "danger",
+      }))
+    ) {
+      return;
     }
-  }
+    setDeletingId(entry.id);
+    try {
+      const deleted = await api.deleteEditLog(
+        activePlatform,
+        entry.id,
+        selectedSessionKey
+      );
+      if (deleted) {
+        dispatch({
+          type: "setEditLog",
+          payload: editLog.filter((item) => item.id !== entry.id),
+        });
+      }
+    } catch (err) {
+      console.error("Failed to delete edit log:", err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleClear = async () => {
-    if (!selectedSessionKey || editLog.length === 0 || !window.confirm(t('editLog.clearConfirm'))) return
-    setDeletingId(-1)
-    try {
-      await api.clearEditLogs(currentPlatform, selectedSessionKey)
-      dispatch({ type: 'setEditLog', payload: [] })
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'success', message: t('editLog.deleted') } })
-    } catch (err) {
-      console.error('Failed to clear edit logs:', err)
-      dispatch({ type: 'setSessionStatus', payload: { tone: 'error', message: t('session.saveFailed') } })
-    } finally {
-      setDeletingId(null)
+    if (
+      editLog.length === 0 ||
+      !(await confirm({
+        title: t("editLog.clear"),
+        description: t("editLog.clearConfirm"),
+        variant: "danger",
+      }))
+    ) {
+      return;
     }
-  }
-
-  if (currentPlatform === 'dashboard' || currentPlatform === 'about' || currentPlatform === 'prompts' || currentPlatform === 'settings' || !selectedSessionKey) return null
-  if (!showEditLog) return null
+    setDeletingId(-1);
+    try {
+      await api.clearEditLogs(activePlatform, selectedSessionKey);
+      dispatch({ type: "setEditLog", payload: [] });
+    } catch (err) {
+      console.error("Failed to clear edit logs:", err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
-    <aside className="hidden h-full w-[280px] flex-shrink-0 flex-col border-l border-border/50 bg-gradient-to-b from-card to-card/60 backdrop-blur-xl xl:w-[320px] xl:flex">
-      <div className="border-b border-border/50 p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-            <FileText className="w-5 h-5 text-amber-500" />
-            {t('editLog.title')}
-          </h2>
+    <>
+      <div
+        className="fixed inset-0 top-[38px] z-30 bg-black/35 xl:hidden"
+        onClick={() => dispatch({ type: "setShowEditLog", payload: false })}
+      />
+      <aside className="fixed top-[38px] right-0 bottom-0 z-40 flex w-[350px] max-w-[92vw] flex-col border-l border-[var(--line-strong)] bg-[var(--bg-rack)] shadow-2xl">
+        {/* Drawer Header */}
+        <div className="flex h-[42px] shrink-0 items-center justify-between border-b border-[var(--line-hair)] px-3.5">
+          <div className="hud-mono flex items-center gap-1.5 text-xs font-bold tracking-wider text-[var(--forge-fg)]">
+            <Zap className="size-3.5" />
+            <span>{t("editLog.title")}</span>
+          </div>
           <div className="flex items-center gap-1">
             {editLog.length > 0 && (
-              <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={handleClear} disabled={deletingId !== null}>
-                <Trash2 className="w-3.5 h-3.5" />
-                {t('editLog.clear')}
-              </Button>
+              <button
+                type="button"
+                disabled={deletingId !== null}
+                onClick={() => void handleClear()}
+                className="hud-btn hud-btn-danger h-6 px-2 text-[10.5px]"
+              >
+                <Trash2 className="size-3" />
+                <span>{t("editLog.clear")}</span>
+              </button>
             )}
-            <Button variant="ghost" size="sm" className={cn("h-7 gap-1 text-xs", refreshDone ? "text-green-400" : "")} onClick={handleRefreshLog} disabled={refreshing}>
-              {refreshDone ? <CheckCircle className="w-3.5 h-3.5" /> : <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />}
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => dispatch({ type: 'setShowEditLog', payload: false })}>
-              {t('editLog.collapse')}
-            </Button>
+            <button
+              type="button"
+              disabled={refreshing}
+              onClick={() => void handleRefreshLog()}
+              className={cn(
+                "grid size-6 place-items-center rounded-[3px] border border-[var(--line-hair)] bg-[var(--bg-panel)] text-[var(--text-mid)] hover:text-[var(--text-hi)]",
+                refreshDone && "text-[var(--emerald-fg)]"
+              )}
+              title={t("session.refresh")}
+            >
+              {refreshDone ? (
+                <CheckCircle className="size-3" />
+              ) : (
+                <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => dispatch({ type: "setShowEditLog", payload: false })}
+              className="grid size-6 place-items-center rounded-[3px] border border-[var(--line-hair)] bg-[var(--bg-panel)] text-[var(--text-mid)] hover:text-[var(--text-hi)]"
+              title={t("editLog.collapse")}
+            >
+              <X className="size-3.5" />
+            </button>
           </div>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground/60">{t('editLog.readonlyTrace')}</p>
-      </div>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="p-4 space-y-3">
+
+        {/* Scrollable Diff Entries */}
+        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
           {editLog.length === 0 ? (
-            <div className="text-center py-12 px-4">
-              <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 flex items-center justify-center">
-                <FileText className="w-8 h-8 text-amber-400/60" />
-              </div>
-              <p className="text-sm font-medium text-foreground/70">{t('editLog.noRecords')}</p>
-              <p className="text-xs text-muted-foreground/60 mt-2 leading-relaxed">{t('editLog.afterEditHint')}</p>
+            <div className="py-16 text-center">
+              <FileText className="mx-auto mb-3 size-7 text-[var(--text-low)]" />
+              <p className="text-xs font-semibold text-[var(--text-mid)]">
+                {t("editLog.noRecords")}
+              </p>
+              <p className="mt-1 text-[11px] text-[var(--text-low)]">
+                {t("editLog.afterEditHint")}
+              </p>
             </div>
           ) : (
-            <>
-              <div className="text-xs text-muted-foreground/60 mb-2">{t('editLog.recordCount', { count: editLog.length })}</div>
-              {editLog.map((entry: EditLogEntry) => (
-                <div key={entry.id} className={cn("group relative p-4 rounded-xl border transition-all duration-300", "bg-gradient-to-r from-amber-500/5 to-orange-500/5", "border-border/30 hover:border-amber-500/30", "hover:shadow-lg hover:shadow-amber-500/10")}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Clock className="w-3 h-3 text-muted-foreground/50" />
-                    <span className="text-[10px] text-muted-foreground/60">
-                      {new Date(entry.createdAt).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            editLog.map((entry) => {
+              const isExpanded = expandedId === entry.id;
+              return (
+                <div
+                  key={entry.id}
+                  className="rounded-[5px] border border-[var(--line-hair)] border-l-[2.5px] border-l-[var(--forge)] bg-[var(--bg-panel)] p-2.5"
+                >
+                  <div className="hud-mono flex items-center justify-between text-[10px] text-[var(--text-low)]">
+                    <span className="flex items-center gap-1 text-[var(--forge-fg)] font-semibold">
+                      <Clock className="size-2.5" />
+                      {new Date(entry.createdAt).toLocaleString("zh-CN", {
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
+                    </span>
+                    <span className="max-w-[140px] truncate">
+                      {entry.editTarget}
                     </span>
                   </div>
-                  <Badge variant="outline" className="text-[10px] mb-3 block w-fit">
-                    {entry.editTarget.length > 40 ? entry.editTarget.slice(0, 40) + '...' : entry.editTarget}
-                  </Badge>
-                  {expandedId === entry.id ? (
-                    <>
-                      <DiffView oldText={entry.oldContent} newText={entry.newContent} t={t} />
-                      <div className="flex gap-2 mt-2">
-                        <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setExpandedId(null)}>
-                          <EyeOff className="w-3 h-3 mr-1" />{t('editLog.collapse')}
-                        </Button>
-                        <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs border-blue-500/20 hover:bg-blue-500/10 hover:border-blue-500/30 text-blue-400" onClick={() => handleRestore(entry)}>
-                          <Undo2 className="w-3 h-3" />{t('session.restore')}
-                        </Button>
-                        <Button variant="outline" size="sm" className="px-2 text-xs border-red-500/20 text-red-400 hover:border-red-500/30 hover:bg-red-500/10" onClick={() => handleDelete(entry)} disabled={deletingId === entry.id} title={t('editLog.delete')}>
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </>
+
+                  {isExpanded ? (
+                    <DiffBlock
+                      newText={entry.newContent}
+                      oldText={entry.oldContent}
+                      t={t}
+                    />
                   ) : (
-                    <>
-                      <p className="text-xs text-red-300/60 line-clamp-1 font-mono mb-1">- {entry.oldContent.slice(0, 80)}</p>
-                      <p className="text-xs text-green-300/60 line-clamp-1 font-mono mb-2">+ {entry.newContent.slice(0, 80)}</p>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs border-amber-500/20 hover:bg-amber-500/10 hover:border-amber-500/30" onClick={() => setExpandedId(entry.id)}>
-                          <Eye className="w-3 h-3" />{t('editLog.viewDetail')}
-                        </Button>
-                        <Button variant="outline" size="sm" className="gap-1.5 text-xs border-blue-500/20 hover:bg-blue-500/10 hover:border-blue-500/30 text-blue-400" onClick={() => handleRestore(entry)}>
-                          <Undo2 className="w-3 h-3" />{t('session.restore')}
-                        </Button>
-                        <Button variant="outline" size="sm" className="px-2 text-xs border-red-500/20 text-red-400 hover:border-red-500/30 hover:bg-red-500/10" onClick={() => handleDelete(entry)} disabled={deletingId === entry.id} title={t('editLog.delete')}>
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </>
+                    <div className="mt-2 space-y-1">
+                      <p className="hud-mono line-clamp-1 rounded-[2px] bg-[var(--crimson-dim)] px-1.5 py-0.5 text-[10.5px] text-[var(--crimson-fg)]">
+                        - {entry.oldContent.slice(0, 90) || t("hud.previewEmpty")}
+                      </p>
+                      <p className="hud-mono line-clamp-1 rounded-[2px] bg-[var(--emerald-dim)] px-1.5 py-0.5 text-[10.5px] text-[var(--emerald-fg)]">
+                        + {entry.newContent.slice(0, 90) || t("hud.previewEmpty")}
+                      </p>
+                    </div>
                   )}
+
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                      className="hud-btn h-6 flex-1 justify-center text-[10.5px]"
+                    >
+                      {isExpanded ? (
+                        <>
+                          <EyeOff className="size-3" />
+                          <span>{t("editLog.collapse")}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="size-3" />
+                          <span>{t("editLog.viewDetail")}</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleRestore(entry)}
+                      className="hud-btn h-6 flex-1 justify-center border-[var(--cyan-line)] bg-[var(--cyan-dim)] text-[10.5px] text-[var(--cyan-fg)]"
+                    >
+                      <Undo2 className="size-3" />
+                      <span>{t("session.restore")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deletingId === entry.id}
+                      onClick={() => void handleDelete(entry)}
+                      className="hud-btn hud-btn-danger h-6 px-2 text-[10.5px]"
+                      title={t("editLog.delete")}
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </>
+              );
+            })
           )}
         </div>
-      </ScrollArea>
-      <div className="p-4 border-t border-border/50 bg-gradient-to-r from-amber-500/5 to-orange-500/5">
-        <div className="flex items-start gap-2 text-[10px] text-muted-foreground/80">
-          <FileText className="w-3 h-3 flex-shrink-0 mt-0.5 text-amber-500" />
-          <div>
-            <p className="font-medium text-foreground/70">{t('editLog.traceTitle')}</p>
-            <p className="mt-1 leading-relaxed">{t('editLog.traceDesc')}</p>
-          </div>
+
+        {/* Footer Safety Guarantee */}
+        <div className="hud-mono shrink-0 border-t border-[var(--line-hair)] bg-[var(--bg-panel)] px-3.5 py-2 text-[10px] text-[var(--text-low)]">
+          {t("hud.safeWriteGuarantee")}
         </div>
-      </div>
-    </aside>
-  )
+      </aside>
+      <ConfirmDialog {...dialogProps} />
+    </>
+  );
 }

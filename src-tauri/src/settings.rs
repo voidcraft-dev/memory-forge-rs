@@ -153,7 +153,7 @@ fn migrate_settings(mut settings: AppSettings) -> AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            theme: "porcelain".to_string(),
+            theme: "chrono".to_string(),
             locale: "zh-CN".to_string(),
             close_to_tray_on_close: true,
             launch_on_startup: false,

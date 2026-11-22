@@ -20,7 +20,7 @@ import type {
 const STORAGE_KEY = "memory-forge.snapshot";
 
 const defaultSettings = {
-  theme: "porcelain" as const,
+  theme: "chrono" as const,
   locale: "zh-CN" as const,
   closeToTrayOnClose: true,
   launchOnStartup: false,
