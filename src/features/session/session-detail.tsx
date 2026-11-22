@@ -2034,6 +2034,7 @@ export function SessionDetail() {
 
         {/* Zero-Scrollbar Full-Session Oscilloscope Spectrum Track */}
         <div
+          data-testid="dna-track"
           onMouseLeave={() => setHoveredDnaIdx(null)}
           className="flex h-[26px] w-full items-end gap-[2px] overflow-hidden rounded-[3px] border border-[var(--line-hair)] bg-[repeating-linear-gradient(90deg,var(--line-subtle)_0_1px,transparent_1px_20px)] bg-[var(--bg-void)] px-1.5 pt-1 pb-[2px]"
         >

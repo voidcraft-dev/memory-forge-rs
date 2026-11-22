@@ -20,6 +20,7 @@ git -c user.name="VoidCraft" -c user.email="246403070+voidcraft-dev@users.norepl
 
 - 后端测试：`cargo test --manifest-path src-tauri/Cargo.toml`
 - 前端类型检查：`npm run typecheck`
+- 前端界面回归：`npm run test:e2e`（Playwright 驱动本机 Edge，`e2e/mock-backend.ts` 模拟全部 Tauri 命令，不碰真实会话；另起 1431 端口，可与 `tauri dev` 同时跑。没有 Edge 时设 `E2E_BROWSER_CHANNEL=chromium` 并先 `npx playwright install chromium`）
 - 开发运行（Tauri 桌面窗口）：`npm run tauri dev`
 
 ## 发版
