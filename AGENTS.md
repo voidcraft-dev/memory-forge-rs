@@ -39,3 +39,9 @@ Actions 不可用时改为本地打包（仅 Windows）：
 ## 新增平台适配器
 
 参考 `feat: 新增 CodeBuddy 会话适配器`（f3b8cbd）改动的文件清单：`src-tauri/src/platforms/<name>.rs`、`platforms/mod.rs`（`get_adapter` 与 `build_commands`）、`settings.rs`、`session_service.rs`（`DASHBOARD_PLATFORM_NAMES`）、`terminal.rs`（命令白名单），以及前端 `types.ts`、`api.ts`、`i18n.ts`、`settings.tsx`、`dashboard.tsx`、`shell-layout.tsx`、`session-list.tsx`、`terminal-sessions.tsx`、`new-session-dialog.tsx`、README。
+
+## 编辑与校验注意
+
+- `src/` 下源码是 CRLF 换行（`core.autocrlf=true`），改文件时保持 CRLF；Git Bash 里的 `sed -i` 会把整文件转成 LF，别用。
+- `npx biome check src` 在 main 上就有约 1100 条存量问题（属性排序、块语句等风格规则），校验时按文件对比改动前后的数量，不要追求清零。
+- 前端没有测试框架；`npm run typecheck` 加 `npx vite build --outDir <临时目录>` 是最低限度的验证，不要把构建产物写进仓库的 `dist/`。
